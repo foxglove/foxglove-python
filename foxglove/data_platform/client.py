@@ -3,7 +3,10 @@ from enum import Enum
 from io import BytesIO
 from typing import Dict, List, Optional, Protocol
 
+import arrow
 import requests
+
+from .to_curl import to_curl
 
 
 class FoxgloveException(Exception):
@@ -17,7 +20,7 @@ class ProgressCallback(Protocol):
 
 class OutputFormat(Enum):
     bag = "bag1"
-    mcap = "mcap"
+    mcap0 = "mcap0"
 
 
 class ProgressBufferReader(BytesIO):
@@ -107,24 +110,38 @@ class Client:
         if not device_id and not device_name:
             raise FoxgloveException("One of device_id or device_name is required.")
 
-        request = requests.get(
+        params = {
+            "deviceId": device_id,
+            "deviceName": device_name,
+            "sortBy": sort_by,
+            "sortOrder": sort_order,
+            "limit": limit,
+            "offset": offset,
+            "start": start.astimezone().isoformat() if start else None,
+            "end": end.astimezone().isoformat() if end else None,
+            "key": key,
+            "value": value,
+        }
+        response = requests.get(
             self.__url__("/beta/device-events"),
             headers=self.__headers,
-            json={
-                "deviceId": device_id,
-                "deviceName": device_name,
-                "sortBy": sort_by,
-                "sortOrder": sort_order,
-                "limit": limit,
-                "offset": offset,
-                "start": start.astimezone().isoformat() if start else None,
-                "end": end.astimezone().isoformat() if end else None,
-                "key": key,
-                "value": value,
-            },
+            params={k: v for k, v in params.items() if v},
         )
-        request.raise_for_status()
-        return request.json()
+        response.raise_for_status()
+        return [
+            {
+                "id": e["id"],
+                "device_id": e["deviceId"],
+                "duration": int(e["durationNanos"]),
+                "metadata": e["metadata"],
+                # datetime doesn't support nanoseconds so we have to divide by 1e9 first.
+                "timestamp": arrow.get(int(e["timestampNanos"]) / 1e9).datetime,
+                "timestamp_nanos": int(e["timestampNanos"]),
+                "created_at": arrow.get(e["createdAt"]).datetime,
+                "updated_at": arrow.get(e["updatedAt"]).datetime,
+            }
+            for e in response.json()
+        ]
 
     def download_data(
         self,
@@ -132,8 +149,8 @@ class Client:
         start: datetime.datetime,
         end: datetime.datetime,
         topics: List[str] = [],
-        output_format: OutputFormat = OutputFormat.mcap,
-    ) -> BytesIO:
+        output_format: OutputFormat = OutputFormat.mcap0,
+    ) -> requests.Response:
         """
         Returns a readable data stream.
 
@@ -144,22 +161,81 @@ class Client:
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
         """
 
-        link_request = requests.post(
+        params = {
+            "deviceId": device_id,
+            "end": end.astimezone().isoformat(),
+            "outputFormat": output_format.value,
+            "start": start.astimezone().isoformat(),
+            "topics": topics,
+        }
+        link_response = requests.post(
             self.__url__("/v1/data/stream"),
             headers=self.__headers,
-            json={
-                "deviceId": device_id,
-                "end": end.astimezone().isoformat(),
-                "outputFormat": output_format.value,
-                "start": start.astimezone().isoformat(),
-                "topics": topics,
-            },
+            json={k: v for k, v in params.items() if v},
         )
-        link_request.raise_for_status()
-        json = link_request.json()
+        link_response.raise_for_status()
+        json = link_response.json()
         link = json["link"]
         response = requests.get(link, stream=True)
-        return response.raw
+        return response
+
+    def get_coverage(self, start: datetime.datetime, end: datetime.datetime):
+        response = requests.get(
+            self.__url__("/v1/data/coverage"),
+            headers=self.__headers,
+            params={
+                "start": start.astimezone().isoformat(),
+                "end": end.astimezone().isoformat(),
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_devices(self):
+        response = requests.get(
+            self.__url__("/v1/devices"),
+            headers=self.__headers,
+        )
+        response.raise_for_status()
+        return [
+            {
+                "id": d["id"],
+                "name": d["name"],
+                "serial_number": d["serialNumber"],
+                "created_at": arrow.get(d["createdAt"]).datetime,
+                "updated_at": arrow.get(d["updatedAt"]).datetime,
+            }
+            for d in response.json()
+        ]
+
+    def get_imports(self):
+        response = requests.get(
+            self.__url__("/v1/imports"),
+            headers=self.__headers,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_topics(
+        self,
+        device_id: str,
+        start: datetime.datetime,
+        end: datetime.datetime,
+        include_schemas: Optional[bool] = False,
+    ):
+        response = requests.get(
+            self.__url__("/v1/data/topics"),
+            headers=self.__headers,
+            params={
+                "deviceId": device_id,
+                "start": start.astimezone().isoformat(),
+                "end": end.astimezone().isoformat(),
+                "includeSchemas": include_schemas,
+            },
+        )
+        print(to_curl(response.request))
+        response.raise_for_status()
+        return response.json()
 
     def upload_data(
         self,

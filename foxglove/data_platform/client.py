@@ -53,7 +53,7 @@ class Client:
         self,
         device_id: str,
         time: datetime.datetime,
-        duration: Optional[int] = 0,
+        duration: int,
         metadata: Optional[Dict[str, str]] = {},
     ):
         """
@@ -61,10 +61,10 @@ class Client:
 
         device_id: The unique of the device associated with this event.
         time: The time at which the event occurred.
-        duration: The optional duration of the event, defaulting to 0.
+        duration: The duration of the event. Zero for an instantaneous event.
         metadata: Optional metadata attached to the event.
         """
-        r = requests.post(
+        request = requests.post(
             self.__url__("/beta/device-events"),
             headers=self.__headers,
             json={
@@ -74,7 +74,8 @@ class Client:
                 "timestamp": time.astimezone().isoformat(),
             },
         )
-        return r.json()
+        request.raise_for_status()
+        return request.json()
 
     def list_events(
         self,
@@ -106,7 +107,7 @@ class Client:
         if not device_id and not device_name:
             raise FoxgloveException("One of device_id or device_name is required.")
 
-        r = requests.get(
+        request = requests.get(
             self.__url__("/beta/device-events"),
             headers=self.__headers,
             json={
@@ -122,7 +123,8 @@ class Client:
                 "value": value,
             },
         )
-        return r.json()
+        request.raise_for_status()
+        return request.json()
 
     def download_data(
         self,
@@ -153,6 +155,7 @@ class Client:
                 "topics": topics,
             },
         )
+        link_request.raise_for_status()
         json = link_request.json()
         link = json["link"]
         response = requests.get(link, stream=True)
@@ -181,6 +184,7 @@ class Client:
                 "filename": filename,
             },
         )
+        link_request.raise_for_status()
         json = link_request.json()
         link = json["link"]
         buffer = ProgressBufferReader(data, callback=callback)

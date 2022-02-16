@@ -47,7 +47,7 @@ class Client:
         }
 
     def __url__(self, path: str):
-        return f"https://api-dev.foxglove.dev{path}"
+        return f"https://api.foxglove.dev{path}"
 
     def create_event(
         self,

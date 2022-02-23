@@ -31,7 +31,13 @@ download = client.download_data(
     start=datetime.now() - timedelta(hours=3),
     end=datetime.now() - timedelta(hours=1),
 )
-print("download", download.read())
+
+data = bytes()
+for chunk in download_stream.iter_content(chunk_size=64 * 1024):
+    sys.stdout.write(".")
+    data += chunk
+
+print("download", len(data))
 
 events = client.list_events()
 print(events)

@@ -10,7 +10,10 @@ requests = "*"
 [dev-packages]
 black = "*"
 build = "*"
+faker = "*"
 pyright = "*"
+pytest = "*"
+responses = "*"
 
 [requires]
 python_version = "3.8"

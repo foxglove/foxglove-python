@@ -6,7 +6,6 @@ name = "pypi"
 [packages]
 arrow = "*"
 requests = "*"
-tqdm = "*"
 
 [dev-packages]
 black = "*"

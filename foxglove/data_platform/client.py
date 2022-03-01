@@ -1,7 +1,7 @@
 import datetime
 from enum import Enum
 from io import BytesIO
-from typing import Dict, List, Optional, Protocol
+from typing import IO, Any, Dict, List, Optional, Protocol, Union
 
 import arrow
 import requests
@@ -23,22 +23,31 @@ class OutputFormat(Enum):
     mcap0 = "mcap0"
 
 
-class ProgressBufferReader(BytesIO):
-    def __init__(self, buf: bytes = b"", callback: Optional[ProgressCallback] = None):
+class ProgressBufferReader(IO[Any]):
+    def __init__(
+        self, buf: Union[bytes, IO[Any]], callback: Optional[ProgressCallback] = None
+    ):
         self.__callback = callback
         self.__progress = 0
-        self.__length = len(buf)
-        BytesIO.__init__(self, buf)
+        if isinstance(buf, bytes):
+            self.__length = len(buf)
+            self.__buf = BytesIO(buf)
+        else:
+            self.__length = 0
+            self.__buf = buf
 
     def __len__(self):
         return self.__length
 
     def read(self, n: Optional[int]) -> bytes:
-        chunk = BytesIO.read(self, n)
+        chunk = self.__buf.read(n or -1) or bytes()
         self.__progress += int(len(chunk))
         if self.__callback:
             self.__callback(size=self.__length, progress=self.__progress)
         return chunk
+
+    def tell(self) -> int:
+        return self.__progress
 
 
 class Client:
@@ -241,7 +250,7 @@ class Client:
         self,
         device_id: str,
         filename: str,
-        data: bytes,
+        data: Union[bytes, IO[Any]],
         callback: Optional[ProgressCallback] = None,
     ):
         """

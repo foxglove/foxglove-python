@@ -6,7 +6,7 @@ In order to use the client you will first have to create an API token for your o
 
 ## Sample Usage
 
-There are usage examples of the client in the `./examples` directory.
+Examples of various client features can be found in the `examples` directory.
 
 ## Running Tests
 

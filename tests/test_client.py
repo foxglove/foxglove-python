@@ -1,5 +1,5 @@
-import json
 from datetime import datetime
+from tempfile import TemporaryFile
 
 import responses
 from faker import Faker
@@ -19,9 +19,9 @@ def test_get_events():
                 "id": "1",
                 "createdAt": datetime.now().isoformat(),
                 "deviceId": device_id,
-                "durationNanos": 100,
+                "durationNanos": fake.pyint(),
                 "metadata": {},
-                "timestampNanos": 100,
+                "timestampNanos": fake.pyint(),
                 "updatedAt": datetime.now().isoformat(),
             }
         ],
@@ -91,5 +91,30 @@ def test_upload():
     data = fake.binary(4096)
     upload_response = client.upload_data(
         device_id="test_device_id", filename="test_file.mcap", data=data
+    )
+    assert upload_response["link"] == upload_link
+
+
+@responses.activate
+def test_streaming_upload():
+    upload_link = fake.url()
+    responses.add(
+        responses.POST,
+        "https://api.foxglove.dev/v1/data/upload",
+        json={
+            "link": upload_link,
+        },
+    )
+    responses.add(responses.PUT, upload_link)
+    client = Client("test")
+    data = fake.binary(4096)
+    file = TemporaryFile()
+    file.write(data)
+    file.seek(0)
+    upload_response = client.upload_data(
+        device_id="test_device_id",
+        filename="test_file.mcap",
+        data=file,
+        callback=lambda size, progress: print(".", end=""),
     )
     assert upload_response["link"] == upload_link

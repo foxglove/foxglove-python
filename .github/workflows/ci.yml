@@ -19,6 +19,7 @@ jobs:
       - run: pipenv install --dev --deploy
       - run: pipenv run black --check --diff --color .
       - run: pipenv run pyright foxglove tests
+      - run: pipenv run pytest
       - run: pipenv run python -m build
 
       - name: Publish to TestPyPI

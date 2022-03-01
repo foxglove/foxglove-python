@@ -6,11 +6,15 @@ name = "pypi"
 [packages]
 arrow = "*"
 requests = "*"
+tqdm = "*"
 
 [dev-packages]
 black = "*"
 build = "*"
+faker = "*"
 pyright = "*"
+pytest = "*"
+responses = "*"
 
 [requires]
 python_version = "3.8"

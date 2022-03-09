@@ -14,3 +14,7 @@ Examples of various client features can be found in the `examples` directory.
 pipenv install --dev
 pipenv run python -m pytest
 ```
+
+## Stay in touch
+
+Join our [Slack channel](https://foxglove.dev/join-slack) to ask questions, share feedback, and stay up to date on what our team is working on.

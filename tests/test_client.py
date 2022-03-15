@@ -3,7 +3,7 @@ from tempfile import TemporaryFile
 
 import responses
 from faker import Faker
-from foxglove.data_platform.client import Client
+from foxglove_data_platform.client import Client
 
 fake = Faker()
 

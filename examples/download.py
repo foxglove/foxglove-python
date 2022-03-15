@@ -2,7 +2,7 @@ import datetime
 import sys
 from datetime import datetime, timedelta
 
-from foxglove.data_platform.client import Client
+from foxglove_data_platform.client import Client
 
 token = "<YOUR API TOKEN HERE>"
 device_id = "<YOUR DEVICE ID>"

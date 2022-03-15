@@ -14,5 +14,5 @@ event = client.create_event(
 )
 print(event)
 
-events = client.list_events()
+events = client.get_events()
 print(events)

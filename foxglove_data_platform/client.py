@@ -1,7 +1,7 @@
 import datetime
+import os
 from enum import Enum
 from io import BytesIO
-import os
 from typing import IO, Any, Dict, List, Optional, Protocol, Union
 
 import arrow
@@ -15,6 +15,11 @@ class FoxgloveException(Exception):
 
 
 class ProgressCallback(Protocol):
+    def __call__(self, progress: int) -> None:
+        pass
+
+
+class SizeProgressCallback(Protocol):
     def __call__(self, size: int, progress: int) -> None:
         pass
 
@@ -26,7 +31,9 @@ class OutputFormat(Enum):
 
 class ProgressBufferReader(IO[Any]):
     def __init__(
-        self, buf: Union[bytes, IO[Any]], callback: Optional[ProgressCallback] = None
+        self,
+        buf: Union[bytes, IO[Any]],
+        callback: Optional[SizeProgressCallback] = None,
     ):
         self.__callback = callback
         self.__progress = 0
@@ -90,7 +97,7 @@ class Client:
         request.raise_for_status()
         return request.json()
 
-    def list_events(
+    def get_events(
         self,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
@@ -160,7 +167,8 @@ class Client:
         end: datetime.datetime,
         topics: List[str] = [],
         output_format: OutputFormat = OutputFormat.mcap0,
-    ) -> requests.Response:
+        callback: Optional[ProgressCallback] = None,
+    ) -> bytes:
         """
         Returns a readable data stream.
 
@@ -187,7 +195,12 @@ class Client:
         json = link_response.json()
         link = json["link"]
         response = requests.get(link, stream=True)
-        return response
+        data = bytes()
+        for chunk in response.iter_content(chunk_size=32 * 1024):
+            data += chunk
+            if callback:
+                callback(progress=len(data))
+        return data
 
     def get_coverage(self, start: datetime.datetime, end: datetime.datetime):
         response = requests.get(
@@ -220,11 +233,26 @@ class Client:
 
     def get_imports(self):
         response = requests.get(
-            self.__url__("/v1/imports"),
+            self.__url__("/v1/data/imports"),
             headers=self.__headers,
         )
         response.raise_for_status()
-        return response.json()
+        return [
+            {
+                "import_id": i["importId"],
+                "device_id": i["deviceId"],
+                "import_time": arrow.get(i["importTime"]).datetime,
+                "start": arrow.get(i["start"]).datetime,
+                "end": arrow.get(i["end"]).datetime,
+                "metadata": i["metadata"],
+                "input_type": i["inputType"],
+                "output_type": i["outputType"],
+                "filename": i["filename"],
+                "input_size": i["inputSize"],
+                "total_output_size": i["totalOutputSize"],
+            }
+            for i in response.json()
+        ]
 
     def get_topics(
         self,
@@ -252,7 +280,7 @@ class Client:
         device_id: str,
         filename: str,
         data: Union[bytes, IO[Any]],
-        callback: Optional[ProgressCallback] = None,
+        callback: Optional[SizeProgressCallback] = None,
     ):
         """
         Uploads data in bytes.

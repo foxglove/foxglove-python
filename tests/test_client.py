@@ -27,7 +27,7 @@ def test_get_events():
         ],
     )
     client = Client("test")
-    events = client.list_events(device_id=device_id)
+    events = client.get_events(device_id=device_id)
     assert len(events) == 1
     assert events[0]["device_id"] == device_id
 
@@ -67,12 +67,9 @@ def test_download():
     data = fake.binary(4096)
     responses.add(responses.GET, download_link, body=data)
     client = Client("test")
-    download_response = client.download_data(
+    response_data = client.download_data(
         device_id="test_id", start=datetime.now(), end=datetime.now()
     )
-    response_data = bytes()
-    for chunk in download_response.iter_content():
-        response_data += chunk
     assert data == response_data
 
 

@@ -1,6 +1,7 @@
 import datetime
 from enum import Enum
 from io import BytesIO
+import os
 from typing import IO, Any, Dict, List, Optional, Protocol, Union
 
 import arrow
@@ -33,7 +34,7 @@ class ProgressBufferReader(IO[Any]):
             self.__length = len(buf)
             self.__buf = BytesIO(buf)
         else:
-            self.__length = 0
+            self.__length = os.fstat(buf.fileno()).st_size
             self.__buf = buf
 
     def __len__(self):
@@ -43,7 +44,7 @@ class ProgressBufferReader(IO[Any]):
         chunk = self.__buf.read(n or -1) or bytes()
         self.__progress += int(len(chunk))
         if self.__callback:
-            self.__callback(size=self.__length, progress=self.__progress)
+            self.__callback(size=self.__length or 0, progress=self.__progress)
         return chunk
 
     def tell(self) -> int:

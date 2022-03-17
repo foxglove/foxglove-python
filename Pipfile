@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 arrow = "*"
 requests = "*"
+typing_extensions = "*"
 
 [dev-packages]
 black = "*"

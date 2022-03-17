@@ -2,7 +2,8 @@ import datetime
 import os
 from enum import Enum
 from io import BytesIO
-from typing import IO, Any, Dict, List, Optional, Protocol, Union
+from typing import IO, Any, Dict, List, Optional, Union
+from typing_extensions import Protocol
 
 import arrow
 import requests

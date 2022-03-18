@@ -1,14 +1,48 @@
 import datetime
 import os
 from enum import Enum
-from io import BytesIO
-from typing import IO, Any, Dict, List, Optional, Union
-from typing_extensions import Protocol
+from io import BytesIO, RawIOBase
+from typing import IO, Any, Dict, List, Optional, Union, cast
 
 import arrow
 import requests
+from typing_extensions import Protocol
 
 from .to_curl import to_curl
+
+try:
+    from mcap.mcap0.records import Schema as McapSchema
+    from mcap.mcap0.stream_reader import StreamReader as McapStreamReader
+except:
+    McapSchema = None
+    McapStreamReader = None
+
+try:
+    from mcap_ros1.decoder import Decoder as Ros1Decoder
+except:
+    Ros1Decoder = None
+
+try:
+    from mcap_protobuf.decoder import Decoder as ProtobufDecoder
+except:
+    ProtobufDecoder = None
+
+
+def decoder_for_schema(schema: Any):
+    if not McapSchema:
+        return None
+    if isinstance(schema, McapSchema) and schema.encoding == "ros1msg":
+        if not Ros1Decoder:
+            raise Exception(
+                "Mcap ROS1 library not found. Please install the mcap-ros1-support library."
+            )
+        return Ros1Decoder
+    if isinstance(schema, McapSchema) and schema.encoding == "protobuf":
+        if not ProtobufDecoder:
+            raise Exception(
+                "Mcap protobuf library not found. Please install the mcap-protobuf-support library."
+            )
+        return ProtobufDecoder
 
 
 class FoxgloveException(Exception):
@@ -161,6 +195,41 @@ class Client:
             for e in response.json()
         ]
 
+    def get_messages(
+        self,
+        device_id: str,
+        start: datetime.datetime,
+        end: datetime.datetime,
+        topics: List[str] = [],
+    ):
+        """
+        Returns a list of tuples of (topic, raw mcap record, decoded message).
+
+        This will throw an exception if an appropriate message decoder can't be found.
+
+        device_id: The id of the device that originated the desired data.
+        start: The earliest time from which to retrieve data.
+        end: The latest time from which to retrieve data.
+        topics: An optional list of topics to retrieve. All topics will be retrieved if this is omitted.
+        """
+        if not McapSchema or not McapStreamReader:
+            raise Exception("Mcap library not found. Please install the mcap library.")
+        data = self.download_data(
+            device_id=device_id, start=start, end=end, topics=topics
+        )
+        reader = McapStreamReader(cast(RawIOBase, BytesIO(data)))
+        decoder = None
+        for r in reader.records:
+            decoder = decoder_for_schema(r)
+            if decoder:
+                break
+        if not decoder:
+            raise Exception("Unknown mcap file encoding encountered.")
+        return [
+            m
+            for m in decoder(McapStreamReader(cast(RawIOBase, BytesIO(data)))).messages
+        ]
+
     def download_data(
         self,
         device_id: str,
@@ -171,7 +240,7 @@ class Client:
         callback: Optional[ProgressCallback] = None,
     ) -> bytes:
         """
-        Returns a readable data stream.
+        Returns raw data bytes.
 
         device_id: The id of the device that originated the desired data.
         start: The earliest time from which to retrieve data.
@@ -179,7 +248,6 @@ class Client:
         topics: An optional list of topics to retrieve. All topics will be retrieved if this is omitted.
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
         """
-
         params = {
             "deviceId": device_id,
             "end": end.astimezone().isoformat(),

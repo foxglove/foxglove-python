@@ -281,7 +281,14 @@ class Client:
             },
         )
         response.raise_for_status()
-        return response.json()
+        return [
+            {
+                "device_id": c["deviceId"],
+                "start": arrow.get(c["start"]).datetime,
+                "end": arrow.get(c["end"]).datetime,
+            }
+            for c in response.json()
+        ]
 
     def get_devices(self):
         response = requests.get(
@@ -328,7 +335,6 @@ class Client:
         device_id: str,
         start: datetime.datetime,
         end: datetime.datetime,
-        include_schemas: Optional[bool] = False,
     ):
         response = requests.get(
             self.__url__("/v1/data/topics"),
@@ -337,12 +343,20 @@ class Client:
                 "deviceId": device_id,
                 "start": start.astimezone().isoformat(),
                 "end": end.astimezone().isoformat(),
-                "includeSchemas": include_schemas,
+                "includeSchemas": "false",
             },
         )
-        print(to_curl(response.request))
         response.raise_for_status()
-        return response.json()
+        return [
+            {
+                "topic": t["topic"],
+                "version": t["version"],
+                "encoding": t["encoding"],
+                "schema_encoding": t["schemaEncoding"],
+                "schema_name": t["schemaName"],
+            }
+            for t in response.json()
+        ]
 
     def upload_data(
         self,

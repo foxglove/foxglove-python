@@ -3,6 +3,11 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
+[[source]]
+url = "https://rospypi.github.io/simple"
+verify_ssl = true
+name = "ros"
+
 [packages]
 arrow = "*"
 requests = "*"
@@ -12,9 +17,14 @@ typing_extensions = "*"
 black = "*"
 build = "*"
 faker = "*"
+mcap = "*"
+mcap-protobuf-support = "*"
+mcap-ros1-support = "*"
 pyright = "*"
 pytest = "*"
 responses = "*"
+rosbag = {version="*", index="ros"}
+std_msgs = {version="*", index="ros"}
 
 [requires]
 python_version = "3"

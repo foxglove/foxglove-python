@@ -8,23 +8,21 @@ import arrow
 import requests
 from typing_extensions import Protocol
 
-from .to_curl import to_curl
-
 try:
     from mcap.mcap0.records import Schema as McapSchema
     from mcap.mcap0.stream_reader import StreamReader as McapStreamReader
-except:
+except ModuleNotFoundError:
     McapSchema = None
     McapStreamReader = None
 
 try:
     from mcap_ros1.decoder import Decoder as Ros1Decoder
-except:
+except ModuleNotFoundError:
     Ros1Decoder = None
 
 try:
     from mcap_protobuf.decoder import Decoder as ProtobufDecoder
-except:
+except ModuleNotFoundError:
     ProtobufDecoder = None
 
 
@@ -149,7 +147,8 @@ class Client:
         Retrieves events.
 
         device_id: Id of the device associated with the events.
-        device_name: Name of the device associated with events. Either device_id or device_name is required.
+        device_name: Name of the device associated with events.
+            Either device_id or device_name is required.
         sort_by: Optionally sort records by this field name.
         sort_order: Optionally specify the sort order, either "asc" or "desc".
         limit: Optionally limit the number of records return.
@@ -210,7 +209,8 @@ class Client:
         device_id: The id of the device that originated the desired data.
         start: The earliest time from which to retrieve data.
         end: The latest time from which to retrieve data.
-        topics: An optional list of topics to retrieve. All topics will be retrieved if this is omitted.
+        topics: An optional list of topics to retrieve.
+            All topics will be retrieved if this is omitted.
         """
         if not McapSchema or not McapStreamReader:
             raise Exception("Mcap library not found. Please install the mcap library.")
@@ -245,7 +245,8 @@ class Client:
         device_id: The id of the device that originated the desired data.
         start: The earliest time from which to retrieve data.
         end: The latest time from which to retrieve data.
-        topics: An optional list of topics to retrieve. All topics will be retrieved if this is omitted.
+        topics: An optional list of topics to retrieve.
+            All topics will be retrieved if this is omitted.
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
         """
         params = {
@@ -369,7 +370,8 @@ class Client:
         Uploads data in bytes.
 
         device_id: Device id of the device from which this data originated.
-        filename: A filename to associate with the data. The data format will be inferred from the file extension.
+        filename: A filename to associate with the data. The data format will be
+            inferred from the file extension.
         data: The raw data in .bag or .mcap format.
         callback: An optional callback to report progress on the upload.
         """

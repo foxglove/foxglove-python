@@ -80,8 +80,8 @@ class ProgressBufferReader(IO[Any]):
     def __len__(self):
         return self.__length
 
-    def read(self, n: Optional[int]) -> bytes:
-        chunk = self.__buf.read(n or -1) or bytes()
+    def read(self, n: int = -1) -> bytes:
+        chunk = self.__buf.read(n) or bytes()
         self.__progress += int(len(chunk))
         if self.__callback:
             self.__callback(size=self.__length or 0, progress=self.__progress)
@@ -307,6 +307,33 @@ class Client:
             }
             for d in response.json()
         ]
+
+    def create_device(
+        self,
+        name: str,
+        serial_number: str,
+    ):
+        """
+        Creates a new device.
+
+        device_id: The name of the devicee.
+        serial_number: The unique serial number of the devicde.
+        """
+        request = requests.post(
+            self.__url__("/v1/devices"),
+            headers=self.__headers,
+            json={
+                "name": name,
+                "serialNumber": serial_number,
+            },
+        )
+        request.raise_for_status()
+        device = request.json()
+        return {
+            "id": device["id"],
+            "name": device["name"],
+            "serial_number": device["serialNumber"],
+        }
 
     def get_imports(self):
         response = requests.get(

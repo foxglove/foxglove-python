@@ -47,6 +47,25 @@ def test_get_coverage():
 
 
 @responses.activate
+def test_create_device():
+    id = fake.uuid4()
+    name = "name"
+    serial_number = "serial"
+    responses.add(
+        responses.POST,
+        "https://api.foxglove.dev/v1/devices",
+        json={
+            "id": id,
+            "name": name,
+            "serialNumber": serial_number,
+        },
+    )
+    client = Client("test")
+    device = client.create_device(name=name, serial_number=serial_number)
+    assert device["serial_number"] == serial_number
+
+
+@responses.activate
 def test_get_devices():
     id = fake.uuid4()
     responses.add(

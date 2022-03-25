@@ -186,11 +186,11 @@
         },
         "faker": {
             "hashes": [
-                "sha256:66db859b6abe376d02e805ad81eb8dcfce38f0945f17ee7cdf74ed349985ea52",
-                "sha256:fe969607836ce7100e38b88dcb598aacb733d895e6e9401894dd603e35623000"
+                "sha256:5536ceb63380f0d598c026b7c330c17d719a19d1a495e9397ee8f5259420a696",
+                "sha256:85ed0cb379e3b7414bdb6b484994beaf9bddc74472c8c35f743c16cf5fc0c314"
             ],
             "index": "pypi",
-            "version": "==13.3.2"
+            "version": "==13.3.3"
         },
         "flake8": {
             "hashes": [
@@ -274,19 +274,19 @@
         },
         "mcap": {
             "hashes": [
-                "sha256:1c6eefbc4ab5bb2a6ad5734dece9e9a01b1580a7e98d799b2f896b23116fffb1",
-                "sha256:2b0e9746dd4d4b5714875f89072c4bef70905bab2e9bf2a1dfc6bdad2b46928c"
+                "sha256:0374cbc5ee8abf62964028e5aec6a93440334dbe47f678e82f14309358cee231",
+                "sha256:d0353201eb7027d349c4b347fd7f1e8ad5f03f31a14f0379b772dfd82e95bf03"
             ],
             "index": "pypi",
-            "version": "==0.0.7"
+            "version": "==0.0.8"
         },
         "mcap-protobuf-support": {
             "hashes": [
-                "sha256:47a2719bdd242f9d97562df69bf0c542596bd9c670867e607726c6fc50c28ec4",
-                "sha256:cbe05accf3d9a5ff88fdd483a3dd4aa36a244d110705bbb517e284f5c90aa7a2"
+                "sha256:df756104dd5fc5dfc1ef920d3c3a2e5a8d26f49aaaa26ab8e25e05d3e1750100",
+                "sha256:f55363b52fef48adca6b3c720cc92008acca15940d56264068c15f1e0e63e975"
             ],
             "index": "pypi",
-            "version": "==0.0.3"
+            "version": "==0.0.5"
         },
         "mcap-ros1-support": {
             "hashes": [
@@ -562,11 +562,11 @@
         },
         "pyright": {
             "hashes": [
-                "sha256:1884300bc1d22b7828bc33c345822ca9625ecc7463d4cda4ae4be19880afd7de",
-                "sha256:f72068677ad4b249a066a3c4a2bb17d5f7a80a2dae80020bee2dd1a39c870794"
+                "sha256:08d893a3404abce5efcaf78824c6a40df6f008b90b6c576d39dd79664736f0e1",
+                "sha256:2c79e532815f89e8d4fa931b105840c1f2838431bfad457c5b3d34b1ad3cba47"
             ],
             "index": "pypi",
-            "version": "==1.1.231"
+            "version": "==1.1.232"
         },
         "pytest": {
             "hashes": [

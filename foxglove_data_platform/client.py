@@ -91,6 +91,26 @@ class ProgressBufferReader(IO[Any]):
         return self.__progress
 
 
+def json_or_raise(response: requests.Response):
+    """
+    Returns parsed JSON response, or raises if API returned an error.
+    For client errors (4xx), the server message is included.
+    """
+    try:
+        json = response.json()
+    except ValueError:
+        raise requests.exceptions.HTTPError(
+            "500 Server Error: Unexpected format", response=response
+        )
+
+    if 400 <= response.status_code < 500:
+        response.reason = json.get("error", response.reason)
+
+    response.raise_for_status()
+
+    return json
+
+
 class Client:
     def __init__(self, token: str):
         self.__token = token
@@ -117,7 +137,7 @@ class Client:
         duration: The duration of the event. Zero for an instantaneous event.
         metadata: Optional metadata attached to the event.
         """
-        request = requests.post(
+        response = requests.post(
             self.__url__("/beta/device-events"),
             headers=self.__headers,
             json={
@@ -127,8 +147,8 @@ class Client:
                 "timestamp": time.astimezone().isoformat(),
             },
         )
-        request.raise_for_status()
-        return request.json()
+
+        return json_or_raise(response)
 
     def get_events(
         self,
@@ -178,7 +198,9 @@ class Client:
             headers=self.__headers,
             params={k: v for k, v in params.items() if v},
         )
-        response.raise_for_status()
+
+        json = json_or_raise(response)
+
         return [
             {
                 "id": e["id"],
@@ -191,7 +213,7 @@ class Client:
                 "created_at": arrow.get(e["createdAt"]).datetime,
                 "updated_at": arrow.get(e["updatedAt"]).datetime,
             }
-            for e in response.json()
+            for e in json
         ]
 
     def get_messages(
@@ -261,8 +283,9 @@ class Client:
             headers=self.__headers,
             json={k: v for k, v in params.items() if v},
         )
-        link_response.raise_for_status()
-        json = link_response.json()
+
+        json = json_or_raise(link_response)
+
         link = json["link"]
         response = requests.get(link, stream=True)
         data = bytes()
@@ -281,14 +304,15 @@ class Client:
                 "end": end.astimezone().isoformat(),
             },
         )
-        response.raise_for_status()
+        json = json_or_raise(response)
+
         return [
             {
                 "device_id": c["deviceId"],
                 "start": arrow.get(c["start"]).datetime,
                 "end": arrow.get(c["end"]).datetime,
             }
-            for c in response.json()
+            for c in json
         ]
 
     def get_devices(self):
@@ -296,7 +320,9 @@ class Client:
             self.__url__("/v1/devices"),
             headers=self.__headers,
         )
-        response.raise_for_status()
+
+        json = json_or_raise(response)
+
         return [
             {
                 "id": d["id"],
@@ -305,7 +331,7 @@ class Client:
                 "created_at": arrow.get(d["createdAt"]).datetime,
                 "updated_at": arrow.get(d["updatedAt"]).datetime,
             }
-            for d in response.json()
+            for d in json
         ]
 
     def create_device(
@@ -340,7 +366,8 @@ class Client:
             self.__url__("/v1/data/imports"),
             headers=self.__headers,
         )
-        response.raise_for_status()
+        json = json_or_raise(response)
+
         return [
             {
                 "import_id": i["importId"],
@@ -355,7 +382,7 @@ class Client:
                 "input_size": i["inputSize"],
                 "total_output_size": i["totalOutputSize"],
             }
-            for i in response.json()
+            for i in json
         ]
 
     def get_topics(
@@ -374,7 +401,9 @@ class Client:
                 "includeSchemas": "false",
             },
         )
-        response.raise_for_status()
+
+        json = json_or_raise(response)
+
         return [
             {
                 "topic": t["topic"],
@@ -383,7 +412,7 @@ class Client:
                 "schema_encoding": t["schemaEncoding"],
                 "schema_name": t["schemaName"],
             }
-            for t in response.json()
+            for t in json
         ]
 
     def upload_data(
@@ -402,7 +431,7 @@ class Client:
         data: The raw data in .bag or .mcap format.
         callback: An optional callback to report progress on the upload.
         """
-        link_request = requests.post(
+        link_response = requests.post(
             self.__url__("/v1/data/upload"),
             headers=self.__headers,
             json={
@@ -410,8 +439,9 @@ class Client:
                 "filename": filename,
             },
         )
-        link_request.raise_for_status()
-        json = link_request.json()
+
+        json = json_or_raise(link_response)
+
         link = json["link"]
         buffer = ProgressBufferReader(data, callback=callback)
         upload_request = requests.put(

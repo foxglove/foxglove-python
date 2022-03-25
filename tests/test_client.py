@@ -66,6 +66,25 @@ def test_create_device():
 
 
 @responses.activate
+def test_get_device():
+    id = fake.uuid4()
+    responses.add(
+        responses.GET,
+        f"https://api.foxglove.dev/v1/devices/{id}",
+        json={
+            "id": id,
+            "name": fake.sentence(2),
+            "serialNumber": fake.pyint(),
+            "createdAt": datetime.now().isoformat(),
+            "updatedAt": datetime.now().isoformat(),
+        },
+    )
+    client = Client("test")
+    device = client.get_device(device_id=id)
+    assert device["id"] == id
+
+
+@responses.activate
 def test_get_devices():
     id = fake.uuid4()
     responses.add(

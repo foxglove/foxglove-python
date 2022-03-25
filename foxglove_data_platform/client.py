@@ -291,6 +291,26 @@ class Client:
             for c in response.json()
         ]
 
+    def get_device(self, device_id: str):
+        """
+        Gets a specific device by id.
+
+        :param device_id: The id of the device to retrieve.
+        """
+        response = requests.get(
+            self.__url__(f"/v1/devices/{device_id}"),
+            headers=self.__headers,
+        )
+        response.raise_for_status()
+        device = response.json()
+        return {
+            "id": device["id"],
+            "name": device["name"],
+            "serial_number": device["serialNumber"],
+            "created_at": arrow.get(device["createdAt"]).datetime,
+            "updated_at": arrow.get(device["updatedAt"]).datetime,
+        }
+
     def get_devices(self):
         response = requests.get(
             self.__url__("/v1/devices"),

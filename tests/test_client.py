@@ -1,11 +1,28 @@
 from datetime import datetime
 from tempfile import TemporaryFile
 
+import pytest
 import responses
 from faker import Faker
 from foxglove_data_platform.client import Client
+from requests.exceptions import RequestException
 
 fake = Faker()
+
+
+@responses.activate
+def test_error_reason():
+    reason = fake.text()
+    responses.add(
+        responses.GET,
+        "https://api.foxglove.dev/v1/data/coverage",
+        status=403,
+        json={"error": reason},
+    )
+    client = Client("test")
+    with pytest.raises(RequestException) as exception:
+        client.get_coverage(start=datetime.now(), end=datetime.now())
+    assert exception.value.response.reason == reason
 
 
 @responses.activate

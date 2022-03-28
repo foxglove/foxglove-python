@@ -409,6 +409,20 @@ class Client:
             "serial_number": device["serialNumber"],
         }
 
+    def delete_import(self, device_id: str, import_id: str):
+        """
+        Deletes an existing import.
+
+        :param device_id: The id of the device associated with the import.
+        :param import_id: The id of the import to delete.
+        """
+        request = requests.delete(
+            self.__url__(f"/v1/data/imports/{import_id}"),
+            params={"deviceId": device_id},
+            headers=self.__headers,
+        )
+        request.raise_for_status()
+
     def get_imports(self):
         response = requests.get(
             self.__url__("/v1/data/imports"),

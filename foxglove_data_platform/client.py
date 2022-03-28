@@ -148,7 +148,31 @@ class Client:
             },
         )
 
-        return json_or_raise(response)
+        event = json_or_raise(response)
+        return {
+            "id": event["id"],
+            "device_id": event["deviceId"],
+            "timestamp_nanos": event["timestampNanos"],
+            "duration_nanos": event["durationNanos"],
+            "metadata": event["metadata"],
+            "created_at": arrow.get(event["createdAt"]).datetime,
+            "updated_at": arrow.get(event["updatedAt"]).datetime,
+        }
+
+    def delete_event(
+        self,
+        event_id: str,
+    ):
+        """
+        Deletes an event.
+
+        event_id: The id of the event to delete.
+        """
+        request = requests.delete(
+            self.__url__(f"/beta/device-events/{event_id}"),
+            headers=self.__headers,
+        )
+        request.raise_for_status()
 
     def get_events(
         self,

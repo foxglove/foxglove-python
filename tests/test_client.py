@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from tempfile import TemporaryFile
 
@@ -102,6 +103,43 @@ def test_get_devices():
     devices = client.get_devices()
     assert len(devices) == 1
     assert devices[0]["id"] == id
+
+
+@responses.activate
+def test_create_event():
+    id = fake.uuid4()
+    device_id = fake.uuid4()
+    responses.add(
+        responses.POST,
+        "https://api.foxglove.dev/beta/device-events",
+        json={
+            "id": id,
+            "deviceId": device_id,
+            "timestampNanos": str(time.time_ns()),
+            "durationNanos": "1",
+            "metadata": {"foo": "bar"},
+            "createdAt": datetime.now().isoformat(),
+            "updatedAt": datetime.now().isoformat(),
+        },
+    )
+    client = Client("test")
+    event = client.create_event(device_id=device_id, time=datetime.now(), duration=1)
+    assert event["id"] == id
+    assert event["device_id"] == device_id
+
+
+@responses.activate
+def test_delete_event():
+    id = fake.uuid4()
+    responses.add(
+        responses.DELETE,
+        f"https://api.foxglove.dev/beta/device-events/{id}",
+    )
+    client = Client("test")
+    try:
+        client.delete_event(event_id=id)
+    except:
+        assert False
 
 
 @responses.activate

@@ -148,7 +148,31 @@ class Client:
             },
         )
 
-        return json_or_raise(response)
+        event = json_or_raise(response)
+        return {
+            "id": event["id"],
+            "device_id": event["deviceId"],
+            "timestamp_nanos": event["timestampNanos"],
+            "duration_nanos": event["durationNanos"],
+            "metadata": event["metadata"],
+            "created_at": arrow.get(event["createdAt"]).datetime,
+            "updated_at": arrow.get(event["updatedAt"]).datetime,
+        }
+
+    def delete_event(
+        self,
+        event_id: str,
+    ):
+        """
+        Deletes an event.
+
+        event_id: The id of the event to delete.
+        """
+        request = requests.delete(
+            self.__url__(f"/beta/device-events/{event_id}"),
+            headers=self.__headers,
+        )
+        request.raise_for_status()
 
     def get_events(
         self,
@@ -315,7 +339,31 @@ class Client:
             for c in json
         ]
 
+    def get_device(self, device_id: str):
+        """
+        Gets a single device by id.
+
+        :param device_id: The id of the device to retrieve.
+        """
+        response = requests.get(
+            self.__url__(f"/v1/devices/{device_id}"),
+            headers=self.__headers,
+        )
+
+        device = json_or_raise(response)
+
+        return {
+            "id": device["id"],
+            "name": device["name"],
+            "serial_number": device["serialNumber"],
+            "created_at": arrow.get(device["createdAt"]).datetime,
+            "updated_at": arrow.get(device["updatedAt"]).datetime,
+        }
+
     def get_devices(self):
+        """
+        Returns a list of all devices.
+        """
         response = requests.get(
             self.__url__("/v1/devices"),
             headers=self.__headers,

@@ -3,7 +3,6 @@ import os
 from enum import Enum
 from io import BytesIO, RawIOBase
 from typing import IO, Any, Dict, List, Optional, Union, cast
-from xmlrpc.client import Boolean
 
 import arrow
 import requests
@@ -431,7 +430,7 @@ class Client:
         end: Optional[datetime.datetime] = None,
         data_start: Optional[datetime.datetime] = None,
         data_end: Optional[datetime.datetime] = None,
-        include_deleted: Boolean = False,
+        include_deleted: bool = False,
     ):
         """
         Fetches imports.

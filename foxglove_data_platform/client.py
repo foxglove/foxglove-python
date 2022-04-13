@@ -319,14 +319,32 @@ class Client:
                 callback(progress=len(data))
         return data
 
-    def get_coverage(self, start: datetime.datetime, end: datetime.datetime):
+    def get_coverage(
+        self,
+        start: datetime.datetime,
+        end: datetime.datetime,
+        device_id: Optional[str] = None,
+        tolerance: Optional[int] = None,
+    ):
+        """
+        List coverage ranges for data.
+
+        :param start: The earliest time after which to retrieve data.
+        :param end: The latest time before which to retrieve data.
+        :param device_id: Optional device id to limit data by.
+        :param tolerance: Minimum interval (in seconds) that ranges must be separated by
+            to be considered discrete.
+        """
+        params = {
+            "deviceId": device_id,
+            "tolerance": tolerance,
+            "start": start.astimezone().isoformat(),
+            "end": end.astimezone().isoformat(),
+        }
         response = requests.get(
             self.__url__("/v1/data/coverage"),
             headers=self.__headers,
-            params={
-                "start": start.astimezone().isoformat(),
-                "end": end.astimezone().isoformat(),
-            },
+            params={k: v for k, v in params.items() if v},
         )
         json = json_or_raise(response)
 

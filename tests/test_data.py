@@ -11,21 +11,6 @@ fake = Faker()
 
 
 @responses.activate
-def test_delete_import():
-    device_id = fake.uuid4()
-    import_id = fake.uuid4()
-    responses.add(
-        responses.DELETE,
-        api_url(f"/v1/data/imports/{import_id}?deviceId={device_id}"),
-    )
-    try:
-        client = Client("test")
-        client.delete_import(device_id=device_id, import_id=import_id)
-    except:
-        assert False
-
-
-@responses.activate
 def test_download():
     download_link = fake.url()
     responses.add(

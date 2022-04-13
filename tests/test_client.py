@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 import responses
 from faker import Faker
-from foxglove_data_platform.client import Client
+from foxglove_data_platform.client import Client, camelize
 from requests.exceptions import RequestException
 
 from .api_url import api_url
@@ -66,3 +66,9 @@ def test_get_topics():
     )
     assert len(topics_response) == 1
     assert topics_response[0]["topic"] == "/topic"
+
+
+def test_camelize():
+    assert camelize("a_field_name") == "aFieldName"
+    assert camelize("aFieldName") == "aFieldName"
+    assert camelize(None) is None

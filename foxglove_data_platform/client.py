@@ -1,5 +1,4 @@
 import datetime
-from optparse import Option
 import os
 from enum import Enum
 from io import BytesIO, RawIOBase

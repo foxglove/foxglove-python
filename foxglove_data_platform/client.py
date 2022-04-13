@@ -43,6 +43,16 @@ def decoder_for_schema(schema: Any):
         return ProtobufDecoder
 
 
+def camelize(snake_name: Optional[str]) -> Optional[str]:
+    """
+    Convert a valid snake_case field name to camelCase for the API
+    """
+    if not snake_name:
+        return snake_name
+    parts = snake_name.split("_")
+    return "".join([parts[0]] + [w.title() for w in parts[1:]])
+
+
 class FoxgloveException(Exception):
     pass
 
@@ -193,7 +203,7 @@ class Client:
         device_id: Id of the device associated with the events.
         device_name: Name of the device associated with events.
             Either device_id or device_name is required.
-        sort_by: Optionally sort records by this field name.
+        sort_by: Optionally sort records by this field name (e.g. "device_id").
         sort_order: Optionally specify the sort order, either "asc" or "desc".
         limit: Optionally limit the number of records return.
         offset: Optionally offset the results by this many records.
@@ -208,7 +218,7 @@ class Client:
         params = {
             "deviceId": device_id,
             "deviceName": device_name,
-            "sortBy": sort_by,
+            "sortBy": camelize(sort_by),
             "sortOrder": sort_order,
             "limit": limit,
             "offset": offset,

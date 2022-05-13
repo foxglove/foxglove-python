@@ -459,16 +459,18 @@ class Client:
         data_start: Optional[datetime.datetime] = None,
         data_end: Optional[datetime.datetime] = None,
         include_deleted: bool = False,
+        filename: Optional[str] = None,
     ):
         """
         Fetches imports.
 
         :param device_id: The id of the device associated with the import.
-        :param start: Optional filter by import start time.
-        :param end: Optional filter by import end time.
-        :param data_start: Optional filter by data start time.
-        :param data_end: Optional filter by data end time.
+        :param start: Optionally filter by import start time.
+        :param end: Optionally filter by import end time.
+        :param data_start: Optionally filter by data start time.
+        :param data_end: Optionally filter by data end time.
         :param include_deleted: Include deleted imports.
+        :param filename: Optionally filter by matching filename.
         """
         all_params = {
             "deviceId": device_id,
@@ -477,6 +479,7 @@ class Client:
             "dataStart": data_start.astimezone().isoformat() if data_start else None,
             "dataEnd": data_end.astimezone().isoformat() if data_end else None,
             "includeDeleted": include_deleted,
+            "filename": filename,
         }
         response = requests.get(
             self.__url__("/v1/data/imports"),

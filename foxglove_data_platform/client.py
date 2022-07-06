@@ -437,6 +437,20 @@ class Client:
             "serial_number": device["serialNumber"],
         }
 
+    def delete_device(self, device_id: str):
+        """
+        Deletes an existing device.
+
+        Note: you must first delete all imports from the device; see `delete_import`.
+
+        :param device_id: The id of the device.
+        """
+        request = requests.delete(
+            self.__url__(f"/v1/devices/{device_id}"),
+            headers=self.__headers,
+        )
+        request.raise_for_status()
+
     def delete_import(self, device_id: str, import_id: str):
         """
         Deletes an existing import.

@@ -67,3 +67,20 @@ def test_get_devices():
     devices = client.get_devices()
     assert len(devices) == 1
     assert devices[0]["id"] == id
+
+
+@responses.activate
+def test_delete_device():
+    id = fake.uuid4()
+    name = "name"
+    serial_number = "serial"
+    responses.add(
+        responses.DELETE,
+        api_url(f"/v1/devices/{id}"),
+        json={"success": True},
+    )
+    client = Client("test")
+    try:
+        client.delete_device(device_id=id)
+    except:
+        assert False

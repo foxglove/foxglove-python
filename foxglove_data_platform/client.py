@@ -1,8 +1,8 @@
 import datetime
 import os
 from enum import Enum
-from io import BytesIO, RawIOBase
-from typing import IO, Any, Dict, List, Optional, Union, cast
+from io import BytesIO
+from typing import IO, Any, Dict, List, Optional, Union
 
 import arrow
 import requests
@@ -10,10 +10,10 @@ from typing_extensions import Protocol
 
 try:
     from mcap.mcap0.records import Schema as McapSchema
-    from mcap.mcap0.stream_reader import StreamReader as McapStreamReader
+    from mcap.mcap0.reader import make_reader
 except ModuleNotFoundError:
     McapSchema = None
-    McapStreamReader = None
+    make_reader = None
 
 try:
     from mcap_ros1.decoder import Decoder as Ros1Decoder
@@ -26,9 +26,9 @@ except ModuleNotFoundError:
     ProtobufDecoder = None
 
 
-def decoder_for_schema(schema: Any):
+def decoder_cls_for_schema(schema: Any):
     if not McapSchema:
-        return None
+        raise Exception("Mcap library not found - please install the mcap library.")
     if isinstance(schema, McapSchema) and schema.encoding == "ros1msg":
         if not Ros1Decoder:
             raise Exception(
@@ -41,6 +41,7 @@ def decoder_for_schema(schema: Any):
                 "Mcap protobuf library not found. Please install the mcap-protobuf-support library."
             )
         return ProtobufDecoder
+    raise Exception(f"No decoder class available for schema encoding {schema.encoding}")
 
 
 def camelize(snake_name: Optional[str]) -> Optional[str]:
@@ -260,31 +261,28 @@ class Client:
         """
         Returns a list of tuples of (topic, raw mcap record, decoded message).
 
-        This will throw an exception if an appropriate message decoder can't be found.
-
         device_id: The id of the device that originated the desired data.
         start: The earliest time from which to retrieve data.
         end: The latest time from which to retrieve data.
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
         """
-        if not McapSchema or not McapStreamReader:
+        if not McapSchema or not make_reader:
             raise Exception("Mcap library not found. Please install the mcap library.")
         data = self.download_data(
             device_id=device_id, start=start, end=end, topics=topics
         )
-        reader = McapStreamReader(cast(RawIOBase, BytesIO(data)))
+        reader = make_reader(BytesIO(data))
         decoder = None
-        for r in reader.records:
-            decoder = decoder_for_schema(r)
-            if decoder:
-                break
-        if not decoder:
-            raise Exception("Unknown mcap file encoding encountered.")
-        return [
-            m
-            for m in decoder(McapStreamReader(cast(RawIOBase, BytesIO(data)))).messages
-        ]
+        output_messages = []
+        for schema, channel, message in reader.iter_messages():
+            if decoder is None:
+                decoder_cls = decoder_cls_for_schema(schema)
+                decoder = decoder_cls()
+            output_messages.append(
+                (channel.topic, message, decoder.decode(schema, message))
+            )
+        return output_messages
 
     def download_data(
         self,

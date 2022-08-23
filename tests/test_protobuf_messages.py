@@ -10,7 +10,7 @@ from .generate import generate_protobuf_data
 
 def test_download_without_decoder():
     with patch(
-        "foxglove_data_platform.client.decoder_for_schema",
+        "foxglove_data_platform.client.decoder_cls_for_schema",
         MagicMock(side_effect=Exception("Not found!")),
     ):
         client = Client("test")

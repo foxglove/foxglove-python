@@ -123,15 +123,16 @@ def json_or_raise(response: requests.Response):
 
 
 class Client:
-    def __init__(self, token: str):
+    def __init__(self, token: str, host: str = "api.foxglove.dev"):
         self.__token = token
         self.__headers = {
             "Content-type": "application/json",
             "Authorization": "Bearer " + self.__token,
         }
+        self.__host = host
 
     def __url__(self, path: str):
-        return f"https://api.foxglove.dev{path}"
+        return f"https://{self.__host}{path}"
 
     def create_event(
         self,

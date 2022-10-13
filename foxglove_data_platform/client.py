@@ -2,46 +2,65 @@ import datetime
 import os
 from enum import Enum
 from io import BytesIO
+import sys
 from typing import IO, Any, Dict, List, Optional, Union
 
 import arrow
 import requests
 from typing_extensions import Protocol
 
+
 try:
-    from mcap.mcap0.records import Schema as McapSchema
-    from mcap.mcap0.reader import make_reader
+    from mcap.records import Schema as McapSchema
+    from mcap.reader import make_reader
 except ModuleNotFoundError:
+    print(
+        "Unable to import modules from `mcap`. To decode MCAP data, pip install mcap",
+        file=sys.stderr,
+    )
     McapSchema = None
     make_reader = None
 
-try:
-    from mcap_ros1.decoder import Decoder as Ros1Decoder
-except ModuleNotFoundError:
-    Ros1Decoder = None
 
-try:
-    from mcap_protobuf.decoder import Decoder as ProtobufDecoder
-except ModuleNotFoundError:
-    ProtobufDecoder = None
+def import_decoders():
+    decoders = {}
+    try:
+        from mcap_ros1.decoder import Decoder as Ros1Decoder
+
+        decoders["ros1msg"] = Ros1Decoder
+    except ModuleNotFoundError:
+        print(
+            "unable to import Decoder from `mcap_ros1.decoder`. "
+            "To decode ros1 .msg encoded messages, pip install mcap-ros1-support.",
+            file=sys.stderr,
+        )
+
+    try:
+        from mcap_protobuf.decoder import Decoder as ProtobufDecoder
+
+        decoders["protobuf"] = ProtobufDecoder
+    except ModuleNotFoundError:
+        print(
+            "unable to import Decoder from `mcap_protobuf.decoder`. "
+            "To decode protobuf encoded messages, pip install mcap-protobuf-support.",
+            file=sys.stderr,
+        )
+
+    try:
+        from mcap_ros2.decoder import Decoder as Ros2Decoder
+
+        decoders["ros2msg"] = Ros2Decoder
+    except ModuleNotFoundError:
+        print(
+            "unable to import Decoder from `mcap_ros2.decoder`. "
+            "To decode ros2 CDR-encoded messages, pip install mcap-ros2-support.",
+            file=sys.stderr,
+        )
+
+    return decoders
 
 
-def decoder_cls_for_schema(schema: Any):
-    if not McapSchema:
-        raise Exception("Mcap library not found - please install the mcap library.")
-    if isinstance(schema, McapSchema) and schema.encoding == "ros1msg":
-        if not Ros1Decoder:
-            raise Exception(
-                "Mcap ROS1 library not found. Please install the mcap-ros1-support library."
-            )
-        return Ros1Decoder
-    if isinstance(schema, McapSchema) and schema.encoding == "protobuf":
-        if not ProtobufDecoder:
-            raise Exception(
-                "Mcap protobuf library not found. Please install the mcap-protobuf-support library."
-            )
-        return ProtobufDecoder
-    raise Exception(f"No decoder class available for schema encoding {schema.encoding}")
+DECODER_CLASSES: Dict[str, Any] = import_decoders()
 
 
 def camelize(snake_name: Optional[str]) -> Optional[str]:
@@ -269,17 +288,25 @@ class Client:
             All topics will be retrieved if this is omitted.
         """
         if not McapSchema or not make_reader:
-            raise Exception("Mcap library not found. Please install the mcap library.")
+            raise RuntimeError(
+                "Mcap library not found. Please install the mcap library."
+            )
         data = self.download_data(
             device_id=device_id, start=start, end=end, topics=topics
         )
         reader = make_reader(BytesIO(data))
-        decoder = None
+        decoders = {}
         output_messages = []
         for schema, channel, message in reader.iter_messages():
-            if decoder is None:
-                decoder_cls = decoder_cls_for_schema(schema)
-                decoder = decoder_cls()
+            if schema.encoding not in decoders:
+                if schema.encoding not in DECODER_CLASSES:
+                    raise RuntimeError(
+                        f"No decoder class available for schema encoding {schema.encoding}"
+                    )
+                decoder = DECODER_CLASSES[schema.encoding]()
+                decoders[schema.encoding] = decoder
+            else:
+                decoder = decoders[schema.encoding]
             output_messages.append(
                 (channel.topic, message, decoder.decode(schema, message))
             )

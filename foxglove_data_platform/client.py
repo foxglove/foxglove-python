@@ -2,46 +2,60 @@ import datetime
 import os
 from enum import Enum
 from io import BytesIO
+import json
 from typing import IO, Any, Dict, List, Optional, Union
 
 import arrow
 import requests
 from typing_extensions import Protocol
 
+
 try:
-    from mcap.mcap0.records import Schema as McapSchema
-    from mcap.mcap0.reader import make_reader
+    from mcap.records import Schema as McapSchema
+    from mcap.reader import make_reader
 except ModuleNotFoundError:
     McapSchema = None
     make_reader = None
 
+
+def _err_on_construction(err):
+    def construct():
+        raise RuntimeError(f"Error importing decoder implementation: {err}")
+
+    return construct
+
+
 try:
     from mcap_ros1.decoder import Decoder as Ros1Decoder
-except ModuleNotFoundError:
-    Ros1Decoder = None
+except ModuleNotFoundError as err:
+    Ros1Decoder = _err_on_construction(err)
 
 try:
     from mcap_protobuf.decoder import Decoder as ProtobufDecoder
-except ModuleNotFoundError:
-    ProtobufDecoder = None
+except ModuleNotFoundError as err:
+    ProtobufDecoder = _err_on_construction(err)
+
+try:
+    from mcap_ros2.decoder import Decoder as Ros2Decoder
+except ModuleNotFoundError as err:
+    Ros2Decoder = _err_on_construction(err)
 
 
-def decoder_cls_for_schema(schema: Any):
-    if not McapSchema:
-        raise Exception("Mcap library not found - please install the mcap library.")
-    if isinstance(schema, McapSchema) and schema.encoding == "ros1msg":
-        if not Ros1Decoder:
-            raise Exception(
-                "Mcap ROS1 library not found. Please install the mcap-ros1-support library."
-            )
-        return Ros1Decoder
-    if isinstance(schema, McapSchema) and schema.encoding == "protobuf":
-        if not ProtobufDecoder:
-            raise Exception(
-                "Mcap protobuf library not found. Please install the mcap-protobuf-support library."
-            )
-        return ProtobufDecoder
-    raise Exception(f"No decoder class available for schema encoding {schema.encoding}")
+class JsonDecoder:
+    def decode(self, schema_, message):
+        return json.loads(message.data.decode("utf-8"))
+
+
+def decoder_for_schema_encoding(encoding_string):
+    if encoding_string == "ros1msg":
+        return Ros1Decoder()
+    if encoding_string == "ros2msg":
+        return Ros2Decoder()
+    if encoding_string == "protobuf":
+        return ProtobufDecoder()
+    if encoding_string == "jsonschema":
+        return JsonDecoder()
+    raise RuntimeError(f"No known decoder class for encoding {encoding_string}")
 
 
 def camelize(snake_name: Optional[str]) -> Optional[str]:
@@ -269,17 +283,21 @@ class Client:
             All topics will be retrieved if this is omitted.
         """
         if not McapSchema or not make_reader:
-            raise Exception("Mcap library not found. Please install the mcap library.")
+            raise RuntimeError(
+                "Mcap library not found. Please install the mcap library."
+            )
         data = self.download_data(
             device_id=device_id, start=start, end=end, topics=topics
         )
         reader = make_reader(BytesIO(data))
-        decoder = None
+        decoders = {}
         output_messages = []
         for schema, channel, message in reader.iter_messages():
-            if decoder is None:
-                decoder_cls = decoder_cls_for_schema(schema)
-                decoder = decoder_cls()
+            if schema.encoding not in decoders:
+                decoder = decoder_for_schema_encoding(schema.encoding)
+                decoders[schema.encoding] = decoder
+            else:
+                decoder = decoders[schema.encoding]
             output_messages.append(
                 (channel.topic, message, decoder.decode(schema, message))
             )

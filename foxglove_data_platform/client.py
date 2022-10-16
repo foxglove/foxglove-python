@@ -11,8 +11,8 @@ from typing_extensions import Protocol
 
 
 try:
-    from mcap.mcap0.records import Schema as McapSchema
-    from mcap.mcap0.reader import make_reader
+    from mcap.records import Schema as McapSchema
+    from mcap.reader import make_reader
 except ModuleNotFoundError:
     McapSchema = None
     make_reader = None

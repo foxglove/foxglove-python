@@ -3,7 +3,8 @@ import time
 from io import BytesIO
 import json
 
-from mcap.mcap0.writer import Writer
+from mcap.writer import Writer
+from mcap_ros2.writer import Writer as Ros2Writer
 from std_msgs.msg import String  # type: ignore
 from .string_message_pb2 import StringMessage
 
@@ -30,6 +31,16 @@ def generate_ros1_data():
             publish_time=time.time_ns(),
         )
     writer.finish()
+    return output.getvalue()
+
+
+def generate_ros2_data():
+    output = BytesIO()
+    with Ros2Writer(output) as writer:
+        schema = writer.register_msgdef(String._type, String._full_text)
+
+        for i in range(1, 11):
+            writer.write_message("/chatter", schema, {"data": f"string message {i}"})
     return output.getvalue()
 
 

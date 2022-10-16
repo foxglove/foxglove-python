@@ -2,7 +2,7 @@ import datetime
 import os
 from enum import Enum
 from io import BytesIO
-import sys
+import json
 from typing import IO, Any, Dict, List, Optional, Union
 
 import arrow
@@ -11,56 +11,51 @@ from typing_extensions import Protocol
 
 
 try:
-    from mcap.records import Schema as McapSchema
-    from mcap.reader import make_reader
+    from mcap.mcap0.records import Schema as McapSchema
+    from mcap.mcap0.reader import make_reader
 except ModuleNotFoundError:
-    print(
-        "Unable to import modules from `mcap`. To decode MCAP data, pip install mcap",
-        file=sys.stderr,
-    )
     McapSchema = None
     make_reader = None
 
 
-def import_decoders():
-    decoders = {}
-    try:
-        from mcap_ros1.decoder import Decoder as Ros1Decoder
+def _err_on_construction(err):
+    def construct():
+        raise RuntimeError(f"Error importing decoder implementation: {err}")
 
-        decoders["ros1msg"] = Ros1Decoder
-    except ModuleNotFoundError:
-        print(
-            "unable to import Decoder from `mcap_ros1.decoder`. "
-            "To decode ros1 .msg encoded messages, pip install mcap-ros1-support.",
-            file=sys.stderr,
-        )
-
-    try:
-        from mcap_protobuf.decoder import Decoder as ProtobufDecoder
-
-        decoders["protobuf"] = ProtobufDecoder
-    except ModuleNotFoundError:
-        print(
-            "unable to import Decoder from `mcap_protobuf.decoder`. "
-            "To decode protobuf encoded messages, pip install mcap-protobuf-support.",
-            file=sys.stderr,
-        )
-
-    try:
-        from mcap_ros2.decoder import Decoder as Ros2Decoder
-
-        decoders["ros2msg"] = Ros2Decoder
-    except ModuleNotFoundError:
-        print(
-            "unable to import Decoder from `mcap_ros2.decoder`. "
-            "To decode ros2 CDR-encoded messages, pip install mcap-ros2-support.",
-            file=sys.stderr,
-        )
-
-    return decoders
+    return construct
 
 
-DECODER_CLASSES: Dict[str, Any] = import_decoders()
+try:
+    from mcap_ros1.decoder import Decoder as Ros1Decoder
+except ModuleNotFoundError as err:
+    Ros1Decoder = _err_on_construction(err)
+
+try:
+    from mcap_protobuf.decoder import Decoder as ProtobufDecoder
+except ModuleNotFoundError as err:
+    ProtobufDecoder = _err_on_construction(err)
+
+try:
+    from mcap_ros2.decoder import Decoder as Ros2Decoder
+except ModuleNotFoundError as err:
+    Ros2Decoder = _err_on_construction(err)
+
+
+class JsonDecoder:
+    def decode(self, schema_, message):
+        return json.loads(message.data.decode("utf-8"))
+
+
+def decoder_for_schema_encoding(encoding_string):
+    if encoding_string == "ros1msg":
+        return Ros1Decoder()
+    if encoding_string == "ros2msg":
+        return Ros2Decoder()
+    if encoding_string == "protobuf":
+        return ProtobufDecoder()
+    if encoding_string == "jsonschema":
+        return JsonDecoder()
+    raise RuntimeError(f"No known decoder class for encoding {encoding_string}")
 
 
 def camelize(snake_name: Optional[str]) -> Optional[str]:
@@ -299,11 +294,7 @@ class Client:
         output_messages = []
         for schema, channel, message in reader.iter_messages():
             if schema.encoding not in decoders:
-                if schema.encoding not in DECODER_CLASSES:
-                    raise RuntimeError(
-                        f"No decoder class available for schema encoding {schema.encoding}"
-                    )
-                decoder = DECODER_CLASSES[schema.encoding]()
+                decoder = decoder_for_schema_encoding(schema.encoding)
                 decoders[schema.encoding] = decoder
             else:
                 decoder = decoders[schema.encoding]

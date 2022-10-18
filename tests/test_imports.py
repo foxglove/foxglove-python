@@ -16,6 +16,7 @@ def test_delete_import():
     responses.add(
         responses.DELETE,
         api_url(f"/v1/data/imports/{import_id}?deviceId={device_id}"),
+        json={"success": True},
     )
     try:
         client = Client("test")

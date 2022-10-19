@@ -339,12 +339,12 @@ class Client:
 
         link = json["link"]
         response = requests.get(link, stream=True)
-        data = bytes()
+        data = BytesIO()
         for chunk in response.iter_content(chunk_size=32 * 1024):
-            data += chunk
+            data.write(chunk)
             if callback:
-                callback(progress=len(data))
-        return data
+                callback(progress=data.tell())
+        return data.getvalue()
 
     def get_coverage(
         self,

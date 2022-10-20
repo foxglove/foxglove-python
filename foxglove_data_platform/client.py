@@ -3,7 +3,7 @@ import os
 from enum import Enum
 from io import BytesIO
 import json
-from typing import IO, Any, Dict, List, Optional, Union
+from typing import IO, Any, Dict, List, Optional, Union, Callable
 
 import arrow
 import requests
@@ -12,9 +12,11 @@ from typing_extensions import Protocol
 
 try:
     from mcap.records import Schema as McapSchema
+    from mcap.records import Message as McapMessage
     from mcap.reader import make_reader
 except ModuleNotFoundError:
     McapSchema = None
+    McapMessage = None
     make_reader = None
 
 
@@ -272,6 +274,7 @@ class Client:
         start: datetime.datetime,
         end: datetime.datetime,
         topics: List[str] = [],
+        decoders: Optional[Dict[str, Callable[[McapSchema, McapMessage], Any]]] = None,
     ):
         """
         Returns a list of tuples of (topic, raw mcap record, decoded message).
@@ -281,6 +284,9 @@ class Client:
         end: The latest time from which to retrieve data.
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
+        decoders: an optional dictionary of ``{schema encoding: decoder}``, where a decoder is some
+            callable that takes a py:class:`mcap.Schema` and py:class:`mcap.Message` and returns
+            a deserialized message.
         """
         if not McapSchema or not make_reader:
             raise RuntimeError(
@@ -290,17 +296,24 @@ class Client:
             device_id=device_id, start=start, end=end, topics=topics
         )
         reader = make_reader(BytesIO(data))
-        decoders = {}
+        auto_load_decoders = False
+        if decoders is None:
+            decoders = {}
+            auto_load_decoders = True
         output_messages = []
         for schema, channel, message in reader.iter_messages():
             if schema.encoding not in decoders:
-                decoder = decoder_for_schema_encoding(schema.encoding)
-                decoders[schema.encoding] = decoder
+                if auto_load_decoders:
+                    decoder_instance = decoder_for_schema_encoding(schema.encoding)
+                    decoder = decoder_instance.decode
+                    decoders[schema.encoding] = decoder
+                else:
+                    raise RuntimeError(
+                        f"no decoder provided for schema encoding {schema.encoding}"
+                    )
             else:
                 decoder = decoders[schema.encoding]
-            output_messages.append(
-                (channel.topic, message, decoder.decode(schema, message))
-            )
+            output_messages.append((channel.topic, message, decoder(schema, message)))
         return output_messages
 
     def download_data(

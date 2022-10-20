@@ -10,19 +10,14 @@ import requests
 from typing_extensions import Protocol
 
 
-try:
-    from mcap.records import Schema as McapSchema
-    from mcap.records import Message as McapMessage
-    from mcap.reader import make_reader
-except ModuleNotFoundError:
-    McapSchema = None
-    McapMessage = None
-    make_reader = None
+from mcap.records import Schema
+from mcap.records import Message
+from mcap.reader import make_reader
 
 
 def _err_on_construction(err):
     def construct():
-        raise RuntimeError(f"Error importing decoder implementation: {err}")
+        raise FoxgloveException(f"Error importing decoder implementation: {err}")
 
     return construct
 
@@ -44,7 +39,7 @@ except ModuleNotFoundError as err:
 
 
 class JsonDecoder:
-    def decode(self, schema_, message):
+    def decode(self, schema_: Schema, message: Message):
         return json.loads(message.data.decode("utf-8"))
 
 
@@ -57,7 +52,7 @@ def decoder_for_schema_encoding(encoding_string):
         return ProtobufDecoder()
     if encoding_string == "jsonschema":
         return JsonDecoder()
-    raise RuntimeError(f"No known decoder class for encoding {encoding_string}")
+    raise FoxgloveException(f"No known decoder class for encoding {encoding_string}")
 
 
 def camelize(snake_name: Optional[str]) -> Optional[str]:
@@ -274,7 +269,7 @@ class Client:
         start: datetime.datetime,
         end: datetime.datetime,
         topics: List[str] = [],
-        decoders: Optional[Dict[str, Callable[[McapSchema, McapMessage], Any]]] = None,
+        decoders: Optional[Dict[str, Callable[[Schema, Message], Any]]] = None,
     ):
         """
         Returns a list of tuples of (topic, raw mcap record, decoded message).
@@ -288,10 +283,6 @@ class Client:
             callable that takes a py:class:`mcap.Schema` and py:class:`mcap.Message` and returns
             a deserialized message.
         """
-        if not McapSchema or not make_reader:
-            raise RuntimeError(
-                "Mcap library not found. Please install the mcap library."
-            )
         data = self.download_data(
             device_id=device_id, start=start, end=end, topics=topics
         )
@@ -308,7 +299,7 @@ class Client:
                     decoder = decoder_instance.decode
                     decoders[schema.encoding] = decoder
                 else:
-                    raise RuntimeError(
+                    raise FoxgloveException(
                         f"no decoder provided for schema encoding {schema.encoding}"
                     )
             else:

@@ -194,11 +194,11 @@ class Client:
 
         event_id: The id of the event to delete.
         """
-        request = requests.delete(
+        response = requests.delete(
             self.__url__(f"/beta/device-events/{event_id}"),
             headers=self.__headers,
         )
-        request.raise_for_status()
+        json_or_raise(response)
 
     def get_events(
         self,
@@ -438,7 +438,7 @@ class Client:
         device_id: The name of the devicee.
         serial_number: The unique serial number of the devicde.
         """
-        request = requests.post(
+        response = requests.post(
             self.__url__("/v1/devices"),
             headers=self.__headers,
             json={
@@ -446,8 +446,9 @@ class Client:
                 "serialNumber": serial_number,
             },
         )
-        request.raise_for_status()
-        device = request.json()
+
+        device = json_or_raise(response)
+
         return {
             "id": device["id"],
             "name": device["name"],
@@ -462,11 +463,11 @@ class Client:
 
         :param device_id: The id of the device.
         """
-        request = requests.delete(
+        response = requests.delete(
             self.__url__(f"/v1/devices/{device_id}"),
             headers=self.__headers,
         )
-        request.raise_for_status()
+        json_or_raise(response)
 
     def delete_import(self, device_id: str, import_id: str):
         """
@@ -475,12 +476,12 @@ class Client:
         :param device_id: The id of the device associated with the import.
         :param import_id: The id of the import to delete.
         """
-        request = requests.delete(
+        response = requests.delete(
             self.__url__(f"/v1/data/imports/{import_id}"),
             params={"deviceId": device_id},
             headers=self.__headers,
         )
-        request.raise_for_status()
+        json_or_raise(response)
 
     def get_imports(
         self,

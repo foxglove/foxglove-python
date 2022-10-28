@@ -90,27 +90,27 @@ class ProgressBufferReader(IO[Any]):
         buf: Union[bytes, IO[Any]],
         callback: Optional[SizeProgressCallback] = None,
     ):
-        self.__callback = callback
-        self.__progress = 0
+        self._callback = callback
+        self._progress = 0
         if isinstance(buf, bytes):
-            self.__length = len(buf)
-            self.__buf = BytesIO(buf)
+            self._length = len(buf)
+            self._buf = BytesIO(buf)
         else:
-            self.__length = os.fstat(buf.fileno()).st_size
-            self.__buf = buf
+            self._length = os.fstat(buf.fileno()).st_size
+            self._buf = buf
 
     def __len__(self):
-        return self.__length
+        return self._length
 
     def read(self, n: int = -1) -> bytes:
-        chunk = self.__buf.read(n) or bytes()
-        self.__progress += int(len(chunk))
-        if self.__callback:
-            self.__callback(size=self.__length or 0, progress=self.__progress)
+        chunk = self._buf.read(n) or bytes()
+        self._progress += int(len(chunk))
+        if self._callback:
+            self._callback(size=self._length or 0, progress=self._progress)
         return chunk
 
     def tell(self) -> int:
-        return self.__progress
+        return self._progress
 
 
 def json_or_raise(response: requests.Response):
@@ -134,27 +134,40 @@ def json_or_raise(response: requests.Response):
 
 
 class Client:
+    """
+    A client for interacting with Foxglove Data Platform. See
+    https://foxglove.dev/docs/data-platform for documentation and examples.
+
+    :param token: the API token to authenticate against the host with.
+    :param host: The domain to interact with.
+    :param decoders: an optional dictionary of ``{schema encoding: decoder}``, where a decoder is
+        some callable that takes a :class:`mcap.Schema` and :class:`mcap.Message` and returns
+        a deserialized message. This is used in :func:`get_messages` to decode messages downloaded
+        from Data Platform. If `None`, :func:`get_messages` will attempt to load decoder classes
+        from any support packages (such as `mcap_ros1_support`) available on the module search path.
+    """
+
     def __init__(
         self,
         token: str,
         host: str = "api.foxglove.dev",
         decoders: Optional[Dict[str, Callable[[Schema, Message], Any]]] = None,
     ):
-        self.__token = token
-        self.__headers = {
+        self._token = token
+        self._headers = {
             "Content-type": "application/json",
-            "Authorization": "Bearer " + self.__token,
+            "Authorization": "Bearer " + self._token,
         }
-        self.__host = host
-        self.__decoders: Dict[str, Callable[[Schema, Message], Any]] = {}
-        self.__auto_load_decoders = False
+        self._host = host
+        self._decoders: Dict[str, Callable[[Schema, Message], Any]] = {}
+        self._auto_load_decoders = False
         if decoders is not None:
-            self.__decoders = decoders
+            self._decoders = decoders
         else:
-            self.__auto_load_decoders = True
+            self._auto_load_decoders = True
 
-    def __url__(self, path: str):
-        return f"https://{self.__host}{path}"
+    def _url(self, path: str):
+        return f"https://{self._host}{path}"
 
     def create_event(
         self,
@@ -172,8 +185,8 @@ class Client:
         metadata: Optional metadata attached to the event.
         """
         response = requests.post(
-            self.__url__("/beta/device-events"),
-            headers=self.__headers,
+            self._url("/beta/device-events"),
+            headers=self._headers,
             json={
                 "deviceId": device_id,
                 "durationNanos": str(duration),
@@ -203,8 +216,8 @@ class Client:
         event_id: The id of the event to delete.
         """
         response = requests.delete(
-            self.__url__(f"/beta/device-events/{event_id}"),
-            headers=self.__headers,
+            self._url(f"/beta/device-events/{event_id}"),
+            headers=self._headers,
         )
         json_or_raise(response)
 
@@ -252,8 +265,8 @@ class Client:
             "value": value,
         }
         response = requests.get(
-            self.__url__("/beta/device-events"),
-            headers=self.__headers,
+            self._url("/beta/device-events"),
+            headers=self._headers,
             params={k: v for k, v in params.items() if v},
         )
 
@@ -289,9 +302,6 @@ class Client:
         end: The latest time from which to retrieve data.
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
-        decoders: an optional dictionary of ``{schema encoding: decoder}``, where a decoder is some
-            callable that takes a py:class:`mcap.Schema` and py:class:`mcap.Message` and returns
-            a deserialized message.
         """
         data = self.download_data(
             device_id=device_id, start=start, end=end, topics=topics
@@ -299,17 +309,17 @@ class Client:
         reader = make_reader(BytesIO(data))
         output_messages = []
         for schema, channel, message in reader.iter_messages():
-            if schema.encoding not in self.__decoders:
-                if self.__auto_load_decoders:
+            if schema.encoding not in self._decoders:
+                if self._auto_load_decoders:
                     decoder_instance = decoder_for_schema_encoding(schema.encoding)
                     decoder = decoder_instance.decode
-                    self.__decoders[schema.encoding] = decoder
+                    self._decoders[schema.encoding] = decoder
                 else:
                     raise FoxgloveException(
                         f"no decoder provided for schema encoding {schema.encoding}"
                     )
             else:
-                decoder = self.__decoders[schema.encoding]
+                decoder = self._decoders[schema.encoding]
             output_messages.append((channel.topic, message, decoder(schema, message)))
         return output_messages
 
@@ -340,8 +350,8 @@ class Client:
             "topics": topics,
         }
         link_response = requests.post(
-            self.__url__("/v1/data/stream"),
-            headers=self.__headers,
+            self._url("/v1/data/stream"),
+            headers=self._headers,
             json={k: v for k, v in params.items() if v},
         )
 
@@ -379,8 +389,8 @@ class Client:
             "end": end.astimezone().isoformat(),
         }
         response = requests.get(
-            self.__url__("/v1/data/coverage"),
-            headers=self.__headers,
+            self._url("/v1/data/coverage"),
+            headers=self._headers,
             params={k: v for k, v in params.items() if v},
         )
         json = json_or_raise(response)
@@ -401,8 +411,8 @@ class Client:
         :param device_id: The id of the device to retrieve.
         """
         response = requests.get(
-            self.__url__(f"/v1/devices/{device_id}"),
-            headers=self.__headers,
+            self._url(f"/v1/devices/{device_id}"),
+            headers=self._headers,
         )
 
         device = json_or_raise(response)
@@ -420,8 +430,8 @@ class Client:
         Returns a list of all devices.
         """
         response = requests.get(
-            self.__url__("/v1/devices"),
-            headers=self.__headers,
+            self._url("/v1/devices"),
+            headers=self._headers,
         )
 
         json = json_or_raise(response)
@@ -449,8 +459,8 @@ class Client:
         serial_number: The unique serial number of the devicde.
         """
         response = requests.post(
-            self.__url__("/v1/devices"),
-            headers=self.__headers,
+            self._url("/v1/devices"),
+            headers=self._headers,
             json={
                 "name": name,
                 "serialNumber": serial_number,
@@ -474,8 +484,8 @@ class Client:
         :param device_id: The id of the device.
         """
         response = requests.delete(
-            self.__url__(f"/v1/devices/{device_id}"),
-            headers=self.__headers,
+            self._url(f"/v1/devices/{device_id}"),
+            headers=self._headers,
         )
         json_or_raise(response)
 
@@ -487,9 +497,9 @@ class Client:
         :param import_id: The id of the import to delete.
         """
         response = requests.delete(
-            self.__url__(f"/v1/data/imports/{import_id}"),
+            self._url(f"/v1/data/imports/{import_id}"),
             params={"deviceId": device_id},
-            headers=self.__headers,
+            headers=self._headers,
         )
         json_or_raise(response)
 
@@ -524,9 +534,9 @@ class Client:
             "filename": filename,
         }
         response = requests.get(
-            self.__url__("/v1/data/imports"),
+            self._url("/v1/data/imports"),
             params={k: v for k, v in all_params.items() if v},
-            headers=self.__headers,
+            headers=self._headers,
         )
         json = json_or_raise(response)
 
@@ -554,8 +564,8 @@ class Client:
         end: datetime.datetime,
     ):
         response = requests.get(
-            self.__url__("/v1/data/topics"),
-            headers=self.__headers,
+            self._url("/v1/data/topics"),
+            headers=self._headers,
             params={
                 "deviceId": device_id,
                 "start": start.astimezone().isoformat(),
@@ -594,8 +604,8 @@ class Client:
         callback: An optional callback to report progress on the upload.
         """
         link_response = requests.post(
-            self.__url__("/v1/data/upload"),
-            headers=self.__headers,
+            self._url("/v1/data/upload"),
+            headers=self._headers,
             json={
                 "deviceId": device_id,
                 "filename": filename,

@@ -134,13 +134,24 @@ def json_or_raise(response: requests.Response):
 
 
 class Client:
-    def __init__(self, token: str, host: str = "api.foxglove.dev"):
+    def __init__(
+        self,
+        token: str,
+        host: str = "api.foxglove.dev",
+        decoders: Optional[Dict[str, Callable[[Schema, Message], Any]]] = None,
+    ):
         self.__token = token
         self.__headers = {
             "Content-type": "application/json",
             "Authorization": "Bearer " + self.__token,
         }
         self.__host = host
+        self.__decoders: Dict[str, Callable[[Schema, Message], Any]] = {}
+        self.__auto_load_decoders = False
+        if decoders is not None:
+            self.__decoders = decoders
+        else:
+            self.__auto_load_decoders = True
 
     def __url__(self, path: str):
         return f"https://{self.__host}{path}"
@@ -269,7 +280,6 @@ class Client:
         start: datetime.datetime,
         end: datetime.datetime,
         topics: List[str] = [],
-        decoders: Optional[Dict[str, Callable[[Schema, Message], Any]]] = None,
     ):
         """
         Returns a list of tuples of (topic, raw mcap record, decoded message).
@@ -287,23 +297,19 @@ class Client:
             device_id=device_id, start=start, end=end, topics=topics
         )
         reader = make_reader(BytesIO(data))
-        auto_load_decoders = False
-        if decoders is None:
-            decoders = {}
-            auto_load_decoders = True
         output_messages = []
         for schema, channel, message in reader.iter_messages():
-            if schema.encoding not in decoders:
-                if auto_load_decoders:
+            if schema.encoding not in self.__decoders:
+                if self.__auto_load_decoders:
                     decoder_instance = decoder_for_schema_encoding(schema.encoding)
                     decoder = decoder_instance.decode
-                    decoders[schema.encoding] = decoder
+                    self.__decoders[schema.encoding] = decoder
                 else:
                     raise FoxgloveException(
                         f"no decoder provided for schema encoding {schema.encoding}"
                     )
             else:
-                decoder = decoders[schema.encoding]
+                decoder = self.__decoders[schema.encoding]
             output_messages.append((channel.topic, message, decoder(schema, message)))
         return output_messages
 

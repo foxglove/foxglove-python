@@ -221,7 +221,7 @@ class Client:
             Either device_id or device_name is required.
         sort_by: Optionally sort records by this field name (e.g. "device_id").
         sort_order: Optionally specify the sort order, either "asc" or "desc".
-        limit: Optionally limit the number of records return.
+        limit: Optionally limit the number of records returned.
         offset: Optionally offset the results by this many records.
         start: Optionally exclude records before this time.
         end: Optionally exclude records after this time.
@@ -492,6 +492,10 @@ class Client:
         data_end: Optional[datetime.datetime] = None,
         include_deleted: bool = False,
         filename: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
     ):
         """
         Fetches imports.
@@ -503,6 +507,10 @@ class Client:
         :param data_end: Optionally filter by data end time.
         :param include_deleted: Include deleted imports.
         :param filename: Optionally filter by matching filename.
+        :param sort_by: Optionally sort records by this field name (e.g. "device_id").
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param limit: Optionally limit the number of records returned.
+        :param offset: Optionally offset the results by this many records.
         """
         all_params = {
             "deviceId": device_id,
@@ -512,6 +520,10 @@ class Client:
             "dataEnd": data_end.astimezone().isoformat() if data_end else None,
             "includeDeleted": include_deleted,
             "filename": filename,
+            "sortBy": camelize(sort_by),
+            "sortOrder": sort_order,
+            "limit": limit,
+            "offset": offset,
         }
         response = requests.get(
             self.__url__("/v1/data/imports"),

@@ -246,7 +246,7 @@ class Client:
         response = requests.get(
             self.__url__("/beta/device-events"),
             headers=self.__headers,
-            params={k: v for k, v in params.items() if v},
+            params={k: v for k, v in params.items() if v is not None},
         )
 
         json = json_or_raise(response)
@@ -332,7 +332,7 @@ class Client:
         link_response = requests.post(
             self.__url__("/v1/data/stream"),
             headers=self.__headers,
-            json={k: v for k, v in params.items() if v},
+            json={k: v for k, v in params.items() if v is not None},
         )
 
         json = json_or_raise(link_response)
@@ -371,7 +371,7 @@ class Client:
         response = requests.get(
             self.__url__("/v1/data/coverage"),
             headers=self.__headers,
-            params={k: v for k, v in params.items() if v},
+            params={k: v for k, v in params.items() if v is not None},
         )
         json = json_or_raise(response)
 
@@ -527,7 +527,7 @@ class Client:
         }
         response = requests.get(
             self.__url__("/v1/data/imports"),
-            params={k: v for k, v in all_params.items() if v},
+            params={k: v for k, v in all_params.items() if v is not None},
             headers=self.__headers,
         )
         json = json_or_raise(response)

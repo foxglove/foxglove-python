@@ -25,6 +25,7 @@ mcap-ros2-support = "==0.1.0"
 pyright = "*"
 pytest = "*"
 responses = "*"
+catkin = {version="*", index="ros"}
 rosbag = {version="*", index="ros"}
 std_msgs = {version="*", index="ros"}
 

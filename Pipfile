@@ -29,7 +29,7 @@ rosbag = {version="*", index="ros"}
 std_msgs = {version="*", index="ros"}
 
 [requires]
-python_version = "3"
+python_version = "3.8"
 
 [pipenv]
 allow_prereleases = true

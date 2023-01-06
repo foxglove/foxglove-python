@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: 3.7
-          cache: pipenv
+          # cache: pipenv
       - run: pip install pipenv
       - run: pipenv --python 3.7
       - run: pipenv install --dev --deploy

@@ -17,7 +17,7 @@ typing_extensions = "*"
 black = "*"
 build = "*"
 faker = "*"
-flake8 = "~=5.0"
+flake8 = "*"
 mcap = "==0.0.15"
 mcap-ros1-support = "==0.4.0"
 mcap-protobuf-support = "==0.0.8"
@@ -30,7 +30,7 @@ rosbag = {version="*", index="ros"}
 std_msgs = {version="*", index="ros"}
 
 [requires]
-python_version = "3.7"
+python_version = "3.8"
 
 [pipenv]
 allow_prereleases = true

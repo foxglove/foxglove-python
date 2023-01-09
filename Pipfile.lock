@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "b928f648c0a13d0858b9325748c433f899dbbf0c7617c2deff7059434969e28e"
+            "sha256": "348006671bfce1bc10ee9a4418a11a6f7ebf8989cb6e1f2435d495d3cc2470c9"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -134,7 +134,6 @@
                 "sha256:0f477d7260cfa46fce3b90b110c908e18c4fb47e38b8873008cf95798bc4e5f0",
                 "sha256:909bda3064e1633d54e9d34cb6f87a6021aa0f0df173208d4e828e01d70f6380"
             ],
-            "index": "ros",
             "version": "==0.7.18"
         },
         "catkin-pkg": {

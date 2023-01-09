@@ -33,4 +33,3 @@ python_version = "3.8"
 
 [pipenv]
 allow_prereleases = true
-install_search_all_sources = true

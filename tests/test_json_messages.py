@@ -13,5 +13,5 @@ def test_download_with_decoder():
         device_id="test_id", start=datetime.now(), end=datetime.now()
     )
     assert len(messages) == 10
-    for (_, _, msg) in messages:
+    for _, _, msg in messages:
         assert "level" in msg

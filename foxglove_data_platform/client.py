@@ -3,6 +3,7 @@ import os
 from enum import Enum
 from io import BytesIO
 import json
+import warnings
 from typing import IO, Any, Dict, List, Optional, Union
 
 import arrow
@@ -400,7 +401,6 @@ class Client:
         return {
             "id": device["id"],
             "name": device["name"],
-            "serial_number": device["serialNumber"],
             "created_at": arrow.get(device["createdAt"]).datetime,
             "updated_at": arrow.get(device["updatedAt"]).datetime,
         }
@@ -420,7 +420,6 @@ class Client:
             {
                 "id": d["id"],
                 "name": d["name"],
-                "serial_number": d["serialNumber"],
                 "created_at": arrow.get(d["createdAt"]).datetime,
                 "updated_at": arrow.get(d["updatedAt"]).datetime,
             }
@@ -430,21 +429,20 @@ class Client:
     def create_device(
         self,
         name: str,
-        serial_number: str,
+        serial_number: Optional[str] = None,
     ):
         """
         Creates a new device.
 
-        device_id: The name of the devicee.
-        serial_number: The unique serial number of the devicde.
+        name: The name of the devicee.
+        serial_number: DEPRECATED: a serial number for the device. This argument has no effect.
         """
+        if serial_number is not None:
+            warnings.warn(
+                "serial number argument is deprecated and will be removed in the next release"
+            )
         response = requests.post(
-            self.__url__("/v1/devices"),
-            headers=self.__headers,
-            json={
-                "name": name,
-                "serialNumber": serial_number,
-            },
+            self.__url__("/v1/devices"), headers=self.__headers, json={"name": name}
         )
 
         device = json_or_raise(response)
@@ -452,7 +450,6 @@ class Client:
         return {
             "id": device["id"],
             "name": device["name"],
-            "serial_number": device["serialNumber"],
         }
 
     def delete_device(self, device_id: str):

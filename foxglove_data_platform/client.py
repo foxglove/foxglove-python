@@ -69,6 +69,13 @@ def camelize(snake_name: Optional[str]) -> Optional[str]:
     return "".join([parts[0]] + [w.title() for w in parts[1:]])
 
 
+def bool_query_param(val: bool) -> Optional[str]:
+    """
+    Serialize a bool to an API query parameter (e.g. True -> "true")
+    """
+    return str(val).lower() if val is not None else None
+
+
 class FoxgloveException(Exception):
     pass
 
@@ -515,7 +522,7 @@ class Client:
             "end": end.astimezone().isoformat() if end else None,
             "dataStart": data_start.astimezone().isoformat() if data_start else None,
             "dataEnd": data_end.astimezone().isoformat() if data_end else None,
-            "includeDeleted": include_deleted,
+            "includeDeleted": bool_query_param(include_deleted),
             "filename": filename,
             "sortBy": camelize(sort_by),
             "sortOrder": sort_order,

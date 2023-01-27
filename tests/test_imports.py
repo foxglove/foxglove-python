@@ -52,3 +52,37 @@ def test_get_imports():
     imports = client.get_imports(device_id=device_id)
     assert len(imports) == 1
     assert imports[0]["device_id"] == device_id
+
+
+@responses.activate
+def test_get_deleted_imports():
+    responses.add(
+        responses.GET,
+        api_url(f"/v1/data/imports"),
+        json=[],
+    )
+    responses.add(
+        responses.GET,
+        api_url(f"/v1/data/imports"),
+        json=[
+            {
+                "importId": "import_id",
+                "deviceId": "device_id",
+                "importTime": datetime.now().isoformat(),
+                "start": datetime.now().isoformat(),
+                "end": datetime.now().isoformat(),
+                "metadata": {},
+                "inputType": "bag",
+                "outputType": "mcap0",
+                "filename": "test.bag",
+                "inputSize": 1024,
+                "totalOutputSize": 1024,
+            }
+        ],
+        match=[responses.matchers.query_string_matcher("includeDeleted=true")],
+    )
+    client = Client("test")
+    imports = client.get_imports()
+    deleted_imports = client.get_imports(include_deleted=True)
+    assert len(imports) == 0
+    assert len(deleted_imports) == 1

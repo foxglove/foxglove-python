@@ -408,8 +408,6 @@ class Client:
         return {
             "id": device["id"],
             "name": device["name"],
-            "created_at": arrow.get(device["createdAt"]).datetime,
-            "updated_at": arrow.get(device["updatedAt"]).datetime,
         }
 
     def get_devices(self):
@@ -427,8 +425,6 @@ class Client:
             {
                 "id": d["id"],
                 "name": d["name"],
-                "created_at": arrow.get(d["createdAt"]).datetime,
-                "updated_at": arrow.get(d["updatedAt"]).datetime,
             }
             for d in json
         ]
@@ -543,7 +539,6 @@ class Client:
                 "import_time": arrow.get(i["importTime"]).datetime,
                 "start": arrow.get(i["start"]).datetime,
                 "end": arrow.get(i["end"]).datetime,
-                "metadata": i["metadata"],
                 "input_type": i["inputType"],
                 "output_type": i["outputType"],
                 "filename": i["filename"],

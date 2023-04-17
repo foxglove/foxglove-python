@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+import datetime
 
 import responses
 from faker import Faker
@@ -14,23 +14,28 @@ fake = Faker()
 def test_create_event():
     id = fake.uuid4()
     device_id = fake.uuid4()
+    start = datetime.datetime.now().astimezone()
+    end = start + datetime.timedelta(seconds=10)
+    now = datetime.datetime.now().astimezone()
     responses.add(
         responses.POST,
-        api_url("/beta/device-events"),
+        api_url("/v1/events"),
         json={
             "id": id,
-            "deviceId": device_id,
-            "timestampNanos": str(time.time_ns()),
-            "durationNanos": "1",
+            "start": start.astimezone().isoformat(),
+            "end": end.astimezone().isoformat(),
             "metadata": {"foo": "bar"},
-            "createdAt": datetime.now().isoformat(),
-            "updatedAt": datetime.now().isoformat(),
+            "createdAt": now.astimezone().isoformat(),
+            "updatedAt": now.astimezone().isoformat(),
         },
     )
     client = Client("test")
-    event = client.create_event(device_id=device_id, time=datetime.now(), duration=1)
+    event = client.create_event(device_id=device_id, start=start, end=end)
+    assert event["start"] == start
+    assert event["end"] == end
     assert event["id"] == id
-    assert event["device_id"] == device_id
+    assert event["created_at"] == now
+    assert event["updated_at"] == now
 
 
 @responses.activate
@@ -55,12 +60,12 @@ def test_get_events():
         json=[
             {
                 "id": "1",
-                "createdAt": datetime.now().isoformat(),
+                "createdAt": datetime.datetime.now().isoformat(),
                 "deviceId": device_id,
                 "durationNanos": fake.pyint(),
                 "metadata": {},
                 "timestampNanos": fake.pyint(),
-                "updatedAt": datetime.now().isoformat(),
+                "updatedAt": datetime.datetime.now().isoformat(),
             }
         ],
     )

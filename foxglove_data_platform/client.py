@@ -186,16 +186,7 @@ class Client:
             },
         )
 
-        event = json_or_raise(response)
-        return {
-            "id": event["id"],
-            "device_id": event["deviceId"],
-            "timestamp_nanos": event["timestampNanos"],
-            "duration_nanos": event["durationNanos"],
-            "metadata": event["metadata"],
-            "created_at": arrow.get(event["createdAt"]).datetime,
-            "updated_at": arrow.get(event["updatedAt"]).datetime,
-        }
+        return _event_dict(json_or_raise(response))
 
     def delete_event(
         self,
@@ -630,6 +621,16 @@ class Client:
             "text": upload_request.text,
             "code": upload_request.status_code,
         }
+
+def _event_dict(json_event):
+    return {
+        "id": json_event["id"],
+        "start": datetime.datetime.fromisoformat(json_event["start"]),
+        "end": datetime.datetime.fromisoformat(json_event["end"]),
+        "metadata": json_event["metadata"],
+        "created_at": datetime.datetime.fromisoformat(json_event["createdAt"]),
+        "updated_at": datetime.datetime.fromisoformat(json_event["updatedAt"]),
+    }
 
 
 __all__ = ["Client", "FoxgloveException", "OutputFormat"]

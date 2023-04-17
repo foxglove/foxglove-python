@@ -160,26 +160,29 @@ class Client:
         self,
         *,
         device_id: str,
-        time: datetime.datetime,
-        duration: int,
+        start: datetime.datetime,
+        end: Optional[datetime.datetime],
         metadata: Optional[Dict[str, str]] = {},
     ):
         """
         Creates a new event.
 
         device_id: The unique of the device associated with this event.
-        time: The time at which the event occurred.
-        duration: The duration of the event. Zero for an instantaneous event.
+        start: The event start time.
+        end: The event end time. If not provided, an instantaneous event (with end == start)
+            is created.
         metadata: Optional metadata attached to the event.
         """
+        if end is None:
+            end = start
         response = requests.post(
-            self.__url__("/beta/device-events"),
+            self.__url__("/v1/events"),
             headers=self.__headers,
             json={
                 "deviceId": device_id,
-                "durationNanos": str(duration),
+                "start": start.astimezone().isoformat(),
+                "end": end.astimezone().isoformat(),
                 "metadata": metadata,
-                "timestamp": time.astimezone().isoformat(),
             },
         )
 

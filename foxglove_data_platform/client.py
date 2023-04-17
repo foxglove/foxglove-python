@@ -158,6 +158,7 @@ class Client:
 
     def create_event(
         self,
+        *,
         device_id: str,
         time: datetime.datetime,
         duration: int,
@@ -195,6 +196,7 @@ class Client:
 
     def delete_event(
         self,
+        *,
         event_id: str,
     ):
         """
@@ -210,6 +212,7 @@ class Client:
 
     def get_events(
         self,
+        *,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
         sort_by: Optional[str] = None,
@@ -276,6 +279,7 @@ class Client:
 
     def get_messages(
         self,
+        *,
         device_id: str,
         start: datetime.datetime,
         end: datetime.datetime,
@@ -313,6 +317,7 @@ class Client:
 
     def download_data(
         self,
+        *,
         device_id: str,
         start: datetime.datetime,
         end: datetime.datetime,
@@ -356,6 +361,7 @@ class Client:
 
     def get_coverage(
         self,
+        *,
         start: datetime.datetime,
         end: datetime.datetime,
         device_id: Optional[str] = None,
@@ -392,7 +398,7 @@ class Client:
             for c in json
         ]
 
-    def get_device(self, device_id: str):
+    def get_device(self, *, device_id: str):
         """
         Gets a single device by id.
 
@@ -431,6 +437,7 @@ class Client:
 
     def create_device(
         self,
+        *,
         name: str,
         serial_number: Optional[str] = None,
     ):
@@ -455,7 +462,7 @@ class Client:
             "name": device["name"],
         }
 
-    def delete_device(self, device_id: str):
+    def delete_device(self, *, device_id: str):
         """
         Deletes an existing device.
 
@@ -469,7 +476,7 @@ class Client:
         )
         json_or_raise(response)
 
-    def delete_import(self, device_id: str, import_id: str):
+    def delete_import(self, *, device_id: str, import_id: str):
         """
         Deletes an existing import.
 
@@ -485,6 +492,7 @@ class Client:
 
     def get_imports(
         self,
+        *,
         device_id: Optional[str] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
@@ -550,6 +558,7 @@ class Client:
 
     def get_topics(
         self,
+        *,
         device_id: str,
         start: datetime.datetime,
         end: datetime.datetime,
@@ -580,6 +589,7 @@ class Client:
 
     def upload_data(
         self,
+        *,
         device_id: str,
         filename: str,
         data: Union[bytes, IO[Any]],

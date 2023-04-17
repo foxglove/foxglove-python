@@ -42,7 +42,7 @@ def test_create_event():
 def test_delete_event():
     id = fake.uuid4()
     responses.add(
-        responses.DELETE, api_url(f"/beta/device-events/{id}"), json={"success": True}
+        responses.DELETE, api_url(f"/v1/events/{id}"), json={"id": id}
     )
     client = Client("test")
     try:

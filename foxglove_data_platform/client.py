@@ -199,10 +199,10 @@ class Client:
         event_id: The id of the event to delete.
         """
         response = requests.delete(
-            self.__url__(f"/beta/device-events/{event_id}"),
+            self.__url__(f"/v1/events/{event_id}"),
             headers=self.__headers,
         )
-        json_or_raise(response)
+        return json_or_raise(response)
 
     def get_events(
         self,

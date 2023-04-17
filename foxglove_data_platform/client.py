@@ -207,69 +207,46 @@ class Client:
     def get_events(
         self,
         *,
-        device_id: Optional[str] = None,
-        device_name: Optional[str] = None,
+        device_id: str,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
-        key: Optional[str] = None,
-        value: Optional[str] = None,
+        query: Optional[str] = None,
     ):
         """
         Retrieves events.
 
         device_id: Id of the device associated with the events.
-        device_name: Name of the device associated with events.
-            Either device_id or device_name is required.
         sort_by: Optionally sort records by this field name (e.g. "device_id").
         sort_order: Optionally specify the sort order, either "asc" or "desc".
         limit: Optionally limit the number of records returned.
         offset: Optionally offset the results by this many records.
         start: Optionally exclude records before this time.
         end: Optionally exclude records after this time.
-        key: Optionally only return records having this key = this value.
-        value: Optionally only return records having this key = this value.
+        query: optional query string to filter events by metadata.
+            See https://foxglove.dev/docs/api#tag/Events/paths/~1events/get for a syntax definition
+            of `query`.
         """
-        if not device_id and not device_name:
-            raise FoxgloveException("One of device_id or device_name is required.")
-
         params = {
             "deviceId": device_id,
-            "deviceName": device_name,
             "sortBy": camelize(sort_by),
             "sortOrder": sort_order,
             "limit": limit,
             "offset": offset,
             "start": start.astimezone().isoformat() if start else None,
             "end": end.astimezone().isoformat() if end else None,
-            "key": key,
-            "value": value,
+            "query": query,
         }
         response = requests.get(
-            self.__url__("/beta/device-events"),
+            self.__url__("/v1/events"),
             headers=self.__headers,
             params={k: v for k, v in params.items() if v is not None},
         )
 
-        json = json_or_raise(response)
-
-        return [
-            {
-                "id": e["id"],
-                "device_id": e["deviceId"],
-                "duration": int(e["durationNanos"]),
-                "metadata": e["metadata"],
-                # datetime doesn't support nanoseconds so we have to divide by 1e9 first.
-                "timestamp": arrow.get(int(e["timestampNanos"]) / 1e9).datetime,
-                "timestamp_nanos": int(e["timestampNanos"]),
-                "created_at": arrow.get(e["createdAt"]).datetime,
-                "updated_at": arrow.get(e["updatedAt"]).datetime,
-            }
-            for e in json
-        ]
+        return [_event_dict(event) for event in json_or_raise(response)]
 
     def get_messages(
         self,
@@ -622,14 +599,16 @@ class Client:
             "code": upload_request.status_code,
         }
 
+
 def _event_dict(json_event):
     return {
         "id": json_event["id"],
-        "start": datetime.datetime.fromisoformat(json_event["start"]),
-        "end": datetime.datetime.fromisoformat(json_event["end"]),
+        "device_id": json_event["deviceId"],
+        "start": arrow.get(json_event["start"]).datetime,
+        "end": arrow.get(json_event["end"]).datetime,
         "metadata": json_event["metadata"],
-        "created_at": datetime.datetime.fromisoformat(json_event["createdAt"]),
-        "updated_at": datetime.datetime.fromisoformat(json_event["updatedAt"]),
+        "created_at": arrow.get(json_event["createdAt"]).datetime,
+        "updated_at": arrow.get(json_event["updatedAt"]).datetime,
     }
 
 

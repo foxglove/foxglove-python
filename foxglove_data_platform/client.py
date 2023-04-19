@@ -207,7 +207,7 @@ class Client:
     def get_events(
         self,
         *,
-        device_id: str,
+        device_id: Optional[str] = None,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,

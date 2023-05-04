@@ -5,6 +5,7 @@ from io import BytesIO
 import json
 import warnings
 from typing import IO, Any, Dict, List, Optional, Union
+import base64
 
 import arrow
 import requests
@@ -533,6 +534,7 @@ class Client:
         device_id: str,
         start: datetime.datetime,
         end: datetime.datetime,
+        include_schemas: bool = False,
     ):
         response = requests.get(
             self.__url__("/v1/data/topics"),
@@ -541,22 +543,25 @@ class Client:
                 "deviceId": device_id,
                 "start": start.astimezone().isoformat(),
                 "end": end.astimezone().isoformat(),
-                "includeSchemas": "false",
+                "includeSchemas": "true" if include_schemas else "false",
             },
         )
 
         json = json_or_raise(response)
 
-        return [
-            {
+        results = []
+        for t in json:
+            result = {
                 "topic": t["topic"],
                 "version": t["version"],
                 "encoding": t["encoding"],
                 "schema_encoding": t["schemaEncoding"],
                 "schema_name": t["schemaName"],
             }
-            for t in json
-        ]
+            if include_schemas:
+                result["schema"] = base64.b64decode(t["schema"])
+            results.append(result)
+        return results
 
     def upload_data(
         self,

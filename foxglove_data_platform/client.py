@@ -622,7 +622,7 @@ class Client:
         :param recording_id: Optionally filter responses by this recording ID.
         :param site_id: Optionally filter responses by this site ID.
         :param sort_by: Optionally sort responses by this field name.
-            currently only "logTime" is supported.
+            currently only "log_time" is supported.
         :param sort_order: Optionally specify the sort order, either "asc" or "desc".
         :param limit: Optionally limit the number of records returned.
         :param offset: Optionally offset the results by this many records.

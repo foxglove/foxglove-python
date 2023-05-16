@@ -563,24 +563,30 @@ class Client:
         )
         json = json_or_raise(response)
 
-        return [
-            {
-                "id": i["id"],
-                "path": i["path"],
-                "size": i["size"],
-                "message_count": i["messageCount"],
-                "created_at": arrow.get(i["createdAt"]).datetime,
-                "imported_at": arrow.get(i["importedAt"]).datetime,
-                "start": arrow.get(i["start"]).datetime,
-                "end": arrow.get(i["end"]).datetime,
-                "import_status": i["import_status"],
-                "site": i["site"],
-                "edge_site": i["edge_site"],
-                "device": i["device"],
-                "metadata": i["metadata"],
-            }
-            for i in json
-        ]
+        out = []
+        for i in json:
+            imported_at = i.get("importedAt")
+            if imported_at is not None:
+                imported_at = arrow.get(imported_at).datetime
+            out.append(
+                {
+                    "id": i["id"],
+                    "path": i["path"],
+                    "size": i["size"],
+                    "message_count": i.get("messageCount"),
+                    "created_at": arrow.get(i["createdAt"]).datetime,
+                    "imported_at": imported_at,
+                    "start": arrow.get(i["start"]).datetime,
+                    "end": arrow.get(i["end"]).datetime,
+                    "import_status": i["importStatus"],
+                    "site": i.get("site"),
+                    "edge_site": i.get("edgeSite"),
+                    "device": i.get("device"),
+                    "metadata": i.get("metadata"),
+                }
+            )
+
+        return out
 
     def get_attachments(
         self,
@@ -631,7 +637,7 @@ class Client:
         callback: Optional[ProgressCallback] = None,
     ):
         response = requests.get(
-            self.__url__(f"v1/recording-attachments/{attachment_id}/download"),
+            self.__url__(f"/v1/recording-attachments/{attachment_id}/download"),
             stream=True,
             allow_redirects=True,
         )

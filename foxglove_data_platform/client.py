@@ -145,6 +145,21 @@ def json_or_raise(response: requests.Response):
     return json
 
 
+def _download_stream_with_progress(
+    url: str,
+    headers: Optional[dict] = None,
+    callback: Optional[ProgressCallback] = None,
+):
+    response = requests.get(url, headers=headers, stream=True)
+    response.raise_for_status()
+    data = BytesIO()
+    for chunk in response.iter_content(chunk_size=32 * 1024):
+        data.write(chunk)
+        if callback:
+            callback(progress=data.tell())
+    return data.getvalue()
+
+
 class Client:
     def __init__(self, token: str, host: str = "api.foxglove.dev"):
         self.__token = token
@@ -287,6 +302,38 @@ class Client:
             )
         return output_messages
 
+    def download_recording_data(
+        self,
+        *,
+        id: str,
+        output_format: OutputFormat = OutputFormat.mcap0,
+        include_attachments: bool = False,
+        callback: Optional[ProgressCallback] = None,
+    ):
+        """
+        Returns raw data bytes for a recording.
+
+        :param id: the ID of the recording.
+        :param include_attachments: whether to include MCAP attachments in the returned data.
+        :param output_format: The output format of the data, defaulting to .mcap.
+            Note: You can only export a .bag file if you originally uploaded a .bag file.
+        :param callback: an optional callback to report download progress.
+        """
+        params = {
+            "recordingId": id,
+            "includeAttachments": include_attachments,
+            "outputFormat": output_format.value,
+        }
+        link_response = requests.post(
+            self.__url__("/v1/data/stream"),
+            headers=self.__headers,
+            json={k: v for k, v in params.items() if v is not None},
+        )
+
+        json = json_or_raise(link_response)
+
+        return _download_stream_with_progress(json["link"], callback=callback)
+
     def download_data(
         self,
         *,
@@ -298,7 +345,7 @@ class Client:
         callback: Optional[ProgressCallback] = None,
     ) -> bytes:
         """
-        Returns raw data bytes.
+        Returns raw data bytes for a device and time range.
 
         device_id: The id of the device that originated the desired data.
         start: The earliest time from which to retrieve data.
@@ -322,14 +369,7 @@ class Client:
 
         json = json_or_raise(link_response)
 
-        link = json["link"]
-        response = requests.get(link, stream=True)
-        data = BytesIO()
-        for chunk in response.iter_content(chunk_size=32 * 1024):
-            data.write(chunk)
-            if callback:
-                callback(progress=data.tell())
-        return data.getvalue()
+        return _download_stream_with_progress(json["link"], callback=callback)
 
     def get_coverage(
         self,
@@ -527,6 +567,154 @@ class Client:
             }
             for i in json
         ]
+
+    def get_recordings(
+        self,
+        *,
+        device_id: Optional[str] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        path: Optional[str] = None,
+        site_id: Optional[str] = None,
+        edge_site_id: Optional[str] = None,
+        import_status: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+    ):
+        """Fetches recordings.
+
+        :param device_id: Optionally filter responses by this device ID.
+        :param start: Optionally specify the start of an inclusive time range.
+            Only recordings with messages within this time range will be returned.
+        :param end: Optionally specify the end of an inclusive time range.
+            Only recordings with messages within this time range will be returned.
+        :param path: Optionally filter responses to recordings with a matching path.
+        :param site_id: Optionally filter responses to recordings stored at this primary site.
+        :param edge_site_id: Optionally filter responses to recordings stored at this edge site.
+        :param import_status: Optionally filter responses to recordings with this import status.
+        :param sort_by: Optionally sort returned recordings by a field in the response type.
+            Specifying duration sorts by the duration between the recording start and end fields.
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param limit: Optionally limit the number of records returned.
+        :param offset: Optionally offset the results by this many records.
+        """
+        all_params = {
+            "device.id": device_id,
+            "start": start.astimezone().isoformat() if start else None,
+            "end": end.astimezone().isoformat() if end else None,
+            "site.id": site_id,
+            "edgeSite.id": edge_site_id,
+            "importStatus": import_status,
+            "path": path,
+            "sortBy": camelize(sort_by),
+            "sortOrder": sort_order,
+            "limit": limit,
+            "offset": offset,
+        }
+        response = requests.get(
+            self.__url__("/v1/recordings"),
+            params={k: v for k, v in all_params.items() if v is not None},
+            headers=self.__headers,
+        )
+        json = json_or_raise(response)
+
+        out = []
+        for i in json:
+            imported_at = i.get("importedAt")
+            if imported_at is not None:
+                imported_at = arrow.get(imported_at).datetime
+            out.append(
+                {
+                    "id": i["id"],
+                    "path": i["path"],
+                    "size": i["size"],
+                    "message_count": i.get("messageCount"),
+                    "created_at": arrow.get(i["createdAt"]).datetime,
+                    "imported_at": imported_at,
+                    "start": arrow.get(i["start"]).datetime,
+                    "end": arrow.get(i["end"]).datetime,
+                    "import_status": i["importStatus"],
+                    "site": i.get("site"),
+                    "edge_site": i.get("edgeSite"),
+                    "device": i.get("device"),
+                    "metadata": i.get("metadata"),
+                }
+            )
+
+        return out
+
+    def get_attachments(
+        self,
+        *,
+        device_id: Optional[str] = None,
+        recording_id: Optional[str] = None,
+        site_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+    ):
+        """List recording attachments.
+
+        :param device_id: Optionally filter responses by this device ID.
+        :param recording_id: Optionally filter responses by this recording ID.
+        :param site_id: Optionally filter responses by this site ID.
+        :param sort_by: Optionally sort responses by this field name.
+            currently only "log_time" is supported.
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param limit: Optionally limit the number of records returned.
+        :param offset: Optionally offset the results by this many records.
+        """
+        all_params = {
+            "deviceId": device_id,
+            "siteId": site_id,
+            "recordingId": recording_id,
+            "sortBy": camelize(sort_by),
+            "sortOrder": sort_order,
+            "limit": limit,
+            "offset": offset,
+        }
+        response = requests.get(
+            self.__url__("/v1/recording-attachments"),
+            params={k: v for k, v in all_params.items() if v is not None},
+            headers=self.__headers,
+        )
+        json = json_or_raise(response)
+        return [
+            {
+                "id": i["id"],
+                "recording_id": i["recordingId"],
+                "site_id": i["siteId"],
+                "name": i["name"],
+                "media_type": i["mediaType"],
+                "size": i["size"],
+                "crc": i["crc"],
+                "fingerprint": i["fingerprint"],
+                "log_time": arrow.get(i["logTime"]).datetime,
+                "create_time": arrow.get(i["createTime"]).datetime,
+            }
+            for i in json
+        ]
+
+    def download_attachment(
+        self,
+        *,
+        id: str,
+        callback: Optional[ProgressCallback] = None,
+    ):
+        """Download an attachment by ID.
+
+        :param attachment_id: the attachment ID.
+        :param callback: a callback to track download progress
+        :returns: The downloaded attachment bytes.
+        """
+        return _download_stream_with_progress(
+            self.__url__(f"/v1/recording-attachments/{id}/download"),
+            headers=self.__headers,
+            callback=callback,
+        )
 
     def get_topics(
         self,

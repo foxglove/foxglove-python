@@ -311,7 +311,7 @@ class Client:
         callback: Optional[ProgressCallback] = None,
     ):
         """
-        Returns raw data bytes for a specific recording.
+        Returns raw data bytes for a recording.
 
         :param id: the ID of the recording.
         :param include_attachments: whether to include MCAP attachments in the returned data.

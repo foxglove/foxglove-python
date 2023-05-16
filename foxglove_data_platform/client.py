@@ -528,6 +528,39 @@ class Client:
             for i in json
         ]
 
+    def get_recordings(
+        self,
+        *,
+        device_id: Optional[str] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        path: Optional[str] = None,
+        site_id: Optional[str] = None,
+        edge_site_id: Optional[str] = None,
+        import_status: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+    ):
+        pass
+
+    def get_attachments(
+        self,
+        *,
+        device_id: Optional[str] = None,
+        recording_id: Optional[str] = None,
+        site_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+    ):
+        pass
+
+    def download_attachment(self, *, attachment_id: str):
+        pass
+
     def get_topics(
         self,
         *,

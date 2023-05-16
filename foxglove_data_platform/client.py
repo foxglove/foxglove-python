@@ -324,6 +324,7 @@ class Client:
 
         link = json["link"]
         response = requests.get(link, stream=True)
+        response.raise_for_status()
         data = BytesIO()
         for chunk in response.iter_content(chunk_size=32 * 1024):
             data.write(chunk)
@@ -672,9 +673,10 @@ class Client:
         """
         response = requests.get(
             self.__url__(f"/v1/recording-attachments/{attachment_id}/download"),
+            headers=self.__headers,
             stream=True,
-            allow_redirects=True,
         )
+        response.raise_for_status()
         data = BytesIO()
         for chunk in response.iter_content(chunk_size=32 * 1024):
             data.write(chunk)

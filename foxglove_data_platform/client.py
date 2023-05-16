@@ -145,6 +145,21 @@ def json_or_raise(response: requests.Response):
     return json
 
 
+def _download_stream_with_progress(
+    url: str,
+    headers: Optional[dict] = None,
+    callback: Optional[ProgressCallback] = None,
+):
+    response = requests.get(url, headers=headers, stream=True)
+    response.raise_for_status()
+    data = BytesIO()
+    for chunk in response.iter_content(chunk_size=32 * 1024):
+        data.write(chunk)
+        if callback:
+            callback(progress=data.tell())
+    return data.getvalue()
+
+
 class Client:
     def __init__(self, token: str, host: str = "api.foxglove.dev"):
         self.__token = token
@@ -156,18 +171,6 @@ class Client:
 
     def __url__(self, path: str):
         return f"https://{self.__host}{path}"
-
-    def _download_stream_with_progress(
-        self, url: str, callback: Optional[ProgressCallback] = None
-    ):
-        response = requests.get(url, headers=self.__headers, stream=True)
-        response.raise_for_status()
-        data = BytesIO()
-        for chunk in response.iter_content(chunk_size=32 * 1024):
-            data.write(chunk)
-            if callback:
-                callback(progress=data.tell())
-        return data.getvalue()
 
     def create_event(
         self,
@@ -329,7 +332,7 @@ class Client:
 
         json = json_or_raise(link_response)
 
-        return self._download_stream_with_progress(json["link"], callback=callback)
+        return _download_stream_with_progress(json["link"], callback=callback)
 
     def download_data(
         self,
@@ -366,7 +369,7 @@ class Client:
 
         json = json_or_raise(link_response)
 
-        return self._download_stream_with_progress(json["link"], callback=callback)
+        return _download_stream_with_progress(json["link"], callback=callback)
 
     def get_coverage(
         self,
@@ -707,8 +710,9 @@ class Client:
         :param callback: a callback to track download progress
         :returns: The downloaded attachment bytes.
         """
-        return self._download_stream_with_progress(
+        return _download_stream_with_progress(
             self.__url__(f"/v1/recording-attachments/{id}/download"),
+            headers=self.__headers,
             callback=callback,
         )
 

@@ -645,10 +645,10 @@ class Client:
         return [
             {
                 "id": i["id"],
-                "recordingId": i["recordingId"],
-                "siteId": i["siteId"],
+                "recording_id": i["recordingId"],
+                "site_id": i["siteId"],
                 "name": i["name"],
-                "mediaType": i["mediaType"],
+                "media_type": i["mediaType"],
                 "size": i["size"],
                 "crc": i["crc"],
                 "fingerprint": i["fingerprint"],

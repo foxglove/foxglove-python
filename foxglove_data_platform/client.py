@@ -543,6 +543,23 @@ class Client:
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
     ):
+        """Fetches recordings.
+
+        :param device_id: Optionally filter responses by this device ID.
+        :param start: Optionally specify the start of an inclusive time range.
+            Only recordings with messages within this time range will be returned.
+        :param end: Optionally specify the end of an inclusive time range.
+            Only recordings with messages within this time range will be returned.
+        :param path: Optionally filter responses to recordings with a matching path.
+        :param site_id: Optionally filter responses to recordings stored at this primary site.
+        :param edge_site_id: Optionally filter responses to recordings stored at this edge site.
+        :param import_status: Optionally filter responses to recordings with this import status.
+        :param sort_by: Optionally sort returned recordings by a field in the response type.
+            Specifying duration sorts by the duration between the recording start and end fields.
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param limit: Optionally limit the number of records returned.
+        :param offset: Optionally offset the results by this many records.
+        """
         all_params = {
             "device.id": device_id,
             "start": start.astimezone().isoformat() if start else None,
@@ -599,6 +616,17 @@ class Client:
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
     ):
+        """List recording attachments.
+
+        :param device_id: Optionally filter responses by this device ID.
+        :param recording_id: Optionally filter responses by this recording ID.
+        :param site_id: Optionally filter responses by this site ID.
+        :param sort_by: Optionally sort responses by this field name.
+            currently only "logTime" is supported.
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param limit: Optionally limit the number of records returned.
+        :param offset: Optionally offset the results by this many records.
+        """
         all_params = {
             "deviceId": device_id,
             "siteId": site_id,
@@ -636,6 +664,12 @@ class Client:
         attachment_id: str,
         callback: Optional[ProgressCallback] = None,
     ):
+        """Download an attachment by ID.
+
+        :param attachment_id: the attachment ID.
+        :param callback: a callback to track download progress
+        :returns: The downloaded attachment bytes.
+        """
         response = requests.get(
             self.__url__(f"/v1/recording-attachments/{attachment_id}/download"),
             stream=True,

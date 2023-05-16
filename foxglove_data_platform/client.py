@@ -593,10 +593,54 @@ class Client:
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
     ):
-        pass
+        all_params = {
+            "deviceId": device_id,
+            "siteId": site_id,
+            "recordingId": recording_id,
+            "sortBy": camelize(sort_by),
+            "sortOrder": sort_order,
+            "limit": limit,
+            "offset": offset,
+        }
+        response = requests.get(
+            self.__url__("/v1/recording-attachments"),
+            params={k: v for k, v in all_params.items() if v is not None},
+            headers=self.__headers,
+        )
+        json = json_or_raise(response)
+        return [
+            {
+                "id": i["id"],
+                "recordingId": i["recordingId"],
+                "siteId": i["siteId"],
+                "name": i["name"],
+                "mediaType": i["mediaType"],
+                "size": i["size"],
+                "crc": i["crc"],
+                "fingerprint": i["fingerprint"],
+                "log_time": arrow.get(i["logTime"]).datetime,
+                "create_time": arrow.get(i["createTime"]).datetime,
+            }
+            for i in json
+        ]
 
-    def download_attachment(self, *, attachment_id: str):
-        pass
+    def download_attachment(
+        self,
+        *,
+        attachment_id: str,
+        callback: Optional[ProgressCallback] = None,
+    ):
+        response = requests.get(
+            self.__url__(f"v1/recording-attachments/{attachment_id}/download"),
+            stream=True,
+            allow_redirects=True,
+        )
+        data = BytesIO()
+        for chunk in response.iter_content(chunk_size=32 * 1024):
+            data.write(chunk)
+            if callback:
+                callback(progress=data.tell())
+        return data.getvalue()
 
     def get_topics(
         self,

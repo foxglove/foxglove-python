@@ -145,7 +145,6 @@ def json_or_raise(response: requests.Response):
     return json
 
 
-
 class Client:
     def __init__(self, token: str, host: str = "api.foxglove.dev"):
         self.__token = token
@@ -158,7 +157,9 @@ class Client:
     def __url__(self, path: str):
         return f"https://{self.__host}{path}"
 
-    def _download_stream_with_progress(self, url: str, callback: Optional[ProgressCallback] = None):
+    def _download_stream_with_progress(
+        self, url: str, callback: Optional[ProgressCallback] = None
+    ):
         response = requests.get(url, headers=self.__headers, stream=True)
         response.raise_for_status()
         data = BytesIO()
@@ -311,7 +312,7 @@ class Client:
 
         :param id: the ID of the recording.
         :param include_attachments: whether to include MCAP attachments in the returned data.
-        :param output_format: The output format of the data, defaulting to .mcap. 
+        :param output_format: The output format of the data, defaulting to .mcap.
             Note: You can only export a .bag file if you originally uploaded a .bag file.
         :param callback: an optional callback to report download progress.
         """

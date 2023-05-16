@@ -543,7 +543,44 @@ class Client:
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
     ):
-        pass
+        all_params = {
+            "device.id": device_id,
+            "start": start.astimezone().isoformat() if start else None,
+            "end": end.astimezone().isoformat() if end else None,
+            "site.id": site_id,
+            "edgeSite.id": edge_site_id,
+            "importStatus": import_status,
+            "path": path,
+            "sortBy": camelize(sort_by),
+            "sortOrder": sort_order,
+            "limit": limit,
+            "offset": offset,
+        }
+        response = requests.get(
+            self.__url__("/v1/recordings"),
+            params={k: v for k, v in all_params.items() if v is not None},
+            headers=self.__headers,
+        )
+        json = json_or_raise(response)
+
+        return [
+            {
+                "id": i["id"],
+                "path": i["path"],
+                "size": i["size"],
+                "message_count": i["messageCount"],
+                "created_at": arrow.get(i["createdAt"]).datetime,
+                "imported_at": arrow.get(i["importedAt"]).datetime,
+                "start": arrow.get(i["start"]).datetime,
+                "end": arrow.get(i["end"]).datetime,
+                "import_status": i["import_status"],
+                "site": i["site"],
+                "edge_site": i["edge_site"],
+                "device": i["device"],
+                "metadata": i["metadata"],
+            }
+            for i in json
+        ]
 
     def get_attachments(
         self,

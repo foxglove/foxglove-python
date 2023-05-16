@@ -9,6 +9,7 @@ from .api_url import api_url
 
 fake = Faker()
 
+
 @responses.activate
 def test_get_recordings():
     device_id = fake.uuid4()
@@ -35,9 +36,9 @@ def test_get_recordings():
                 "start": now.isoformat(),
                 "end": now.isoformat(),
                 "importStatus": "complete",
-                "site": { "id": site_id, "name": "primarySite"},
+                "site": {"id": site_id, "name": "primarySite"},
                 "device": {"id": device_id, "name": "deviceName"},
-                "metadata": { "hey": "now", "brown": "cow"},
+                "metadata": {"hey": "now", "brown": "cow"},
             },
             {
                 "id": recording_id_b,
@@ -48,14 +49,16 @@ def test_get_recordings():
                 "start": now.isoformat(),
                 "end": now.isoformat(),
                 "importStatus": "none",
-                "edgeSite": { "id": edge_site_id, "name": "edgeSite"},
+                "edgeSite": {"id": edge_site_id, "name": "edgeSite"},
                 "device": {"id": device_id, "name": "deviceName"},
             },
         ],
     )
     client = Client("test")
     recordings = client.get_recordings(
-        start=datetime.now(), end=datetime.now(), device_id=device_id,
+        start=datetime.now(),
+        end=datetime.now(),
+        device_id=device_id,
     )
     assert recordings == [
         {
@@ -68,10 +71,10 @@ def test_get_recordings():
             "start": now,
             "end": now,
             "import_status": "complete",
-            "site": { "id": site_id, "name": "primarySite"},
+            "site": {"id": site_id, "name": "primarySite"},
             "edge_site": None,
             "device": {"id": device_id, "name": "deviceName"},
-            "metadata": { "hey": "now", "brown": "cow"},
+            "metadata": {"hey": "now", "brown": "cow"},
         },
         {
             "id": recording_id_b,
@@ -84,7 +87,7 @@ def test_get_recordings():
             "import_status": "none",
             "imported_at": None,
             "site": None,
-            "edge_site": { "id": edge_site_id, "name": "edgeSite"},
+            "edge_site": {"id": edge_site_id, "name": "edgeSite"},
             "device": {"id": device_id, "name": "deviceName"},
             "metadata": None,
         },

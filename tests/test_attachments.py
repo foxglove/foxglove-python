@@ -8,6 +8,7 @@ from .api_url import api_url
 
 fake = Faker()
 
+
 @responses.activate
 def test_get_attachments():
     device_id = fake.uuid4()
@@ -46,16 +47,16 @@ def test_get_attachments():
     )
     assert attachments == [
         {
-                "id": attachment_id,
-                "recording_id": recording_id,
-                "site_id": site_id,
-                "name": path,
-                "media_type": media_type,
-                "size": size,
-                "crc": crc,
-                "fingerprint": fingerprint,
-                "log_time": now,
-                "create_time": now,
+            "id": attachment_id,
+            "recording_id": recording_id,
+            "site_id": site_id,
+            "name": path,
+            "media_type": media_type,
+            "size": size,
+            "crc": crc,
+            "fingerprint": fingerprint,
+            "log_time": now,
+            "create_time": now,
         },
     ]
 

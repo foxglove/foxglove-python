@@ -71,7 +71,5 @@ def test_download_attachment():
         body=data,
     )
     client = Client("test")
-    response_data = client.download_attachment(
-        attachment_id=id,
-    )
+    response_data = client.download_attachment(id=id)
     assert data == response_data

@@ -145,6 +145,7 @@ def json_or_raise(response: requests.Response):
     return json
 
 
+
 class Client:
     def __init__(self, token: str, host: str = "api.foxglove.dev"):
         self.__token = token
@@ -156,6 +157,16 @@ class Client:
 
     def __url__(self, path: str):
         return f"https://{self.__host}{path}"
+
+    def _download_stream_with_progress(self, url: str, callback: Optional[ProgressCallback] = None):
+        response = requests.get(url, headers=self.__headers, stream=True)
+        response.raise_for_status()
+        data = BytesIO()
+        for chunk in response.iter_content(chunk_size=32 * 1024):
+            data.write(chunk)
+            if callback:
+                callback(progress=data.tell())
+        return data.getvalue()
 
     def create_event(
         self,
@@ -287,6 +298,38 @@ class Client:
             )
         return output_messages
 
+    def download_recording_data(
+        self,
+        *,
+        id: str,
+        output_format: OutputFormat = OutputFormat.mcap0,
+        include_attachments: bool = False,
+        callback: Optional[ProgressCallback] = None,
+    ):
+        """
+        Returns raw data bytes for a specific recording.
+
+        :param id: the ID of the recording.
+        :param include_attachments: whether to include MCAP attachments in the returned data.
+        :param output_format: The output format of the data, defaulting to .mcap. 
+            Note: You can only export a .bag file if you originally uploaded a .bag file.
+        :param callback: an optional callback to report download progress.
+        """
+        params = {
+            "recordingId": id,
+            "includeAttachments": include_attachments,
+            "outputFormat": output_format.value,
+        }
+        link_response = requests.post(
+            self.__url__("/v1/data/stream"),
+            headers=self.__headers,
+            json={k: v for k, v in params.items() if v is not None},
+        )
+
+        json = json_or_raise(link_response)
+
+        return self._download_stream_with_progress(json["link"], callback=callback)
+
     def download_data(
         self,
         *,
@@ -298,7 +341,7 @@ class Client:
         callback: Optional[ProgressCallback] = None,
     ) -> bytes:
         """
-        Returns raw data bytes.
+        Returns raw data bytes for a device and time range.
 
         device_id: The id of the device that originated the desired data.
         start: The earliest time from which to retrieve data.
@@ -322,15 +365,7 @@ class Client:
 
         json = json_or_raise(link_response)
 
-        link = json["link"]
-        response = requests.get(link, stream=True)
-        response.raise_for_status()
-        data = BytesIO()
-        for chunk in response.iter_content(chunk_size=32 * 1024):
-            data.write(chunk)
-            if callback:
-                callback(progress=data.tell())
-        return data.getvalue()
+        return self._download_stream_with_progress(json["link"], callback=callback)
 
     def get_coverage(
         self,
@@ -662,7 +697,7 @@ class Client:
     def download_attachment(
         self,
         *,
-        attachment_id: str,
+        id: str,
         callback: Optional[ProgressCallback] = None,
     ):
         """Download an attachment by ID.
@@ -671,18 +706,10 @@ class Client:
         :param callback: a callback to track download progress
         :returns: The downloaded attachment bytes.
         """
-        response = requests.get(
-            self.__url__(f"/v1/recording-attachments/{attachment_id}/download"),
-            headers=self.__headers,
-            stream=True,
+        return self._download_stream_with_progress(
+            self.__url__(f"/v1/recording-attachments/{id}/download"),
+            callback=callback,
         )
-        response.raise_for_status()
-        data = BytesIO()
-        for chunk in response.iter_content(chunk_size=32 * 1024):
-            data.write(chunk)
-            if callback:
-                callback(progress=data.tell())
-        return data.getvalue()
 
     def get_topics(
         self,

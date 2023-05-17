@@ -12,6 +12,7 @@ name = "ros"
 arrow = "*"
 requests = "*"
 typing_extensions = "*"
+responses = "*"
 
 [dev-packages]
 black = "*"
@@ -27,6 +28,7 @@ pytest = "*"
 responses = "*"
 rosbag = {version="*", index="ros"}
 std_msgs = {version="*", index="ros"}
+setuptools = "*"
 
 [requires]
 python_version = "3"

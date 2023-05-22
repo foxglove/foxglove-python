@@ -11,16 +11,15 @@ fake = Faker()
 
 @responses.activate
 def test_delete_import():
-    device_id = fake.uuid4()
     import_id = fake.uuid4()
     responses.add(
         responses.DELETE,
-        api_url(f"/v1/data/imports/{import_id}?deviceId={device_id}"),
+        api_url(f"/v1/data/imports/{import_id}"),
         json={"success": True},
     )
     try:
         client = Client("test")
-        client.delete_import(device_id=device_id, import_id=import_id)
+        client.delete_import(import_id=import_id)
     except:
         assert False
 

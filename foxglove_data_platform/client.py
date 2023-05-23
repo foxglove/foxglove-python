@@ -488,16 +488,15 @@ class Client:
         )
         json_or_raise(response)
 
-    def delete_import(self, *, device_id: str, import_id: str):
+    def delete_import(self, *, device_id: Optional[str] = None, import_id: str):
         """
         Deletes an existing import.
 
-        :param device_id: The id of the device associated with the import.
+        :param device_id: The id of the device associated with the import. (Deprecated; ignored.)
         :param import_id: The id of the import to delete.
         """
         response = requests.delete(
             self.__url__(f"/v1/data/imports/{import_id}"),
-            params={"deviceId": device_id},
             headers=self.__headers,
         )
         json_or_raise(response)

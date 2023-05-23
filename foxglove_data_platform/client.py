@@ -706,7 +706,7 @@ class Client:
     ):
         """Download an attachment by ID.
 
-        :param attachment_id: the attachment ID.
+        :param id: the attachment ID.
         :param callback: a callback to track download progress
         :returns: The downloaded attachment bytes.
         """

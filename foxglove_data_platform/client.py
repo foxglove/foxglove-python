@@ -492,7 +492,7 @@ class Client:
         """
         Deletes an existing import.
 
-        :param device_id: The id of the device associated with the import. (Deprecated.)
+        :param device_id: The id of the device associated with the import. (Deprecated; ignored.)
         :param import_id: The id of the import to delete.
         """
         response = requests.delete(

@@ -29,6 +29,7 @@ responses = "*"
 rosbag = {version="*", index="ros"}
 std_msgs = {version="*", index="ros"}
 setuptools = "*"
+requests = "*"
 
 [requires]
 python_version = "3"

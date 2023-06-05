@@ -12,17 +12,20 @@ fake = Faker()
 @responses.activate
 def test_get_coverage():
     device_id = fake.uuid4()
+    device_name = fake.name()
     responses.add(
         responses.GET,
         api_url(f"/v1/data/coverage"),
         json=[
             {
                 "deviceId": device_id,
+                "device": {"id": device_id, "name": device_name},
                 "start": datetime.now().isoformat(),
                 "end": datetime.now().isoformat(),
             },
             {
                 "deviceId": device_id,
+                "device": {"id": device_id, "name": device_name},
                 "start": datetime.now().isoformat(),
                 "end": datetime.now().isoformat(),
             },

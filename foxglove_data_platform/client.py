@@ -175,7 +175,8 @@ class Client:
     def create_event(
         self,
         *,
-        device_id: str,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
         start: datetime.datetime,
         end: Optional[datetime.datetime],
         metadata: Optional[Dict[str, str]] = {},
@@ -183,7 +184,8 @@ class Client:
         """
         Creates a new event.
 
-        device_id: The unique of the device associated with this event.
+        device_id: The id of the device associated with this event.
+        device_name: The name of the device associated with this event.
         start: The event start time.
         end: The event end time. If not provided, an instantaneous event (with end == start)
             is created.
@@ -191,11 +193,16 @@ class Client:
         """
         if end is None:
             end = start
+        if not device_id or device_name:
+            raise RuntimeError(
+                "device_id or device_name must be provided to create_event"
+            )
         response = requests.post(
             self.__url__("/v1/events"),
             headers=self.__headers,
             json={
-                "deviceId": device_id,
+                "device.id": device_id,
+                "device.name": device_name,
                 "start": start.astimezone().isoformat(),
                 "end": end.astimezone().isoformat(),
                 "metadata": metadata,
@@ -224,6 +231,7 @@ class Client:
         self,
         *,
         device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
@@ -236,6 +244,7 @@ class Client:
         Retrieves events.
 
         device_id: Id of the device associated with the events.
+        device_name: Name of the device associated with the events.
         sort_by: Optionally sort records by this field name (e.g. "device_id").
         sort_order: Optionally specify the sort order, either "asc" or "desc".
         limit: Optionally limit the number of records returned.
@@ -247,7 +256,8 @@ class Client:
             of `query`.
         """
         params = {
-            "deviceId": device_id,
+            "device.id": device_id,
+            "device.name": device_name,
             "sortBy": camelize(sort_by),
             "sortOrder": sort_order,
             "limit": limit,
@@ -267,7 +277,8 @@ class Client:
     def get_messages(
         self,
         *,
-        device_id: str,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
         start: datetime.datetime,
         end: datetime.datetime,
         topics: List[str] = [],
@@ -281,12 +292,20 @@ class Client:
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
         """
+        if not device_id or device_name:
+            raise RuntimeError(
+                "device_id or device_name must be provided to get_messages"
+            )
         if not McapSchema or not make_reader:
             raise RuntimeError(
                 "Mcap library not found. Please install the mcap library."
             )
         data = self.download_data(
-            device_id=device_id, start=start, end=end, topics=topics
+            device_name=device_name,
+            device_id=device_id,
+            start=start,
+            end=end,
+            topics=topics,
         )
         reader = make_reader(BytesIO(data))
         decoders = {}
@@ -337,7 +356,8 @@ class Client:
     def download_data(
         self,
         *,
-        device_id: str,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
         start: datetime.datetime,
         end: datetime.datetime,
         topics: List[str] = [],
@@ -348,6 +368,7 @@ class Client:
         Returns raw data bytes for a device and time range.
 
         device_id: The id of the device that originated the desired data.
+        device_name: The name of the device that originated the desired data.
         start: The earliest time from which to retrieve data.
         end: The latest time from which to retrieve data.
         topics: An optional list of topics to retrieve.
@@ -355,7 +376,8 @@ class Client:
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
         """
         params = {
-            "deviceId": device_id,
+            "device.id": device_id,
+            "device.name": device_name,
             "end": end.astimezone().isoformat(),
             "outputFormat": output_format.value,
             "start": start.astimezone().isoformat(),
@@ -377,6 +399,7 @@ class Client:
         start: datetime.datetime,
         end: datetime.datetime,
         device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
         tolerance: Optional[int] = None,
     ):
         """
@@ -389,7 +412,8 @@ class Client:
             to be considered discrete.
         """
         params = {
-            "deviceId": device_id,
+            "device.id": device_id,
+            "device.name": device_name,
             "tolerance": tolerance,
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
@@ -404,20 +428,28 @@ class Client:
         return [
             {
                 "device_id": c["deviceId"],
+                "device": c["device"],
                 "start": arrow.get(c["start"]).datetime,
                 "end": arrow.get(c["end"]).datetime,
             }
             for c in json
         ]
 
-    def get_device(self, *, device_id: str):
+    def get_device(
+        self, *, device_id: Optional[str] = None, device_name: Optional[str] = None
+    ):
         """
-        Gets a single device by id.
+        Gets a single device by name or id.
 
         :param device_id: The id of the device to retrieve.
+        :param device_name: The name of the device to retrieve.
         """
+        if device_name and device_id:
+            raise RuntimeError("device_id and device_name are mutually exclusive")
+        if not (device_name or device_id):
+            raise RuntimeError("device_id or device_name must be provided")
         response = requests.get(
-            self.__url__(f"/v1/devices/{device_id}"),
+            self.__url__(f"/v1/devices/{device_name or device_id}"),
             headers=self.__headers,
         )
 
@@ -474,16 +506,23 @@ class Client:
             "name": device["name"],
         }
 
-    def delete_device(self, *, device_id: str):
+    def delete_device(
+        self, *, device_id: Optional[str] = None, device_name: Optional[str] = None
+    ):
         """
         Deletes an existing device.
 
         Note: you must first delete all imports from the device; see `delete_import`.
 
         :param device_id: The id of the device.
+        :param device_name: The name of the device.
         """
+        if device_name and device_id:
+            raise RuntimeError("device_id and device_name are mutually exclusive")
+        if not (device_name or device_id):
+            raise RuntimeError("device_id or device_name must be provided")
         response = requests.delete(
-            self.__url__(f"/v1/devices/{device_id}"),
+            self.__url__(f"/v1/devices/{device_name or device_id}"),
             headers=self.__headers,
         )
         json_or_raise(response)
@@ -571,6 +610,7 @@ class Client:
         self,
         *,
         device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         path: Optional[str] = None,
@@ -585,6 +625,7 @@ class Client:
         """Fetches recordings.
 
         :param device_id: Optionally filter responses by this device ID.
+        :param device_name: Optionally filter responses by this device name.
         :param start: Optionally specify the start of an inclusive time range.
             Only recordings with messages within this time range will be returned.
         :param end: Optionally specify the end of an inclusive time range.
@@ -601,6 +642,7 @@ class Client:
         """
         all_params = {
             "device.id": device_id,
+            "device.name": device_name,
             "start": start.astimezone().isoformat() if start else None,
             "end": end.astimezone().isoformat() if end else None,
             "site.id": site_id,
@@ -648,6 +690,7 @@ class Client:
         self,
         *,
         device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
         recording_id: Optional[str] = None,
         site_id: Optional[str] = None,
         limit: Optional[int] = None,
@@ -658,6 +701,7 @@ class Client:
         """List recording attachments.
 
         :param device_id: Optionally filter responses by this device ID.
+        :param device_name: Optionally filter responses by this device name.
         :param recording_id: Optionally filter responses by this recording ID.
         :param site_id: Optionally filter responses by this site ID.
         :param sort_by: Optionally sort responses by this field name.
@@ -667,7 +711,8 @@ class Client:
         :param offset: Optionally offset the results by this many records.
         """
         all_params = {
-            "deviceId": device_id,
+            "device.id": device_id,
+            "device.name": device_name,
             "siteId": site_id,
             "recordingId": recording_id,
             "sortBy": camelize(sort_by),
@@ -685,6 +730,7 @@ class Client:
             {
                 "id": i["id"],
                 "recording_id": i["recordingId"],
+                "device": i["device"],
                 "site_id": i["siteId"],
                 "name": i["name"],
                 "media_type": i["mediaType"],
@@ -718,7 +764,8 @@ class Client:
     def get_topics(
         self,
         *,
-        device_id: str,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
         start: datetime.datetime,
         end: datetime.datetime,
         include_schemas: bool = False,
@@ -727,7 +774,8 @@ class Client:
             self.__url__("/v1/data/topics"),
             headers=self.__headers,
             params={
-                "deviceId": device_id,
+                "device.id": device_id,
+                "device.name": device_name,
                 "start": start.astimezone().isoformat(),
                 "end": end.astimezone().isoformat(),
                 "includeSchemas": "true" if include_schemas else "false",
@@ -753,7 +801,8 @@ class Client:
     def upload_data(
         self,
         *,
-        device_id: str,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
         filename: str,
         data: Union[bytes, IO[Any]],
         callback: Optional[SizeProgressCallback] = None,
@@ -762,6 +811,7 @@ class Client:
         Uploads data in bytes.
 
         device_id: Device id of the device from which this data originated.
+        device_name: Name id of the device from which this data originated.
         filename: A filename to associate with the data. The data format will be
             inferred from the file extension.
         data: The raw data in .bag or .mcap format.
@@ -771,7 +821,8 @@ class Client:
             self.__url__("/v1/data/upload"),
             headers=self.__headers,
             json={
-                "deviceId": device_id,
+                "device.id": device_id,
+                "device.name": device_name,
                 "filename": filename,
             },
         )
@@ -796,6 +847,7 @@ def _event_dict(json_event):
     return {
         "id": json_event["id"],
         "device_id": json_event["deviceId"],
+        "device": json_event["device"],
         "start": arrow.get(json_event["start"]).datetime,
         "end": arrow.get(json_event["end"]).datetime,
         "metadata": json_event["metadata"],

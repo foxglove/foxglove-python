@@ -29,6 +29,7 @@ def test_create_device():
 @responses.activate
 def test_get_device():
     id = fake.uuid4()
+    name = "name"
     responses.add(
         responses.GET,
         api_url(f"/v1/devices/{id}"),
@@ -41,6 +42,19 @@ def test_get_device():
     )
     client = Client("test")
     device = client.get_device(device_id=id)
+    assert device["id"] == id
+
+    responses.add(
+        responses.GET,
+        api_url(f"/v1/devices/{name}"),
+        json={
+            "id": id,
+            "name": fake.sentence(2),
+            "createdAt": datetime.now().isoformat(),
+            "updatedAt": datetime.now().isoformat(),
+        },
+    )
+    device = client.get_device(device_name=name)
     assert device["id"] == id
 
 
@@ -68,6 +82,7 @@ def test_get_devices():
 @responses.activate
 def test_delete_device():
     id = fake.uuid4()
+    name = "name"
     responses.add(
         responses.DELETE,
         api_url(f"/v1/devices/{id}"),
@@ -76,5 +91,15 @@ def test_delete_device():
     client = Client("test")
     try:
         client.delete_device(device_id=id)
+    except:
+        assert False
+
+    responses.add(
+        responses.DELETE,
+        api_url(f"/v1/devices/{name}"),
+        json={"success": True},
+    )
+    try:
+        client.delete_device(device_name=name)
     except:
         assert False

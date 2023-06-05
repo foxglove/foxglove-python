@@ -28,12 +28,15 @@ def test_error_reason():
 
 @responses.activate
 def test_get_coverage():
+    device_id = fake.uuid4()
+    device_name = fake.name()
     responses.add(
         responses.GET,
         api_url("/v1/data/coverage"),
         json=[
             {
-                "deviceId": "device_id",
+                "deviceId": device_id,
+                "device": {"id": device_id, "name": device_name},
                 "start": datetime.now().isoformat(),
                 "end": datetime.now().isoformat(),
             }
@@ -42,7 +45,8 @@ def test_get_coverage():
     client = Client("test")
     coverage_response = client.get_coverage(start=datetime.now(), end=datetime.now())
     assert len(coverage_response) == 1
-    assert coverage_response[0]["device_id"] == "device_id"
+    assert coverage_response[0]["device_id"] == device_id
+    assert coverage_response[0]["device"] == {"id": device_id, "name": device_name}
 
 
 @responses.activate

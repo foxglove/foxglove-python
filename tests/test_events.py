@@ -14,6 +14,7 @@ fake = Faker()
 def test_create_event():
     id = fake.uuid4()
     device_id = fake.uuid4()
+    device_name = fake.name()
     start = datetime.datetime.now().astimezone()
     end = start + datetime.timedelta(seconds=10)
     now = datetime.datetime.now().astimezone()
@@ -23,6 +24,7 @@ def test_create_event():
         json={
             "id": id,
             "deviceId": device_id,
+            "device": {"id": device_id, "name": device_name},
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
             "metadata": {"foo": "bar"},
@@ -34,6 +36,7 @@ def test_create_event():
     event = client.create_event(device_id=device_id, start=start, end=end)
     assert event["start"] == start
     assert event["device_id"] == device_id
+    assert event["device"] == {"id": device_id, "name": device_name}
     assert event["end"] == end
     assert event["id"] == id
     assert event["created_at"] == now
@@ -54,16 +57,21 @@ def test_delete_event():
 @responses.activate
 def test_get_events():
     device_id = "my_device_id"
+    device_name = "device_name"
     start = datetime.datetime.now().astimezone()
     end = start + datetime.timedelta(seconds=10)
     now = datetime.datetime.now().astimezone()
     responses.add(
         responses.GET,
-        api_url(f"/v1/events?deviceId={device_id}"),
+        api_url(f"/v1/events?device.id={device_id}"),
         json=[
             {
                 "id": "1",
                 "deviceId": device_id,
+                "device": {
+                    "id": device_id,
+                    "name": device_name,
+                },
                 "metadata": {},
                 "start": start.astimezone().isoformat(),
                 "end": end.astimezone().isoformat(),
@@ -76,6 +84,37 @@ def test_get_events():
     [event] = client.get_events(device_id=device_id)
     assert event["id"] == "1"
     assert event["device_id"] == device_id
+    assert event["device"] == {"id": device_id, "name": device_name}
+    assert event["start"] == start
+    assert event["end"] == end
+    assert event["created_at"] == now
+    assert event["updated_at"] == now
+    assert event["metadata"] == {}
+
+    responses.add(
+        responses.GET,
+        api_url(f"/v1/events?device.name={device_name}"),
+        json=[
+            {
+                "id": "1",
+                "deviceId": device_id,
+                "device": {
+                    "id": device_id,
+                    "name": device_name,
+                },
+                "metadata": {},
+                "start": start.astimezone().isoformat(),
+                "end": end.astimezone().isoformat(),
+                "createdAt": now.astimezone().isoformat(),
+                "updatedAt": now.astimezone().isoformat(),
+            }
+        ],
+    )
+    client = Client("test")
+    [event] = client.get_events(device_name=device_name)
+    assert event["id"] == "1"
+    assert event["device_id"] == device_id
+    assert event["device"] == {"id": device_id, "name": device_name}
     assert event["start"] == start
     assert event["end"] == end
     assert event["created_at"] == now

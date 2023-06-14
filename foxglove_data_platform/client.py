@@ -483,20 +483,18 @@ class Client:
         self,
         *,
         name: str,
-        serial_number: Optional[str] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
     ):
         """
         Creates a new device.
 
         name: The name of the devicee.
-        serial_number: DEPRECATED: a serial number for the device. This argument has no effect.
+        properties: Optional custom properties for the device.
+            Each key must be defined as a custom property for your organization,
+            and each value must be of the appropriate type
         """
-        if serial_number is not None:
-            warnings.warn(
-                "serial number argument is deprecated and will be removed in the next release"
-            )
         response = requests.post(
-            self.__url__("/v1/devices"), headers=self.__headers, json={"name": name}
+            self.__url__("/v1/devices"), headers=self.__headers, json={"name": name, "properties": properties}
         )
 
         device = json_or_raise(response)

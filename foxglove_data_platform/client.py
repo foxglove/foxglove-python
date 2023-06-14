@@ -503,6 +503,40 @@ class Client:
             "name": device["name"],
         }
 
+    def edit_device(
+        self,
+        *,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+        new_name: Optional[str] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+    ):
+        """
+        Creates a new device.
+
+        name: The name of the devicee.
+        properties: Optional custom properties for the device.
+            Each key must be defined as a custom property for your organization,
+            and each value must be of the appropriate type
+        """
+        if device_name and device_id:
+            raise RuntimeError("device_id and device_name are mutually exclusive")
+        if device_name is None and device_id is None:
+            raise RuntimeError("device_id or device_name must be provided")
+
+        response = requests.patch(
+            self.__url__(f"/v1/devices/{device_name or device_id}"),
+            headers=self.__headers,
+            json={"name": new_name, "properties": properties}
+        )
+
+        device = json_or_raise(response)
+
+        return {
+            "id": device["id"],
+            "name": device["name"],
+        }
+
     def delete_device(
         self, *, device_id: Optional[str] = None, device_name: Optional[str] = None
     ):

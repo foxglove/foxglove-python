@@ -3,12 +3,15 @@ import os
 from enum import Enum
 from io import BytesIO
 import json
-from typing import IO, Any, Dict, List, Optional, Union
+from typing import IO, Any, Dict, List, Optional, TypeVar, Union
 import base64
 
 import arrow
 import requests
 from typing_extensions import Protocol
+
+
+T = TypeVar("T")
 
 
 try:
@@ -74,6 +77,13 @@ def bool_query_param(val: bool) -> Optional[str]:
     Serialize a bool to an API query parameter (e.g. True -> "true")
     """
     return str(val).lower() if val is not None else None
+
+
+def present(params: Dict[str, Union[T, None]]) -> Dict[str, T]:
+    """
+    Filter out `None` values from params
+    """
+    return {key: val for key, val in params.items() if val is not None}
 
 
 class FoxgloveException(Exception):
@@ -457,6 +467,7 @@ class Client:
         return {
             "id": device["id"],
             "name": device["name"],
+            "properties": device["properties"] if "properties" in device else None,
         }
 
     def get_devices(self):
@@ -474,7 +485,7 @@ class Client:
             {
                 "id": d["id"],
                 "name": d["name"],
-                "properties": d["properties"],
+                "properties": d["properties"] if "properties" in d else None,
             }
             for d in json
         ]
@@ -488,13 +499,15 @@ class Client:
         """
         Creates a new device.
 
-        name: The name of the devicee.
-        properties: Optional custom properties for the device.
+        :param name: The name of the device.
+        :param properties: Optional custom properties for the device.
             Each key must be defined as a custom property for your organization,
             and each value must be of the appropriate type
         """
         response = requests.post(
-            self.__url__("/v1/devices"), headers=self.__headers, json={"name": name, "properties": properties}
+            self.__url__("/v1/devices"),
+            headers=self.__headers,
+            json=present({"name": name, "properties": properties}),
         )
 
         device = json_or_raise(response)
@@ -502,10 +515,10 @@ class Client:
         return {
             "id": device["id"],
             "name": device["name"],
-            "properties": device["properties"],
+            "properties": device["properties"] if "properties" in device else None,
         }
 
-    def edit_device(
+    def update_device(
         self,
         *,
         device_id: Optional[str] = None,
@@ -514,12 +527,14 @@ class Client:
         properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
     ):
         """
-        Creates a new device.
+        Updates a device.
 
-        name: The name of the devicee.
-        properties: Optional custom properties for the device.
-            Each key must be defined as a custom property for your organization,
-            and each value must be of the appropriate type
+        :param device_id: The id of the device to retrieve.
+        :param device_name: The name of the device to retrieve.
+        :param new_name: Optional new name to assign to the device.
+        :param properties: Optional custom properties to add to or edit on the device.
+            Each key must be defined as a custom property for your organization
+            and each value must be of the appropriate type.
         """
         if device_name and device_id:
             raise RuntimeError("device_id and device_name are mutually exclusive")
@@ -529,7 +544,7 @@ class Client:
         response = requests.patch(
             self.__url__(f"/v1/devices/{device_name or device_id}"),
             headers=self.__headers,
-            json={"name": new_name, "properties": properties}
+            json=present({"name": new_name, "properties": properties}),
         )
 
         device = json_or_raise(response)
@@ -537,7 +552,7 @@ class Client:
         return {
             "id": device["id"],
             "name": device["name"],
-            "properties": device["properties"],
+            "properties": device["properties"] if "properties" in device else None,
         }
 
     def delete_device(

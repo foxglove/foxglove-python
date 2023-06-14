@@ -474,6 +474,7 @@ class Client:
             {
                 "id": d["id"],
                 "name": d["name"],
+                "properties": d["properties"],
             }
             for d in json
         ]
@@ -501,6 +502,7 @@ class Client:
         return {
             "id": device["id"],
             "name": device["name"],
+            "properties": device["properties"],
         }
 
     def edit_device(
@@ -535,6 +537,7 @@ class Client:
         return {
             "id": device["id"],
             "name": device["name"],
+            "properties": device["properties"],
         }
 
     def delete_device(

@@ -27,6 +27,26 @@ def test_create_device():
 
 
 @responses.activate
+def test_create_device_with_properties():
+    id = fake.uuid4()
+    name = "name"
+    properties = {"sn": 1}
+    responses.add(
+        responses.POST,
+        api_url("/v1/devices"),
+        json={
+            "id": id,
+            "name": name,
+            "properties": properties,
+        },
+    )
+    client = Client("test")
+    device = client.create_device(name=name)
+    assert device["name"] == name
+    assert device["properties"] == properties
+
+
+@responses.activate
 def test_get_device():
     id = fake.uuid4()
     name = "name"
@@ -36,8 +56,6 @@ def test_get_device():
         json={
             "id": id,
             "name": fake.sentence(2),
-            "createdAt": datetime.now().isoformat(),
-            "updatedAt": datetime.now().isoformat(),
         },
     )
     client = Client("test")
@@ -50,12 +68,11 @@ def test_get_device():
         json={
             "id": id,
             "name": fake.sentence(2),
-            "createdAt": datetime.now().isoformat(),
-            "updatedAt": datetime.now().isoformat(),
         },
     )
     device = client.get_device(device_name=name)
     assert device["id"] == id
+    assert device["properties"] is None
 
 
 @responses.activate
@@ -68,8 +85,6 @@ def test_get_devices():
             {
                 "id": id,
                 "name": fake.sentence(2),
-                "createdAt": datetime.now().isoformat(),
-                "updatedAt": datetime.now().isoformat(),
             }
         ],
     )
@@ -77,6 +92,7 @@ def test_get_devices():
     devices = client.get_devices()
     assert len(devices) == 1
     assert devices[0]["id"] == id
+    assert devices[0]["properties"] is None
 
 
 @responses.activate
@@ -103,3 +119,26 @@ def test_delete_device():
         client.delete_device(device_name=name)
     except:
         assert False
+
+
+@responses.activate
+def test_update_device():
+    id = fake.uuid4()
+    old_name = "old_name"
+    new_name = "new_name"
+    properties = {"sn": 1}
+    responses.add(
+        responses.PATCH,
+        api_url(f"/v1/devices/{old_name}"),
+        json={
+            "id": id,
+            "name": new_name,
+            "properties": properties,
+        },
+    )
+    client = Client("test")
+    device = client.update_device(
+        device_name=old_name, new_name=new_name, properties=properties
+    )
+    assert device["name"] == new_name
+    assert device["properties"] == properties

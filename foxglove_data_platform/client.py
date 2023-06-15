@@ -79,7 +79,7 @@ def bool_query_param(val: bool) -> Optional[str]:
     return str(val).lower() if val is not None else None
 
 
-def present(params: Dict[str, Union[T, None]]) -> Dict[str, T]:
+def without_nulls(params: Dict[str, Union[T, None]]) -> Dict[str, T]:
     """
     Filter out `None` values from params
     """
@@ -507,7 +507,7 @@ class Client:
         response = requests.post(
             self.__url__("/v1/devices"),
             headers=self.__headers,
-            json=present({"name": name, "properties": properties}),
+            json=without_nulls({"name": name, "properties": properties}),
         )
 
         device = json_or_raise(response)
@@ -544,7 +544,7 @@ class Client:
         response = requests.patch(
             self.__url__(f"/v1/devices/{device_name or device_id}"),
             headers=self.__headers,
-            json=present({"name": new_name, "properties": properties}),
+            json=without_nulls({"name": new_name, "properties": properties}),
         )
 
         device = json_or_raise(response)

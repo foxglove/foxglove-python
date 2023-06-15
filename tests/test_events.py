@@ -4,6 +4,7 @@ import datetime
 import responses
 from faker import Faker
 from foxglove_data_platform.client import Client
+from responses.matchers import json_params_matcher
 
 from .api_url import api_url
 
@@ -21,6 +22,16 @@ def test_create_event():
     responses.add(
         responses.POST,
         api_url("/v1/events"),
+        match=[
+            json_params_matcher(
+                {
+                    "device.id": device_id,
+                    "start": start.astimezone().isoformat(),
+                    "end": end.astimezone().isoformat(),
+                    "metadata": {},
+                },
+            )
+        ],
         json={
             "id": id,
             "deviceId": device_id,

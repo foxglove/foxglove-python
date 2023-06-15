@@ -197,16 +197,17 @@ class Client:
             raise RuntimeError(
                 "device_id or device_name must be provided to create_event"
             )
+        params = {
+            "device.id": device_id,
+            "device.name": device_name,
+            "start": start.astimezone().isoformat(),
+            "end": end.astimezone().isoformat(),
+            "metadata": metadata,
+        }
         response = requests.post(
             self.__url__("/v1/events"),
             headers=self.__headers,
-            json={
-                "device.id": device_id,
-                "device.name": device_name,
-                "start": start.astimezone().isoformat(),
-                "end": end.astimezone().isoformat(),
-                "metadata": metadata,
-            },
+            json={k: v for k, v in params.items() if v is not None},
         )
 
         return _event_dict(json_or_raise(response))
@@ -817,14 +818,15 @@ class Client:
         data: The raw data in .bag or .mcap format.
         callback: An optional callback to report progress on the upload.
         """
+        params = {
+            "device.id": device_id,
+            "device.name": device_name,
+            "filename": filename,
+        }
         link_response = requests.post(
             self.__url__("/v1/data/upload"),
             headers=self.__headers,
-            json={
-                "device.id": device_id,
-                "device.name": device_name,
-                "filename": filename,
-            },
+            json={k: v for k, v in params.items() if v is not None},
         )
 
         json = json_or_raise(link_response)

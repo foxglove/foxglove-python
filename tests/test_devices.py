@@ -3,6 +3,7 @@ from datetime import datetime
 import responses
 from faker import Faker
 from foxglove_data_platform.client import Client
+from responses.matchers import json_params_matcher
 
 from .api_url import api_url
 
@@ -16,6 +17,7 @@ def test_create_device():
     responses.add(
         responses.POST,
         api_url("/v1/devices"),
+        match=[json_params_matcher({"name": name}, strict_match=True)],
         json={
             "id": id,
             "name": name,
@@ -34,6 +36,11 @@ def test_create_device_with_properties():
     responses.add(
         responses.POST,
         api_url("/v1/devices"),
+        match=[
+            json_params_matcher(
+                {"name": name, "properties": properties}, strict_match=True
+            )
+        ],
         json={
             "id": id,
             "name": name,
@@ -41,7 +48,7 @@ def test_create_device_with_properties():
         },
     )
     client = Client("test")
-    device = client.create_device(name=name)
+    device = client.create_device(name=name, properties=properties)
     assert device["name"] == name
     assert device["properties"] == properties
 
@@ -123,15 +130,31 @@ def test_delete_device():
 
 @responses.activate
 def test_update_device():
-    id = fake.uuid4()
     old_name = "old_name"
     new_name = "new_name"
     properties = {"sn": 1}
+    # Patching name alone
     responses.add(
         responses.PATCH,
         api_url(f"/v1/devices/{old_name}"),
+        match=[json_params_matcher({"name": new_name}, strict_match=True)],
         json={
-            "id": id,
+            "id": "no-new-properties",
+            "name": new_name,
+            "properties": properties,
+        },
+    )
+    # Patching name and properties
+    responses.add(
+        responses.PATCH,
+        api_url(f"/v1/devices/{old_name}"),
+        match=[
+            json_params_matcher(
+                {"name": new_name, "properties": properties}, strict_match=True
+            )
+        ],
+        json={
+            "id": "with-new-properties",
             "name": new_name,
             "properties": properties,
         },
@@ -140,5 +163,10 @@ def test_update_device():
     device = client.update_device(
         device_name=old_name, new_name=new_name, properties=properties
     )
+    assert device["id"] == "with-new-properties"
     assert device["name"] == new_name
     assert device["properties"] == properties
+
+    device = client.update_device(device_name=old_name, new_name=new_name)
+    assert device["id"] == "no-new-properties"
+    assert device["name"] == new_name

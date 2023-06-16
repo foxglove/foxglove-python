@@ -11,53 +11,46 @@ import arrow
 import requests
 from typing_extensions import Protocol
 
+from mcap.records import Schema as McapSchema
+from mcap.well_known import MessageEncoding
+from mcap.reader import make_reader
+from mcap.decoder import DecoderFactory
+
+
+class _JsonDecoderFactory(DecoderFactory):
+    def decoder_for(self, message_encoding: str, schema: Optional[McapSchema]):
+        _ = schema
+
+        def decoder(message_content: bytes):
+            return json.loads(message_content.decode("utf-8"))
+
+        if message_encoding == MessageEncoding.JSON:
+            return decoder
+        return None
+
+
+DEFAULT_DECODER_FACTORIES: List[DecoderFactory] = [_JsonDecoderFactory()]
 
 try:
-    from mcap.records import Schema as McapSchema
-    from mcap.reader import make_reader
+    from mcap_ros1.decoder import DecoderFactory as Ros1DecoderFactory
+
+    DEFAULT_DECODER_FACTORIES.append(Ros1DecoderFactory())
 except ModuleNotFoundError:
-    McapSchema = None
-    make_reader = None
-
-
-def _err_on_construction(err):
-    def construct():
-        raise RuntimeError(f"Error importing decoder implementation: {err}")
-
-    return construct
-
+    pass
 
 try:
-    from mcap_ros1.decoder import Decoder as Ros1Decoder
-except ModuleNotFoundError as err:
-    Ros1Decoder = _err_on_construction(err)
+    from mcap_protobuf.decoder import DecoderFactory as ProtobufDecoderFactory
+
+    DEFAULT_DECODER_FACTORIES.append(ProtobufDecoderFactory())
+except ModuleNotFoundError:
+    pass
 
 try:
-    from mcap_protobuf.decoder import Decoder as ProtobufDecoder
-except ModuleNotFoundError as err:
-    ProtobufDecoder = _err_on_construction(err)
+    from mcap_ros2.decoder import DecoderFactory as Ros2DecoderFactory
 
-try:
-    from mcap_ros2.decoder import Decoder as Ros2Decoder
-except ModuleNotFoundError as err:
-    Ros2Decoder = _err_on_construction(err)
-
-
-class JsonDecoder:
-    def decode(self, schema_, message):
-        return json.loads(message.data.decode("utf-8"))
-
-
-def decoder_for_schema_encoding(encoding_string):
-    if encoding_string == "ros1msg":
-        return Ros1Decoder()
-    if encoding_string == "ros2msg":
-        return Ros2Decoder()
-    if encoding_string == "protobuf":
-        return ProtobufDecoder()
-    if encoding_string == "jsonschema":
-        return JsonDecoder()
-    raise RuntimeError(f"No known decoder class for encoding {encoding_string}")
+    DEFAULT_DECODER_FACTORIES.append(Ros2DecoderFactory())
+except ModuleNotFoundError:
+    pass
 
 
 def camelize(snake_name: Optional[str]) -> Optional[str]:
@@ -283,23 +276,23 @@ class Client:
         start: datetime.datetime,
         end: datetime.datetime,
         topics: List[str] = [],
+        decoder_factories: Optional[List[DecoderFactory]] = None,
     ):
         """
         Returns a list of tuples of (topic, raw mcap record, decoded message).
 
         device_id: The id of the device that originated the desired data.
+        device_name: The name of the device that originated the desired data.
         start: The earliest time from which to retrieve data.
         end: The latest time from which to retrieve data.
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
+        decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
+            used to decode message content.
         """
         if device_id is None and device_name is None:
             raise RuntimeError(
                 "device_id or device_name must be provided to get_messages"
-            )
-        if not McapSchema or not make_reader:
-            raise RuntimeError(
-                "Mcap library not found. Please install the mcap library."
             )
         data = self.download_data(
             device_name=device_name,
@@ -308,19 +301,13 @@ class Client:
             end=end,
             topics=topics,
         )
-        reader = make_reader(BytesIO(data))
-        decoders = {}
-        output_messages = []
-        for schema, channel, message in reader.iter_messages():
-            if schema.encoding not in decoders:
-                decoder = decoder_for_schema_encoding(schema.encoding)
-                decoders[schema.encoding] = decoder
-            else:
-                decoder = decoders[schema.encoding]
-            output_messages.append(
-                (channel.topic, message, decoder.decode(schema, message))
-            )
-        return output_messages
+        if decoder_factories is None:
+            decoder_factories = DEFAULT_DECODER_FACTORIES
+        reader = make_reader(BytesIO(data), decoder_factories=decoder_factories)
+        return [
+            (channel.topic, message, decoded_message)
+            for _, channel, message, decoded_message in reader.iter_decoded_messages()
+        ]
 
     def download_recording_data(
         self,

@@ -9,10 +9,7 @@ from .generate import generate_ros1_data
 
 
 def test_download_without_decoder():
-    with patch(
-        "foxglove_data_platform.client.decoder_for_schema_encoding",
-        MagicMock(side_effect=Exception("Not found!")),
-    ):
+    with patch("foxglove_data_platform.client.DEFAULT_DECODER_FACTORIES", []):
         client = Client("test")
         client.download_data = MagicMock()
         client.download_data.return_value = generate_ros1_data()

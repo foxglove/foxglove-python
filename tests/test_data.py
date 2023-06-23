@@ -4,6 +4,7 @@ from tempfile import TemporaryFile
 import responses
 from faker import Faker
 from foxglove_data_platform.client import Client
+from responses.matchers import json_params_matcher
 
 from .api_url import api_url
 
@@ -57,9 +58,19 @@ def test_streaming_upload():
 @responses.activate
 def test_upload():
     upload_link = fake.url()
+    device_id = "test_device_id"
+    filename = "test_file.mcap"
     responses.add(
         responses.POST,
         api_url("/v1/data/upload"),
+        match=[
+            json_params_matcher(
+                {
+                    "device.id": device_id,
+                    "filename": filename,
+                },
+            )
+        ],
         json={
             "link": upload_link,
         },
@@ -68,6 +79,6 @@ def test_upload():
     client = Client("test")
     data = fake.binary(4096)
     upload_response = client.upload_data(
-        device_id="test_device_id", filename="test_file.mcap", data=data
+        device_id=device_id, filename=filename, data=data
     )
     assert upload_response["link"] == upload_link

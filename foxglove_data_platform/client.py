@@ -767,7 +767,6 @@ class Client:
             {
                 "id": i["id"],
                 "recording_id": i["recordingId"],
-                "device": i["device"],
                 "site_id": i["siteId"],
                 "name": i["name"],
                 "media_type": i["mediaType"],

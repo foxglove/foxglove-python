@@ -77,6 +77,7 @@ def test_camelize():
     assert camelize("aFieldName") == "aFieldName"
     assert camelize(None) is None
 
+
 @responses.activate
 def test_get_recording_attachments():
     responses.add(
@@ -93,7 +94,7 @@ def test_get_recording_attachments():
                 "crc": "test_crc",
                 "fingerprint": "test_fingerprint",
             }
-        ]
+        ],
     )
 
     client = Client("test")

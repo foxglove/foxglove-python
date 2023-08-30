@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: 3.8
           cache: pipenv
-      - run: pip install pipenv==2022.12.19
+      - run: pip install pipenv==2023.6.18
       - run: pipenv install --dev --deploy
       - run: pipenv run black --check --diff --color --exclude '.*_pb2.py' .
       - run: pipenv run pyright foxglove_data_platform

@@ -11,6 +11,21 @@ fake = Faker()
 
 
 @responses.activate
+def test_delete_recording():
+    recording_id = fake.uuid4()
+    responses.add(
+        responses.DELETE,
+        api_url(f"/v1/recordings/{recording_id}"),
+        json={"success": True, "id": recording_id},
+    )
+    client = Client("test")
+    try:
+        client.delete_recording(recording_id=recording_id)
+    except:
+        assert False
+
+
+@responses.activate
 def test_get_recordings():
     device_id = fake.uuid4()
     recording_id_a = fake.uuid4()

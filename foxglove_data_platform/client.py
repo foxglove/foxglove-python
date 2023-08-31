@@ -577,6 +577,12 @@ class Client:
         )
         json_or_raise(response)
 
+    def delete_recording(self, *, recording_id: str):
+        response = requests.delete(
+            self.__url__(f"/v1/recordings/{recording_id}"), headers=self.__headers
+        )
+        json_or_raise(response)
+
     def get_imports(
         self,
         *,

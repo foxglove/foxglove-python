@@ -89,7 +89,7 @@ def test_get_recording_attachments():
                 "recordingId": "test_recording",
                 "siteId": "test_site",
                 "name": "name",
-                "mediateType": "json",
+                "mediaType": "json",
                 "size": 5,
                 "crc": "test_crc",
                 "fingerprint": "test_fingerprint",

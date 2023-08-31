@@ -53,10 +53,6 @@ def test_get_attachments():
             "recording_id": recording_id,
             "site_id": site_id,
             "name": path,
-            "device": {
-                "id": device_id,
-                "name": device_name,
-            },
             "media_type": media_type,
             "size": size,
             "crc": crc,

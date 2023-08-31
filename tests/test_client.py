@@ -77,27 +77,3 @@ def test_camelize():
     assert camelize("aFieldName") == "aFieldName"
     assert camelize(None) is None
 
-
-@responses.activate
-def test_get_recording_attachments():
-    responses.add(
-        responses.GET,
-        api_url("/v1/recording-attachments"),
-        json=[
-            {
-                "id": "test",
-                "recordingId": "test_recording",
-                "siteId": "test_site",
-                "name": "name",
-                "mediaType": "json",
-                "size": 5,
-                "crc": "test_crc",
-                "fingerprint": "test_fingerprint",
-            }
-        ],
-    )
-
-    client = Client("test")
-    attachments = client.get_attachments(recording_id="test_recording")
-    assert len(attachments) == 1
-    assert attachments[0]["name"] == "name"

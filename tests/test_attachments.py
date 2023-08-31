@@ -11,8 +11,6 @@ fake = Faker()
 
 @responses.activate
 def test_get_attachments():
-    device_id = fake.uuid4()
-    device_name = fake.name()
     attachment_id = fake.uuid4()
     recording_id = fake.uuid4()
     path = fake.file_name(extension="txt")
@@ -25,12 +23,11 @@ def test_get_attachments():
 
     responses.add(
         responses.GET,
-        api_url(f"/v1/recording-attachments"),
+        api_url("/v1/recording-attachments"),
         json=[
             {
                 "id": attachment_id,
                 "recordingId": recording_id,
-                "device": {"id": device_id, "name": device_name},
                 "siteId": site_id,
                 "name": path,
                 "mediaType": media_type,
@@ -53,10 +50,6 @@ def test_get_attachments():
             "recording_id": recording_id,
             "site_id": site_id,
             "name": path,
-            "device": {
-                "id": device_id,
-                "name": device_name,
-            },
             "media_type": media_type,
             "size": size,
             "crc": crc,

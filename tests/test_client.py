@@ -76,4 +76,3 @@ def test_camelize():
     assert camelize("a_field_name") == "aFieldName"
     assert camelize("aFieldName") == "aFieldName"
     assert camelize(None) is None
-

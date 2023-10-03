@@ -290,6 +290,9 @@ class Client:
         """
         Returns a list of tuples of (topic, raw mcap record, decoded message).
 
+        .. deprecated:: 0.13.0
+            Use :func:`iter_messages` instead.
+
         device_id: The id of the device that originated the desired data.
         device_name: The name of the device that originated the desired data.
         start: The earliest time from which to retrieve data.
@@ -299,10 +302,6 @@ class Client:
         decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
             used to decode message content.
         """
-        if device_id is None and device_name is None:
-            raise RuntimeError(
-                "device_id or device_name must be provided to get_messages"
-            )
         data = self.download_data(
             device_name=device_name,
             device_id=device_id,
@@ -340,7 +339,6 @@ class Client:
         decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
             used to decode message content.
         """
-
         stream_link = self._make_stream_link(
             device_id=device_id,
             device_name=device_name,
@@ -397,6 +395,9 @@ class Client:
         topics: List[str] = [],
         output_format: OutputFormat = OutputFormat.mcap0,
     ) -> str:
+        if device_id is None and device_name is None:
+            raise RuntimeError("device_id or device_name must be provided")
+
         params = {
             "device.id": device_id,
             "device.name": device_name,

@@ -15,12 +15,12 @@ def get_generated_data(url, **kwargs):
     class Resp:
         def __init__(self):
             self.raw = BytesIO(generate_json_data())
-        
+
         def raise_for_status(self):
             return None
 
     return Resp()
-    
+
 
 @patch("requests.get", side_effect=get_generated_data)
 def test_boot(arg):

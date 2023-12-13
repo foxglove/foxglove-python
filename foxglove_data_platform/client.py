@@ -359,7 +359,8 @@ class Client:
     def download_recording_data(
         self,
         *,
-        id: str,
+        id: str = None,
+        key: str = None,
         output_format: OutputFormat = OutputFormat.mcap0,
         include_attachments: bool = False,
         callback: Optional[ProgressCallback] = None,
@@ -368,13 +369,17 @@ class Client:
         Returns raw data bytes for a recording.
 
         :param id: the ID of the recording.
+        :param key: the key of the recording.
         :param include_attachments: whether to include MCAP attachments in the returned data.
         :param output_format: The output format of the data, defaulting to .mcap.
             Note: You can only export a .bag file if you originally uploaded a .bag file.
         :param callback: an optional callback to report download progress.
         """
+        if id is None and key is None:
+            raise RuntimeError("id or key must be provided")
         params = {
             "recordingId": id,
+            "key": key,
             "includeAttachments": include_attachments,
             "outputFormat": output_format.value,
         }

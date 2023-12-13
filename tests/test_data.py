@@ -29,6 +29,24 @@ def test_download():
     )
     assert data == response_data
 
+@responses.activate
+def test_download_recording_data():
+    download_link = fake.url()
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        json={
+            "link": download_link,
+        },
+    )
+    data = fake.binary(4096)
+    responses.add(responses.GET, download_link, body=data)
+    client = Client("test")
+    response_data = client.download_recording_data(
+        key="test_key"
+    )
+    assert data == response_data
+
 
 @responses.activate
 def test_streaming_upload():

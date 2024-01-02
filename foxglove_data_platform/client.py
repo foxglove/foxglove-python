@@ -1,3 +1,4 @@
+import copy
 import datetime
 import os
 from enum import Enum
@@ -310,7 +311,8 @@ class Client:
             topics=topics,
         )
         if decoder_factories is None:
-            decoder_factories = DEFAULT_DECODER_FACTORIES
+            # We deep-copy here as these factories might be mutated
+            decoder_factories = copy.deepcopy(DEFAULT_DECODER_FACTORIES)
         reader = make_reader(BytesIO(data), decoder_factories=decoder_factories)
         return [
             (channel.topic, message, decoded_message)
@@ -349,7 +351,8 @@ class Client:
         response = requests.get(stream_link, headers=self.__headers, stream=True)
         response.raise_for_status()
         if decoder_factories is None:
-            decoder_factories = DEFAULT_DECODER_FACTORIES
+            # We deep-copy here as these factories might be mutated
+            decoder_factories = copy.deepcopy(DEFAULT_DECODER_FACTORIES)
         reader = make_reader(response.raw, decoder_factories=decoder_factories)
         return reader.iter_decoded_messages()
 

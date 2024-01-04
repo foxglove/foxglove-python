@@ -491,8 +491,8 @@ class Client:
 
         return [
             {
-                "device_id": c["deviceId"],
-                "device": c["device"],
+                "device_id": c.get("deviceId"),
+                "device": c.get("device"),
                 "start": arrow.get(c["start"]).datetime,
                 "end": arrow.get(c["end"]).datetime,
             }
@@ -703,7 +703,7 @@ class Client:
         return [
             {
                 "import_id": i["importId"],
-                "device_id": i["deviceId"],
+                "device_id": i.get("deviceId"),
                 "import_time": arrow.get(i["importTime"]).datetime,
                 "start": arrow.get(i["start"]).datetime,
                 "end": arrow.get(i["end"]).datetime,

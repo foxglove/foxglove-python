@@ -359,8 +359,8 @@ class Client:
     def download_recording_data(
         self,
         *,
-        id: str = None,
-        key: str = None,
+        id: Optional[str] = None,
+        key: Optional[str] = None,
         output_format: OutputFormat = OutputFormat.mcap0,
         include_attachments: bool = False,
         callback: Optional[ProgressCallback] = None,

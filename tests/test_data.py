@@ -29,6 +29,7 @@ def test_download():
     )
     assert data == response_data
 
+
 @responses.activate
 def test_download_recording_data():
     download_link = fake.url()
@@ -42,9 +43,7 @@ def test_download_recording_data():
     data = fake.binary(4096)
     responses.add(responses.GET, download_link, body=data)
     client = Client("test")
-    response_data = client.download_recording_data(
-        key="test_key"
-    )
+    response_data = client.download_recording_data(key="test_key")
     assert data == response_data
 
 

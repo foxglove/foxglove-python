@@ -912,6 +912,7 @@ class Client:
         *,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
+        key: Optional[str] = None,
         filename: str,
         data: Union[bytes, IO[Any]],
         callback: Optional[SizeProgressCallback] = None,
@@ -921,6 +922,8 @@ class Client:
 
         device_id: Device id of the device from which this data originated.
         device_name: Name id of the device from which this data originated.
+        key: an optional string key to associate with the recording. Any subsequent upload
+          with the same key will be de-duplicated with this recording.
         filename: A filename to associate with the data. The data format will be
             inferred from the file extension.
         data: The raw data in .bag or .mcap format.
@@ -930,6 +933,7 @@ class Client:
             "device.id": device_id,
             "device.name": device_name,
             "filename": filename,
+            "key": key,
         }
         link_response = requests.post(
             self.__url__("/v1/data/upload"),

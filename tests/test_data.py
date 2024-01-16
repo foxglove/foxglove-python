@@ -99,3 +99,30 @@ def test_upload():
         device_id=device_id, filename=filename, data=data
     )
     assert upload_response["link"] == upload_link
+
+
+@responses.activate
+def test_upload_deviceless():
+    upload_link = fake.url()
+    key = "abc123"
+    filename = "test_file.mcap"
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/upload"),
+        match=[
+            json_params_matcher(
+                {
+                    "key": key,
+                    "filename": filename,
+                },
+            )
+        ],
+        json={
+            "link": upload_link,
+        },
+    )
+    responses.add(responses.PUT, upload_link)
+    client = Client("test")
+    data = fake.binary(4096)
+    upload_response = client.upload_data(data=data, filename=filename, key=key)
+    assert upload_response["link"] == upload_link

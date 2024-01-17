@@ -359,7 +359,8 @@ class Client:
     def download_recording_data(
         self,
         *,
-        id: str,
+        id: Optional[str] = None,
+        key: Optional[str] = None,
         output_format: OutputFormat = OutputFormat.mcap0,
         include_attachments: bool = False,
         callback: Optional[ProgressCallback] = None,
@@ -368,13 +369,17 @@ class Client:
         Returns raw data bytes for a recording.
 
         :param id: the ID of the recording.
+        :param key: the key of the recording.
         :param include_attachments: whether to include MCAP attachments in the returned data.
         :param output_format: The output format of the data, defaulting to .mcap.
             Note: You can only export a .bag file if you originally uploaded a .bag file.
         :param callback: an optional callback to report download progress.
         """
+        if id is None and key is None:
+            raise RuntimeError("id or key must be provided")
         params = {
             "recordingId": id,
+            "key": key,
             "includeAttachments": include_attachments,
             "outputFormat": output_format.value,
         }
@@ -486,8 +491,8 @@ class Client:
 
         return [
             {
-                "device_id": c["deviceId"],
-                "device": c["device"],
+                "device_id": c.get("deviceId"),
+                "device": c.get("device"),
                 "start": arrow.get(c["start"]).datetime,
                 "end": arrow.get(c["end"]).datetime,
             }
@@ -698,7 +703,7 @@ class Client:
         return [
             {
                 "import_id": i["importId"],
-                "device_id": i["deviceId"],
+                "device_id": i.get("deviceId"),
                 "import_time": arrow.get(i["importTime"]).datetime,
                 "start": arrow.get(i["start"]).datetime,
                 "end": arrow.get(i["end"]).datetime,
@@ -907,6 +912,7 @@ class Client:
         *,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
+        key: Optional[str] = None,
         filename: str,
         data: Union[bytes, IO[Any]],
         callback: Optional[SizeProgressCallback] = None,
@@ -916,6 +922,8 @@ class Client:
 
         device_id: Device id of the device from which this data originated.
         device_name: Name id of the device from which this data originated.
+        key: an optional string key to associate with the recording. Any subsequent upload
+          with the same key will be de-duplicated with this recording.
         filename: A filename to associate with the data. The data format will be
             inferred from the file extension.
         data: The raw data in .bag or .mcap format.
@@ -925,6 +933,7 @@ class Client:
             "device.id": device_id,
             "device.name": device_name,
             "filename": filename,
+            "key": key,
         }
         link_response = requests.post(
             self.__url__("/v1/data/upload"),

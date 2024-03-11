@@ -1,6 +1,6 @@
 # Python Client Library for Foxglove
 
-This library provides a convenient python client for [Foxglove](https://foxglove.dev/product).
+This library provides a convenient python client for [Foxglove](https://foxglove.dev/).
 
 In order to use the client you will first have to create an API token for your organization on your organization's [settings page](https://app.foxglove.dev/~/settings).
 

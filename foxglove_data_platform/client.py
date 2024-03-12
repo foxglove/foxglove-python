@@ -201,8 +201,8 @@ class Client:
                 "device_id or device_name must be provided to create_event"
             )
         params = {
-            "device.id": device_id,
-            "device.name": device_name,
+            "deviceId": device_id,
+            "deviceName": device_name,
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
             "metadata": metadata,
@@ -260,8 +260,8 @@ class Client:
             of `query`.
         """
         params = {
-            "device.id": device_id,
-            "device.name": device_name,
+            "deviceId": device_id,
+            "deviceName": device_name,
             "sortBy": camelize(sort_by),
             "sortOrder": sort_order,
             "limit": limit,
@@ -407,8 +407,8 @@ class Client:
             raise RuntimeError("device_id or device_name must be provided")
 
         params = {
-            "device.id": device_id,
-            "device.name": device_name,
+            "deviceId": device_id,
+            "deviceName": device_name,
             "end": end.astimezone().isoformat(),
             "outputFormat": output_format.value,
             "start": start.astimezone().isoformat(),
@@ -476,8 +476,8 @@ class Client:
             to be considered discrete.
         """
         params = {
-            "device.id": device_id,
-            "device.name": device_name,
+            "deviceId": device_id,
+            "deviceName": device_name,
             "tolerance": tolerance,
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
@@ -751,8 +751,8 @@ class Client:
         :param offset: Optionally offset the results by this many records.
         """
         all_params = {
-            "device.id": device_id,
-            "device.name": device_name,
+            "deviceId": device_id,
+            "deviceName": device_name,
             "start": start.astimezone().isoformat() if start else None,
             "end": end.astimezone().isoformat() if end else None,
             "site.id": site_id,
@@ -821,8 +821,8 @@ class Client:
         :param offset: Optionally offset the results by this many records.
         """
         all_params = {
-            "device.id": device_id,
-            "device.name": device_name,
+            "deviceId": device_id,
+            "deviceName": device_name,
             "siteId": site_id,
             "recordingId": recording_id,
             "sortBy": camelize(sort_by),
@@ -883,8 +883,8 @@ class Client:
             self.__url__("/v1/data/topics"),
             headers=self.__headers,
             params={
-                "device.id": device_id,
-                "device.name": device_name,
+                "deviceId": device_id,
+                "deviceName": device_name,
                 "start": start.astimezone().isoformat(),
                 "end": end.astimezone().isoformat(),
                 "includeSchemas": "true" if include_schemas else "false",
@@ -930,8 +930,8 @@ class Client:
         callback: An optional callback to report progress on the upload.
         """
         params = {
-            "device.id": device_id,
-            "device.name": device_name,
+            "deviceId": device_id,
+            "deviceName": device_name,
             "filename": filename,
             "key": key,
         }

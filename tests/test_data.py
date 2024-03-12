@@ -83,7 +83,7 @@ def test_upload():
         match=[
             json_params_matcher(
                 {
-                    "device.id": device_id,
+                    "deviceId": device_id,
                     "filename": filename,
                 },
             )

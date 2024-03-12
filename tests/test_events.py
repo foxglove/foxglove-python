@@ -25,7 +25,7 @@ def test_create_event():
         match=[
             json_params_matcher(
                 {
-                    "device.id": device_id,
+                    "deviceId": device_id,
                     "start": start.astimezone().isoformat(),
                     "end": end.astimezone().isoformat(),
                     "metadata": {},
@@ -74,7 +74,7 @@ def test_get_events():
     now = datetime.datetime.now().astimezone()
     responses.add(
         responses.GET,
-        api_url(f"/v1/events?device.id={device_id}"),
+        api_url(f"/v1/events?deviceId={device_id}"),
         json=[
             {
                 "id": "1",
@@ -104,7 +104,7 @@ def test_get_events():
 
     responses.add(
         responses.GET,
-        api_url(f"/v1/events?device.name={device_name}"),
+        api_url(f"/v1/events?deviceName={device_name}"),
         json=[
             {
                 "id": "1",

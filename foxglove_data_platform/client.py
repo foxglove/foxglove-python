@@ -6,6 +6,7 @@ from io import BytesIO
 import json
 from typing import IO, Any, Dict, List, Optional, TypeVar, Union
 import base64
+import warnings
 
 import arrow
 import requests
@@ -165,6 +166,11 @@ def _download_stream_with_progress(
 
 class Client:
     def __init__(self, token: str, host: str = "api.foxglove.dev"):
+        warnings.warn(
+            "The `foxglove_data_platform` package has been renamed to `foxglove`."
+            + " Please migrate to `foxglove` to receive future updates.",
+            DeprecationWarning,
+        )
         self.__token = token
         self.__headers = {
             "Content-type": "application/json",

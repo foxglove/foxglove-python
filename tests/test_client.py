@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 import responses
 from faker import Faker
-from foxglove_data_platform.client import Client, camelize
+from foxglove.client import Client, camelize
 from requests.exceptions import RequestException
 
 from .api_url import api_url

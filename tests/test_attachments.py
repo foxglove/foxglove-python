@@ -1,6 +1,6 @@
 import responses
 from faker import Faker
-from foxglove_data_platform.client import Client
+from foxglove.client import Client
 from datetime import datetime
 from dateutil.tz import tzoffset
 

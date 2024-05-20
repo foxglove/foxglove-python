@@ -1,7 +1,7 @@
 from datetime import datetime
 from unittest.mock import MagicMock
 
-from foxglove_data_platform.client import Client
+from foxglove.client import Client
 
 from .generate import generate_json_data
 

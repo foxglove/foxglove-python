@@ -21,8 +21,8 @@ jobs:
       - run: pip install pipenv==2022.12.19
       - run: pipenv install --dev --deploy
       - run: pipenv run black --check --diff --color --exclude '.*_pb2.py' .
-      - run: pipenv run pyright foxglove_data_platform
-      - run: pipenv run python -m flake8 foxglove_data_platform
+      - run: pipenv run pyright foxglove
+      - run: pipenv run python -m flake8 foxglove
       - run: pipenv run python -m pytest
       - run: pipenv run python -m build
 

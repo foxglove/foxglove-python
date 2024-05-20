@@ -309,6 +309,7 @@ class Client:
         decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
             used to decode message content.
         """
+        warnings.warn("Use `iter_messages` instead.", DeprecationWarning)
         data = self.download_data(
             device_name=device_name,
             device_id=device_id,
@@ -644,6 +645,10 @@ class Client:
         :param device_id: The id of the device associated with the import. (Deprecated; ignored.)
         :param import_id: The id of the import to delete.
         """
+        if device_id is not None:
+            warnings.warn(
+                "The `device_id` parameter is deprecated.", DeprecationWarning
+            )
         response = requests.delete(
             self.__url__(f"/v1/data/imports/{import_id}"),
             headers=self.__headers,

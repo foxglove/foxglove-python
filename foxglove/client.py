@@ -278,47 +278,6 @@ class Client:
 
         return [_event_dict(event) for event in json_or_raise(response)]
 
-    def get_messages(
-        self,
-        *,
-        device_id: Optional[str] = None,
-        device_name: Optional[str] = None,
-        start: datetime.datetime,
-        end: datetime.datetime,
-        topics: List[str] = [],
-        decoder_factories: Optional[List[DecoderFactory]] = None,
-    ):
-        """
-        Returns a list of tuples of (topic, raw mcap record, decoded message).
-
-        .. deprecated:: 0.13.0
-            Use :func:`iter_messages` instead.
-
-        device_id: The id of the device that originated the desired data.
-        device_name: The name of the device that originated the desired data.
-        start: The earliest time from which to retrieve data.
-        end: The latest time from which to retrieve data.
-        topics: An optional list of topics to retrieve.
-            All topics will be retrieved if this is omitted.
-        decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
-            used to decode message content.
-        """
-        data = self.download_data(
-            device_name=device_name,
-            device_id=device_id,
-            start=start,
-            end=end,
-            topics=topics,
-        )
-        if decoder_factories is None:
-            # We deep-copy here as these factories might be mutated
-            decoder_factories = copy.deepcopy(DEFAULT_DECODER_FACTORIES)
-        reader = make_reader(BytesIO(data), decoder_factories=decoder_factories)
-        return [
-            (channel.topic, message, decoded_message)
-            for _, channel, message, decoded_message in reader.iter_decoded_messages()
-        ]
-
     def iter_messages(
         self,
         *,
@@ -631,11 +590,10 @@ class Client:
         )
         json_or_raise(response)
 
-    def delete_import(self, *, device_id: Optional[str] = None, import_id: str):
+    def delete_import(self, *, import_id: str):
         """
         Deletes an existing import.
 
-        :param device_id: The id of the device associated with the import. (Deprecated; ignored.)
         :param import_id: The id of the import to delete.
         """
         response = requests.delete(

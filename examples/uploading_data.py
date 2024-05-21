@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from foxglove_data_platform.client import Client
+from foxglove.client import Client
 
 token = "<YOUR API TOKEN HERE>"
 device_id = "<YOUR DEVICE ID>"

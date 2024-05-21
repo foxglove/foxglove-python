@@ -3,7 +3,7 @@ from tempfile import TemporaryFile
 
 import responses
 from faker import Faker
-from foxglove_data_platform.client import Client
+from foxglove.client import Client
 from responses.matchers import json_params_matcher
 
 from .api_url import api_url

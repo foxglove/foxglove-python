@@ -3,13 +3,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from foxglove_data_platform.client import Client
+from foxglove.client import Client
 
 from .generate import generate_protobuf_data
 
 
 def test_download_without_decoder():
-    with patch("foxglove_data_platform.client.DEFAULT_DECODER_FACTORIES", []):
+    with patch("foxglove.client.DEFAULT_DECODER_FACTORIES", []):
         client = Client("test")
         client.download_data = MagicMock(return_value=generate_protobuf_data())
         with pytest.raises(Exception):

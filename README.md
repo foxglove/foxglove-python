@@ -4,6 +4,8 @@ This library provides a convenient python client for [Foxglove](https://foxglove
 
 In order to use the client you will first have to create an API token for your organization on your organization's [settings page](https://app.foxglove.dev/~/settings).
 
+Read more about the API in the [Foxglove API Docs](https://docs.foxglove.dev/api/).
+
 ## Sample Usage
 
 Examples of various client features can be found in the `examples` directory.

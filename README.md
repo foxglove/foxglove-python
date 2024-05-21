@@ -1,5 +1,7 @@
 # Python Client Library for Foxglove
 
+[![foxglove-client on PyPI](https://img.shields.io/pypi/v/foxglove-client?label=pypi%20%7C%20foxglove-client)](https://pypi.org/project/foxglove-client/)
+
 This library provides a convenient python client for [Foxglove](https://foxglove.dev/).
 
 In order to use the client you will first have to create an API token for your organization on your organization's [settings page](https://app.foxglove.dev/~/settings).

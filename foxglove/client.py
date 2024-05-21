@@ -166,11 +166,6 @@ def _download_stream_with_progress(
 
 class Client:
     def __init__(self, token: str, host: str = "api.foxglove.dev"):
-        warnings.warn(
-            "The `foxglove-data-platform` package has been renamed to `foxglove-client`."
-            + " Please migrate to `foxglove-client` to receive future updates.",
-            DeprecationWarning,
-        )
         self.__token = token
         self.__headers = {
             "Content-type": "application/json",

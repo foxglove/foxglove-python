@@ -22,7 +22,7 @@ def get_generated_data(url, **kwargs):
     return Resp()
 
 
-@patch("requests.get", side_effect=get_generated_data)
+@patch("requests.Session.get", side_effect=get_generated_data)
 def test_boot(arg):
     client = Client("test")
     client._make_stream_link = MagicMock(return_value="the_link")

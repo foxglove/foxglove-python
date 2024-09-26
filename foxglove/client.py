@@ -168,10 +168,12 @@ class Client:
     def __init__(self, token: str, host: str = "api.foxglove.dev"):
         self.__token = token
         self.__session = requests.Session()
-        self.__session.headers.update({
-            "Content-type": "application/json",
-            "Authorization": "Bearer " + self.__token,
-        })
+        self.__session.headers.update(
+            {
+                "Content-type": "application/json",
+                "Authorization": "Bearer " + self.__token,
+            }
+        )
         self.__host = host
 
     def __url__(self, path: str):
@@ -226,9 +228,7 @@ class Client:
 
         event_id: The id of the event to delete.
         """
-        response = self.__session.delete(
-            self.__url__(f"/v1/events/{event_id}")
-        )
+        response = self.__session.delete(self.__url__(f"/v1/events/{event_id}"))
         return json_or_raise(response)
 
     def get_events(
@@ -390,7 +390,9 @@ class Client:
 
         json = json_or_raise(link_response)
 
-        return _download_stream_with_progress(json["link"], self.__session, callback=callback)
+        return _download_stream_with_progress(
+            json["link"], self.__session, callback=callback
+        )
 
     def _make_stream_link(
         self,

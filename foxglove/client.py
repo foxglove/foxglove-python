@@ -151,10 +151,10 @@ def json_or_raise(response: requests.Response):
 
 def _download_stream_with_progress(
     url: str,
-    headers: Optional[dict] = None,
+    session: requests.Session,
     callback: Optional[ProgressCallback] = None,
 ):
-    response = requests.get(url, headers=headers, stream=True)
+    response = session.get(url, stream=True)
     response.raise_for_status()
     data = BytesIO()
     for chunk in response.iter_content(chunk_size=32 * 1024):
@@ -167,10 +167,13 @@ def _download_stream_with_progress(
 class Client:
     def __init__(self, token: str, host: str = "api.foxglove.dev"):
         self.__token = token
-        self.__headers = {
-            "Content-type": "application/json",
-            "Authorization": "Bearer " + self.__token,
-        }
+        self.__session = requests.Session()
+        self.__session.headers.update(
+            {
+                "Content-type": "application/json",
+                "Authorization": "Bearer " + self.__token,
+            }
+        )
         self.__host = host
 
     def __url__(self, path: str):
@@ -208,9 +211,8 @@ class Client:
             "end": end.astimezone().isoformat(),
             "metadata": metadata,
         }
-        response = requests.post(
+        response = self.__session.post(
             self.__url__("/v1/events"),
-            headers=self.__headers,
             json={k: v for k, v in params.items() if v is not None},
         )
 
@@ -226,10 +228,7 @@ class Client:
 
         event_id: The id of the event to delete.
         """
-        response = requests.delete(
-            self.__url__(f"/v1/events/{event_id}"),
-            headers=self.__headers,
-        )
+        response = self.__session.delete(self.__url__(f"/v1/events/{event_id}"))
         return json_or_raise(response)
 
     def get_events(
@@ -271,9 +270,8 @@ class Client:
             "end": end.astimezone().isoformat() if end else None,
             "query": query,
         }
-        response = requests.get(
+        response = self.__session.get(
             self.__url__("/v1/events"),
-            headers=self.__headers,
             params={k: v for k, v in params.items() if v is not None},
         )
 
@@ -350,7 +348,7 @@ class Client:
             end=end,
             topics=topics,
         )
-        response = requests.get(stream_link, headers=self.__headers, stream=True)
+        response = self.__session.get(stream_link, stream=True)
         response.raise_for_status()
         if decoder_factories is None:
             # We deep-copy here as these factories might be mutated
@@ -385,15 +383,16 @@ class Client:
             "includeAttachments": include_attachments,
             "outputFormat": output_format.value,
         }
-        link_response = requests.post(
+        link_response = self.__session.post(
             self.__url__("/v1/data/stream"),
-            headers=self.__headers,
             json={k: v for k, v in params.items() if v is not None},
         )
 
         json = json_or_raise(link_response)
 
-        return _download_stream_with_progress(json["link"], callback=callback)
+        return _download_stream_with_progress(
+            json["link"], self.__session, callback=callback
+        )
 
     def _make_stream_link(
         self,
@@ -416,9 +415,8 @@ class Client:
             "start": start.astimezone().isoformat(),
             "topics": topics,
         }
-        link_response = requests.post(
+        link_response = self.__session.post(
             self.__url__("/v1/data/stream"),
-            headers=self.__headers,
             json={k: v for k, v in params.items() if v is not None},
         )
 
@@ -456,6 +454,7 @@ class Client:
                 topics=topics,
                 output_format=output_format,
             ),
+            self.__session,
             callback=callback,
         )
 
@@ -484,9 +483,8 @@ class Client:
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
         }
-        response = requests.get(
+        response = self.__session.get(
             self.__url__("/v1/data/coverage"),
-            headers=self.__headers,
             params={k: v for k, v in params.items() if v is not None},
         )
         json = json_or_raise(response)
@@ -514,9 +512,8 @@ class Client:
             raise RuntimeError("device_id and device_name are mutually exclusive")
         if device_name is None and device_id is None:
             raise RuntimeError("device_id or device_name must be provided")
-        response = requests.get(
+        response = self.__session.get(
             self.__url__(f"/v1/devices/{device_name or device_id}"),
-            headers=self.__headers,
         )
 
         device = json_or_raise(response)
@@ -531,9 +528,8 @@ class Client:
         """
         Returns a list of all devices.
         """
-        response = requests.get(
+        response = self.__session.get(
             self.__url__("/v1/devices"),
-            headers=self.__headers,
         )
 
         json = json_or_raise(response)
@@ -561,9 +557,8 @@ class Client:
             Each key must be defined as a custom property for your organization,
             and each value must be of the appropriate type
         """
-        response = requests.post(
+        response = self.__session.post(
             self.__url__("/v1/devices"),
-            headers=self.__headers,
             json=without_nulls({"name": name, "properties": properties}),
         )
 
@@ -598,9 +593,8 @@ class Client:
         if device_name is None and device_id is None:
             raise RuntimeError("device_id or device_name must be provided")
 
-        response = requests.patch(
+        response = self.__session.patch(
             self.__url__(f"/v1/devices/{device_name or device_id}"),
-            headers=self.__headers,
             json=without_nulls({"name": new_name, "properties": properties}),
         )
 
@@ -627,9 +621,8 @@ class Client:
             raise RuntimeError("device_id and device_name are mutually exclusive")
         if device_name is None and device_id is None:
             raise RuntimeError("device_id or device_name must be provided")
-        response = requests.delete(
+        response = self.__session.delete(
             self.__url__(f"/v1/devices/{device_name or device_id}"),
-            headers=self.__headers,
         )
         json_or_raise(response)
 
@@ -644,15 +637,14 @@ class Client:
             warnings.warn(
                 "The `device_id` parameter is deprecated.", DeprecationWarning
             )
-        response = requests.delete(
+        response = self.__session.delete(
             self.__url__(f"/v1/data/imports/{import_id}"),
-            headers=self.__headers,
         )
         json_or_raise(response)
 
     def delete_recording(self, *, recording_id: str):
-        response = requests.delete(
-            self.__url__(f"/v1/recordings/{recording_id}"), headers=self.__headers
+        response = self.__session.delete(
+            self.__url__(f"/v1/recordings/{recording_id}"),
         )
         json_or_raise(response)
 
@@ -699,10 +691,9 @@ class Client:
             "limit": limit,
             "offset": offset,
         }
-        response = requests.get(
+        response = self.__session.get(
             self.__url__("/v1/data/imports"),
             params={k: v for k, v in all_params.items() if v is not None},
-            headers=self.__headers,
         )
         json = json_or_raise(response)
 
@@ -770,10 +761,9 @@ class Client:
             "limit": limit,
             "offset": offset,
         }
-        response = requests.get(
+        response = self.__session.get(
             self.__url__("/v1/recordings"),
             params={k: v for k, v in all_params.items() if v is not None},
-            headers=self.__headers,
         )
         json = json_or_raise(response)
 
@@ -836,10 +826,9 @@ class Client:
             "limit": limit,
             "offset": offset,
         }
-        response = requests.get(
+        response = self.__session.get(
             self.__url__("/v1/recording-attachments"),
             params={k: v for k, v in all_params.items() if v is not None},
-            headers=self.__headers,
         )
         json = json_or_raise(response)
         return [
@@ -872,7 +861,7 @@ class Client:
         """
         return _download_stream_with_progress(
             self.__url__(f"/v1/recording-attachments/{id}/download"),
-            headers=self.__headers,
+            self.__session,
             callback=callback,
         )
 
@@ -885,9 +874,8 @@ class Client:
         end: datetime.datetime,
         include_schemas: bool = False,
     ):
-        response = requests.get(
+        response = self.__session.get(
             self.__url__("/v1/data/topics"),
-            headers=self.__headers,
             params={
                 "deviceId": device_id,
                 "deviceName": device_name,
@@ -941,9 +929,8 @@ class Client:
             "filename": filename,
             "key": key,
         }
-        link_response = requests.post(
+        link_response = self.__session.post(
             self.__url__("/v1/data/upload"),
-            headers=self.__headers,
             json={k: v for k, v in params.items() if v is not None},
         )
 
@@ -951,7 +938,7 @@ class Client:
 
         link = json["link"]
         buffer = ProgressBufferReader(data, callback=callback)
-        upload_request = requests.put(
+        upload_request = self.__session.put(
             link,
             data=buffer,
             headers={"Content-Type": "application/octet-stream"},

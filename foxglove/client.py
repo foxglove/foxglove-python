@@ -97,6 +97,7 @@ class SizeProgressCallback(Protocol):
 
 class OutputFormat(Enum):
     bag = "bag1"
+    mcap = "mcap"
     mcap0 = "mcap0"
 
 
@@ -361,7 +362,7 @@ class Client:
         *,
         id: Optional[str] = None,
         key: Optional[str] = None,
-        output_format: OutputFormat = OutputFormat.mcap0,
+        output_format: OutputFormat = OutputFormat.mcap,
         include_attachments: bool = False,
         callback: Optional[ProgressCallback] = None,
     ):
@@ -402,7 +403,7 @@ class Client:
         start: datetime.datetime,
         end: datetime.datetime,
         topics: List[str] = [],
-        output_format: OutputFormat = OutputFormat.mcap0,
+        output_format: OutputFormat = OutputFormat.mcap,
     ) -> str:
         if device_id is None and device_name is None:
             raise RuntimeError("device_id or device_name must be provided")
@@ -431,7 +432,7 @@ class Client:
         start: datetime.datetime,
         end: datetime.datetime,
         topics: List[str] = [],
-        output_format: OutputFormat = OutputFormat.mcap0,
+        output_format: OutputFormat = OutputFormat.mcap,
         callback: Optional[ProgressCallback] = None,
     ) -> bytes:
         """

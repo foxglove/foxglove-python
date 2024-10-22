@@ -19,6 +19,16 @@ pipenv install --dev
 pipenv run python -m pytest
 ```
 
+## Release Process
+
+Release numbering follows a major.minor.patch format, abbreviated as "X.Y.Z" below.
+
+CI will build the package and publish to PyPI once tags are pushed, as described below.
+
+1. Update the `version` in setup.cfg with the new version `X.Y.Z`
+2. Draft a [release on GitHub](https://github.com/foxglove/foxglove-python/releases/new) and create a new tag `releases/vX.Y.Z`
+3. Generate release notes, review, and publish the release
+
 ## Stay in touch
 
 Join our [Discord](https://foxglove.dev/chat) to ask questions, share feedback, and stay up to date on what our team is working on.

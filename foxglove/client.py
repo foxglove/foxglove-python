@@ -318,11 +318,7 @@ class Client:
         return [
             (channel.topic, message, decoded_message)
             for _, channel, message, decoded_message in reader.iter_decoded_messages(
-                topics=None,
-                start_time=None,
-                end_time=None,
                 log_time_order=False,
-                reverse=False,
             )
         ]
 
@@ -361,13 +357,7 @@ class Client:
             # We deep-copy here as these factories might be mutated
             decoder_factories = copy.deepcopy(DEFAULT_DECODER_FACTORIES)
         reader = make_reader(response.raw, decoder_factories=decoder_factories)
-        return reader.iter_decoded_messages(
-            topics=None,
-            start_time=None,
-            end_time=None,
-            log_time_order=False,
-            reverse=False,
-        )
+        return reader.iter_decoded_messages(log_time_order=False)
 
     def download_recording_data(
         self,

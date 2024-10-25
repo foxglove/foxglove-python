@@ -317,7 +317,12 @@ class Client:
         reader = make_reader(BytesIO(data), decoder_factories=decoder_factories)
         return [
             (channel.topic, message, decoded_message)
-            for _, channel, message, decoded_message in reader.iter_decoded_messages()
+            # messages from Foxglove are already in log-time order.
+            # specifying log_time_order=false allows us to skip a sort() in the MCAP library
+            # after all messages are loaded.
+            for _, channel, message, decoded_message in reader.iter_decoded_messages(
+                log_time_order=False,
+            )
         ]
 
     def iter_messages(
@@ -355,7 +360,10 @@ class Client:
             # We deep-copy here as these factories might be mutated
             decoder_factories = copy.deepcopy(DEFAULT_DECODER_FACTORIES)
         reader = make_reader(response.raw, decoder_factories=decoder_factories)
-        return reader.iter_decoded_messages()
+        # messages from Foxglove are already in log-time order.
+        # specifying log_time_order=false allows us to skip a sort() in the MCAP library
+        # after all messages are loaded.
+        return reader.iter_decoded_messages(log_time_order=False)
 
     def download_recording_data(
         self,

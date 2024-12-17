@@ -23,6 +23,7 @@ jobs:
       - run: pipenv run black --check --diff --color --exclude '.*_pb2.py' .
       - run: pipenv run pyright foxglove
       - run: pipenv run python -m flake8 foxglove
+      - run: pipenv run python -m flake8 examples
       - run: pipenv run python -m pytest
       - run: pipenv run python -m build
 

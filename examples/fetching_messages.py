@@ -14,4 +14,4 @@ for schema, channel, message, decoded_message in client.iter_messages(
     start=datetime.now() - timedelta(hours=3),
     end=datetime.now() - timedelta(hours=1),
 ):
-    print(f"[{message.log_time}] Channel: {channel.topic} Schema: {schema.name}")
+    print(f"{message.log_time} | {channel.topic:<24} | {schema.name}")

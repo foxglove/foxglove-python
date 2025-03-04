@@ -796,6 +796,7 @@ class Client:
                     "edge_site": i.get("edgeSite"),
                     "device": i.get("device"),
                     "metadata": i.get("metadata"),
+                    "key": i.get("key"),
                 }
             )
 

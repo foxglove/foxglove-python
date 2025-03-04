@@ -39,7 +39,7 @@ def test_get_recordings():
 
     responses.add(
         responses.GET,
-        api_url(f"/v1/recordings"),
+        api_url("/v1/recordings"),
         json=[
             {
                 "id": recording_id_a,
@@ -54,6 +54,7 @@ def test_get_recordings():
                 "site": {"id": site_id, "name": "primarySite"},
                 "device": {"id": device_id, "name": "deviceName"},
                 "metadata": {"hey": "now", "brown": "cow"},
+                "key": "recording_key",
             },
             {
                 "id": recording_id_b,
@@ -90,6 +91,7 @@ def test_get_recordings():
             "edge_site": None,
             "device": {"id": device_id, "name": "deviceName"},
             "metadata": {"hey": "now", "brown": "cow"},
+            "key": "recording_key",
         },
         {
             "id": recording_id_b,
@@ -105,5 +107,6 @@ def test_get_recordings():
             "edge_site": {"id": edge_site_id, "name": "edgeSite"},
             "device": {"id": device_id, "name": "deviceName"},
             "metadata": None,
+            "key": None,
         },
     ]

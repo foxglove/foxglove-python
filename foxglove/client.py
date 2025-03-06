@@ -370,8 +370,11 @@ class Client:
         *,
         id: Optional[str] = None,
         key: Optional[str] = None,
+        import_id: Optional[str] = None,
         output_format: OutputFormat = OutputFormat.mcap,
         include_attachments: bool = False,
+        topics: Optional[List[str]] = None,
+        compression_format: Optional[str] = None,
         callback: Optional[ProgressCallback] = None,
     ):
         """
@@ -379,19 +382,27 @@ class Client:
 
         :param id: the ID of the recording.
         :param key: the key of the recording.
+        :param import_id: the ID of the import (deprecated).
         :param include_attachments: whether to include MCAP attachments in the returned data.
+        :param topics: list of topics to include in the exported file (defaults to all topics).
+        :param compression_format: configure chunk compression format (for mcap output format only).
         :param output_format: The output format of the data, defaulting to .mcap.
             Note: You can only export a .bag file if you originally uploaded a .bag file.
         :param callback: an optional callback to report download progress.
         """
-        if id is None and key is None:
-            raise RuntimeError("id or key must be provided")
+        if id is None and key is None and import_id is None:
+            raise RuntimeError("id, key, or import_id must be provided")
         params = {
             "recordingId": id,
             "key": key,
+            "importId": import_id,
             "includeAttachments": include_attachments,
             "outputFormat": output_format.value,
+            "compressionFormat": compression_format,
         }
+        if topics is not None:
+            params["topics"] = topics
+
         link_response = self.__session.post(
             self.__url__("/v1/data/stream"),
             json={k: v for k, v in params.items() if v is not None},
@@ -412,6 +423,8 @@ class Client:
         end: datetime.datetime,
         topics: List[str] = [],
         output_format: OutputFormat = OutputFormat.mcap,
+        compression_format: Optional[str] = None,
+        event_id: Optional[str] = None,
     ) -> str:
         if device_id is None and device_name is None:
             raise RuntimeError("device_id or device_name must be provided")
@@ -421,6 +434,8 @@ class Client:
             "deviceName": device_name,
             "end": end.astimezone().isoformat(),
             "outputFormat": output_format.value,
+            "compressionFormat": compression_format,
+            "eventId": event_id,
             "start": start.astimezone().isoformat(),
             "topics": topics,
         }
@@ -441,6 +456,12 @@ class Client:
         end: datetime.datetime,
         topics: List[str] = [],
         output_format: OutputFormat = OutputFormat.mcap,
+        compression_format: Optional[str] = None,
+        event_id: Optional[str] = None,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+        import_id: Optional[str] = None,
+        include_attachments: bool = False,
         callback: Optional[ProgressCallback] = None,
     ) -> bytes:
         """
@@ -453,19 +474,57 @@ class Client:
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
+        compression_format: Configure chunk compression format (for mcap output format only).
+        event_id: ID of an event associated with the exported data.
+        recording_id: ID of the recording to stream.
+        recording_key: Key of recording to stream.
+        import_id: ID of the import to stream (deprecated).
+        include_attachments: Whether to include attachments in streamed data.
         """
-        return _download_stream_with_progress(
-            self._make_stream_link(
-                device_id=device_id,
-                device_name=device_name,
-                start=start,
-                end=end,
-                topics=topics,
-                output_format=output_format,
-            ),
-            self.__session,
-            callback=callback,
-        )
+        if (
+            recording_id is not None
+            or recording_key is not None
+            or import_id is not None
+        ):
+            # If specific recording identifiers are provided, use those directly
+            params = {
+                "recordingId": recording_id,
+                "recordingKey": recording_key,
+                "importId": import_id,
+                "topics": topics if topics else None,
+                "outputFormat": output_format.value,
+                "compressionFormat": compression_format,
+                "includeAttachments": (
+                    include_attachments if include_attachments else None
+                ),
+                "eventId": event_id,
+            }
+            link_response = self.__session.post(
+                self.__url__("/v1/data/stream"),
+                json={k: v for k, v in params.items() if v is not None},
+            )
+            json = json_or_raise(link_response)
+            return _download_stream_with_progress(
+                json["link"],
+                self.__session,
+                callback=callback,
+            )
+        else:
+            # Use the time-based approach
+            return _download_stream_with_progress(
+                self._make_stream_link(
+                    device_id=device_id,
+                    device_name=device_name,
+                    start=start,
+                    end=end,
+                    topics=topics,
+                    output_format=output_format,
+                    compression_format=compression_format,
+                    event_id=event_id,
+                ),
+                self.__session,
+                callback=callback,
+            )
 
     def get_coverage(
         self,
@@ -475,6 +534,10 @@ class Client:
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
         tolerance: Optional[int] = None,
+        import_id: Optional[str] = None,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+        include_edge_recordings: Optional[bool] = None,
     ):
         """
         List coverage ranges for data.
@@ -482,15 +545,25 @@ class Client:
         :param start: The earliest time after which to retrieve data.
         :param end: The latest time before which to retrieve data.
         :param device_id: Optional device id to limit data by.
+        :param device_name: Optional device name to limit data by.
         :param tolerance: Minimum interval (in seconds) that ranges must be separated by
             to be considered discrete.
+        :param import_id: Filter coverage by import ID (deprecated).
+        :param recording_id: Filter coverage by recording ID.
+        :param recording_key: Filter coverage by recording key.
+        :param include_edge_recordings: Include recordings from an Edge Site or Agent in the
+            response.
         """
         params = {
             "deviceId": device_id,
             "deviceName": device_name,
-            "tolerance": tolerance,
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
+            "tolerance": tolerance,
+            "importId": import_id,
+            "recordingId": recording_id,
+            "recordingKey": recording_key,
+            "includeEdgeRecordings": include_edge_recordings,
         }
         response = self.__session.get(
             self.__url__("/v1/data/coverage"),
@@ -883,6 +956,13 @@ class Client:
         start: datetime.datetime,
         end: datetime.datetime,
         include_schemas: bool = False,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+        import_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
     ):
         response = self.__session.get(
             self.__url__("/v1/data/topics"),
@@ -892,6 +972,13 @@ class Client:
                 "start": start.astimezone().isoformat(),
                 "end": end.astimezone().isoformat(),
                 "includeSchemas": "true" if include_schemas else "false",
+                "recordingId": recording_id,
+                "recordingKey": recording_key,
+                "importId": import_id,
+                "sortBy": sort_by,
+                "sortOrder": sort_order,
+                "limit": limit,
+                "offset": offset,
             },
         )
 

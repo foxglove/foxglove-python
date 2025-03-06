@@ -369,8 +369,6 @@ class Client:
         self,
         *,
         id: Optional[str] = None,
-        key: Optional[str] = None,
-        import_id: Optional[str] = None,
         output_format: OutputFormat = OutputFormat.mcap,
         include_attachments: bool = False,
         topics: Optional[List[str]] = None,
@@ -381,8 +379,6 @@ class Client:
         Returns raw data bytes for a recording.
 
         :param id: the ID of the recording.
-        :param key: the key of the recording.
-        :param import_id: the ID of the import (deprecated).
         :param include_attachments: whether to include MCAP attachments in the returned data.
         :param topics: list of topics to include in the exported file (defaults to all topics).
         :param compression_format: configure chunk compression format (for mcap output format only).
@@ -390,12 +386,10 @@ class Client:
             Note: You can only export a .bag file if you originally uploaded a .bag file.
         :param callback: an optional callback to report download progress.
         """
-        if id is None and key is None and import_id is None:
-            raise RuntimeError("id, key, or import_id must be provided")
+        if id is None:
+            raise RuntimeError("id must be provided")
         params = {
             "recordingId": id,
-            "key": key,
-            "importId": import_id,
             "includeAttachments": include_attachments,
             "outputFormat": output_format.value,
             "compressionFormat": compression_format,
@@ -460,7 +454,6 @@ class Client:
         event_id: Optional[str] = None,
         recording_id: Optional[str] = None,
         recording_key: Optional[str] = None,
-        import_id: Optional[str] = None,
         include_attachments: bool = False,
         callback: Optional[ProgressCallback] = None,
     ) -> bytes:
@@ -478,19 +471,13 @@ class Client:
         event_id: ID of an event associated with the exported data.
         recording_id: ID of the recording to stream.
         recording_key: Key of recording to stream.
-        import_id: ID of the import to stream (deprecated).
         include_attachments: Whether to include attachments in streamed data.
         """
-        if (
-            recording_id is not None
-            or recording_key is not None
-            or import_id is not None
-        ):
+        if recording_id is not None or recording_key is not None:
             # If specific recording identifiers are provided, use those directly
             params = {
                 "recordingId": recording_id,
                 "recordingKey": recording_key,
-                "importId": import_id,
                 "topics": topics if topics else None,
                 "outputFormat": output_format.value,
                 "compressionFormat": compression_format,
@@ -534,7 +521,6 @@ class Client:
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
         tolerance: Optional[int] = None,
-        import_id: Optional[str] = None,
         recording_id: Optional[str] = None,
         recording_key: Optional[str] = None,
         include_edge_recordings: Optional[bool] = None,
@@ -548,11 +534,10 @@ class Client:
         :param device_name: Optional device name to limit data by.
         :param tolerance: Minimum interval (in seconds) that ranges must be separated by
             to be considered discrete.
-        :param import_id: Filter coverage by import ID (deprecated).
         :param recording_id: Filter coverage by recording ID.
         :param recording_key: Filter coverage by recording key.
-        :param include_edge_recordings: Include recordings from an Edge Site or Agent in the
-            response.
+        :param include_edge_recordings: Include recordings from an Edge Site or Agent
+            in the response.
         """
         params = {
             "deviceId": device_id,
@@ -560,7 +545,6 @@ class Client:
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
             "tolerance": tolerance,
-            "importId": import_id,
             "recordingId": recording_id,
             "recordingKey": recording_key,
             "includeEdgeRecordings": include_edge_recordings,
@@ -694,7 +678,7 @@ class Client:
         """
         Deletes an existing device.
 
-        Note: you must first delete all imports from the device; see `delete_import`.
+        Note: you must first delete all recordings from the device.
 
         :param device_id: The id of the device.
         :param device_name: The name of the device.
@@ -708,92 +692,11 @@ class Client:
         )
         json_or_raise(response)
 
-    def delete_import(self, *, device_id: Optional[str] = None, import_id: str):
-        """
-        Deletes an existing import.
-
-        :param device_id: The id of the device associated with the import. (Deprecated; ignored.)
-        :param import_id: The id of the import to delete.
-        """
-        if device_id is not None:
-            warnings.warn(
-                "The `device_id` parameter is deprecated.", DeprecationWarning
-            )
-        response = self.__session.delete(
-            self.__url__(f"/v1/data/imports/{import_id}"),
-        )
-        json_or_raise(response)
-
     def delete_recording(self, *, recording_id: str):
         response = self.__session.delete(
             self.__url__(f"/v1/recordings/{recording_id}"),
         )
         json_or_raise(response)
-
-    def get_imports(
-        self,
-        *,
-        device_id: Optional[str] = None,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
-        data_start: Optional[datetime.datetime] = None,
-        data_end: Optional[datetime.datetime] = None,
-        include_deleted: bool = False,
-        filename: Optional[str] = None,
-        sort_by: Optional[str] = None,
-        sort_order: Optional[str] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-    ):
-        """
-        Fetches imports.
-
-        :param device_id: The id of the device associated with the import.
-        :param start: Optionally filter by import start time.
-        :param end: Optionally filter by import end time.
-        :param data_start: Optionally filter by data start time.
-        :param data_end: Optionally filter by data end time.
-        :param include_deleted: Include deleted imports.
-        :param filename: Optionally filter by matching filename.
-        :param sort_by: Optionally sort records by this field name (e.g. "device_id").
-        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
-        :param limit: Optionally limit the number of records returned.
-        :param offset: Optionally offset the results by this many records.
-        """
-        all_params = {
-            "deviceId": device_id,
-            "start": start.astimezone().isoformat() if start else None,
-            "end": end.astimezone().isoformat() if end else None,
-            "dataStart": data_start.astimezone().isoformat() if data_start else None,
-            "dataEnd": data_end.astimezone().isoformat() if data_end else None,
-            "includeDeleted": bool_query_param(include_deleted),
-            "filename": filename,
-            "sortBy": camelize(sort_by),
-            "sortOrder": sort_order,
-            "limit": limit,
-            "offset": offset,
-        }
-        response = self.__session.get(
-            self.__url__("/v1/data/imports"),
-            params={k: v for k, v in all_params.items() if v is not None},
-        )
-        json = json_or_raise(response)
-
-        return [
-            {
-                "import_id": i["importId"],
-                "device_id": i.get("deviceId"),
-                "import_time": arrow.get(i["importTime"]).datetime,
-                "start": arrow.get(i["start"]).datetime,
-                "end": arrow.get(i["end"]).datetime,
-                "input_type": i["inputType"],
-                "output_type": i["outputType"],
-                "filename": i["filename"],
-                "input_size": i["inputSize"],
-                "total_output_size": i["totalOutputSize"],
-            }
-            for i in json
-        ]
 
     def get_recordings(
         self,
@@ -958,7 +861,6 @@ class Client:
         include_schemas: bool = False,
         recording_id: Optional[str] = None,
         recording_key: Optional[str] = None,
-        import_id: Optional[str] = None,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
@@ -974,7 +876,6 @@ class Client:
                 "includeSchemas": "true" if include_schemas else "false",
                 "recordingId": recording_id,
                 "recordingKey": recording_key,
-                "importId": import_id,
                 "sortBy": sort_by,
                 "sortOrder": sort_order,
                 "limit": limit,

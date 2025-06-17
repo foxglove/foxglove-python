@@ -577,7 +577,8 @@ class Client:
         :param properties: Optional custom properties for the device.
             Each key must be defined as a custom property for your organization,
             and each value must be of the appropriate type
-        :param project_id: Project to create the device in. Required for multi-project organizations.
+        :param project_id: Project to create the device in.
+            Required for multi-project organizations.
         """
         response = self.__session.post(
             self.__url__("/v1/devices"),
@@ -973,7 +974,8 @@ class Client:
             inferred from the file extension.
         data: The raw data in .bag or .mcap format.
         callback: An optional callback to report progress on the upload.
-        project_id: Optional Project to upload data to. Required for multi-project organizations if an existing device is not specified.
+        project_id: Optional Project to upload data to. Required for multi-project
+            organizations if an existing device is not specified.
         """
         params = {
             "deviceId": device_id,

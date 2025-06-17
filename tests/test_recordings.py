@@ -36,6 +36,7 @@ def test_get_recordings():
     site_id = fake.uuid4()
     edge_site_id = fake.uuid4()
     now = datetime.now(tzoffset(None, 0))
+    project_id = "prj_123"
 
     responses.add(
         responses.GET,
@@ -55,6 +56,7 @@ def test_get_recordings():
                 "device": {"id": device_id, "name": "deviceName"},
                 "metadata": {"hey": "now", "brown": "cow"},
                 "key": "recording_key",
+                "projectId": project_id,
             },
             {
                 "id": recording_id_b,
@@ -67,6 +69,7 @@ def test_get_recordings():
                 "importStatus": "none",
                 "edgeSite": {"id": edge_site_id, "name": "edgeSite"},
                 "device": {"id": device_id, "name": "deviceName"},
+                "projectId": project_id,
             },
         ],
     )
@@ -75,6 +78,7 @@ def test_get_recordings():
         start=datetime.now(),
         end=datetime.now(),
         device_id=device_id,
+        project_id=project_id,
     )
     assert recordings == [
         {
@@ -92,6 +96,7 @@ def test_get_recordings():
             "device": {"id": device_id, "name": "deviceName"},
             "metadata": {"hey": "now", "brown": "cow"},
             "key": "recording_key",
+            "project_id": project_id,
         },
         {
             "id": recording_id_b,
@@ -108,5 +113,6 @@ def test_get_recordings():
             "device": {"id": device_id, "name": "deviceName"},
             "metadata": None,
             "key": None,
+            "project_id": project_id,
         },
     ]

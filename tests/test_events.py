@@ -72,9 +72,10 @@ def test_get_events():
     start = datetime.datetime.now().astimezone()
     end = start + datetime.timedelta(seconds=10)
     now = datetime.datetime.now().astimezone()
+    project_id = "prj_123"
     responses.add(
         responses.GET,
-        api_url(f"/v1/events?deviceId={device_id}"),
+        api_url(f"/v1/events?deviceId={device_id}&projectId={project_id}"),
         json=[
             {
                 "id": "1",
@@ -88,11 +89,12 @@ def test_get_events():
                 "end": end.astimezone().isoformat(),
                 "createdAt": now.astimezone().isoformat(),
                 "updatedAt": now.astimezone().isoformat(),
+                "projectId": project_id,
             }
         ],
     )
     client = Client("test")
-    [event] = client.get_events(device_id=device_id)
+    [event] = client.get_events(device_id=device_id, project_id=project_id)
     assert event["id"] == "1"
     assert event["device_id"] == device_id
     assert event["device"] == {"id": device_id, "name": device_name}
@@ -104,7 +106,7 @@ def test_get_events():
 
     responses.add(
         responses.GET,
-        api_url(f"/v1/events?deviceName={device_name}"),
+        api_url(f"/v1/events?deviceName={device_name}&projectId={project_id}"),
         json=[
             {
                 "id": "1",
@@ -118,11 +120,12 @@ def test_get_events():
                 "end": end.astimezone().isoformat(),
                 "createdAt": now.astimezone().isoformat(),
                 "updatedAt": now.astimezone().isoformat(),
+                "projectId": project_id,
             }
         ],
     )
     client = Client("test")
-    [event] = client.get_events(device_name=device_name)
+    [event] = client.get_events(device_name=device_name, project_id=project_id)
     assert event["id"] == "1"
     assert event["device_id"] == device_id
     assert event["device"] == {"id": device_id, "name": device_name}

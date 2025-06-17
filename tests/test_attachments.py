@@ -20,6 +20,7 @@ def test_get_attachments():
     fingerprint = fake.uuid4()
     site_id = fake.uuid4()
     now = datetime.now(tzoffset(None, 0))
+    project_id = "prj_123"
 
     responses.add(
         responses.GET,
@@ -38,11 +39,14 @@ def test_get_attachments():
                 "createTime": now.isoformat(),
             },
         ],
-        match=[responses.matchers.query_string_matcher("sortBy=logTime")],
+        match=[
+            responses.matchers.query_string_matcher("sortBy=logTime&projectId=prj_123"),
+        ],
     )
     client = Client("test")
     attachments = client.get_attachments(
         sort_by="log_time",
+        project_id=project_id,
     )
     assert attachments == [
         {

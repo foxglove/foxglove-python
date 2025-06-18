@@ -537,7 +537,7 @@ class Client:
             "id": device["id"],
             "name": device["name"],
             "properties": device["properties"] if "properties" in device else None,
-            "project_id": device["projectId"],
+            "project_id": device["projectId"] if "projectId" in device else None,
         }
 
     def get_devices(self, *, project_id: Optional[str] = None):
@@ -558,7 +558,7 @@ class Client:
                 "id": d["id"],
                 "name": d["name"],
                 "properties": d["properties"] if "properties" in d else None,
-                "project_id": d["projectId"],
+                "project_id": d["projectId"] if "projectId" in d else None,
             }
             for d in json
         ]
@@ -597,7 +597,7 @@ class Client:
             "id": device["id"],
             "name": device["name"],
             "properties": device["properties"] if "properties" in device else None,
-            "project_id": device["projectId"],
+            "project_id": device["projectId"] if "projectId" in device else None,
         }
 
     def update_device(
@@ -634,7 +634,7 @@ class Client:
             "id": device["id"],
             "name": device["name"],
             "properties": device["properties"] if "properties" in device else None,
-            "project_id": device["projectId"],
+            "project_id": device["projectId"] if "projectId" in device else None,
         }
 
     def delete_device(

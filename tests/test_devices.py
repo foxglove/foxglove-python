@@ -95,6 +95,20 @@ def test_get_device():
     assert device["properties"] is None
     assert device["project_id"] == project_id
 
+    # projectId is optional on the API response
+    responses.add(
+        responses.GET,
+        api_url(f"/v1/devices/{name}"),
+        json={
+            "id": id,
+            "name": fake.sentence(2),
+        },
+    )
+    device = client.get_device(device_name=name)
+    assert device["id"] == id
+    assert device["properties"] is None
+    assert device["project_id"] is None
+
 
 @responses.activate
 def test_get_devices():

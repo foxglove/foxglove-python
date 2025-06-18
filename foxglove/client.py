@@ -697,7 +697,7 @@ class Client:
         """
         Fetches imports.
 
-        .. deprecated:: 0.15.7
+        .. deprecated:: 0.16.0
             Use :func:`get_recordings` with `import_status: "complete"` instead.
 
         :param device_id: The id of the device associated with the import.

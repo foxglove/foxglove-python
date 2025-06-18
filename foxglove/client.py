@@ -244,6 +244,7 @@ class Client:
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         query: Optional[str] = None,
+        project_id: Optional[str] = None,
     ):
         """
         Retrieves events.
@@ -259,6 +260,7 @@ class Client:
         query: optional query string to filter events by metadata.
             See https://foxglove.dev/docs/api#tag/Events/paths/~1events/get for a syntax definition
             of `query`.
+        project_id: Optional Project to filter events by.
         """
         params = {
             "deviceId": device_id,
@@ -270,6 +272,7 @@ class Client:
             "start": start.astimezone().isoformat() if start else None,
             "end": end.astimezone().isoformat() if end else None,
             "query": query,
+            "projectId": project_id,
         }
         response = self.__session.get(
             self.__url__("/v1/events"),
@@ -475,6 +478,7 @@ class Client:
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
         tolerance: Optional[int] = None,
+        project_id: Optional[str] = None,
     ):
         """
         List coverage ranges for data.
@@ -484,6 +488,7 @@ class Client:
         :param device_id: Optional device id to limit data by.
         :param tolerance: Minimum interval (in seconds) that ranges must be separated by
             to be considered discrete.
+        :param project_id: Optional Project to filter coverage by.
         """
         params = {
             "deviceId": device_id,
@@ -491,6 +496,7 @@ class Client:
             "tolerance": tolerance,
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
+            "projectId": project_id,
         }
         response = self.__session.get(
             self.__url__("/v1/data/coverage"),
@@ -531,14 +537,18 @@ class Client:
             "id": device["id"],
             "name": device["name"],
             "properties": device["properties"] if "properties" in device else None,
+            "project_id": device["projectId"],
         }
 
-    def get_devices(self):
+    def get_devices(self, *, project_id: Optional[str] = None):
         """
         Returns a list of all devices.
+
+        :param project_id: Optional Project to filter devices by.
         """
         response = self.__session.get(
             self.__url__("/v1/devices"),
+            params=without_nulls({"projectId": project_id}),
         )
 
         json = json_or_raise(response)
@@ -548,6 +558,7 @@ class Client:
                 "id": d["id"],
                 "name": d["name"],
                 "properties": d["properties"] if "properties" in d else None,
+                "project_id": d["projectId"],
             }
             for d in json
         ]
@@ -557,6 +568,7 @@ class Client:
         *,
         name: str,
         properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        project_id: Optional[str] = None,
     ):
         """
         Creates a new device.
@@ -565,10 +577,18 @@ class Client:
         :param properties: Optional custom properties for the device.
             Each key must be defined as a custom property for your organization,
             and each value must be of the appropriate type
+        :param project_id: Project to create the device in.
+            Required for multi-project organizations.
         """
         response = self.__session.post(
             self.__url__("/v1/devices"),
-            json=without_nulls({"name": name, "properties": properties}),
+            json=without_nulls(
+                {
+                    "name": name,
+                    "properties": properties,
+                    "projectId": project_id,
+                }
+            ),
         )
 
         device = json_or_raise(response)
@@ -577,6 +597,7 @@ class Client:
             "id": device["id"],
             "name": device["name"],
             "properties": device["properties"] if "properties" in device else None,
+            "project_id": device["projectId"],
         }
 
     def update_device(
@@ -613,6 +634,7 @@ class Client:
             "id": device["id"],
             "name": device["name"],
             "properties": device["properties"] if "properties" in device else None,
+            "project_id": device["projectId"],
         }
 
     def delete_device(
@@ -737,6 +759,7 @@ class Client:
         offset: Optional[int] = None,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
+        project_id: Optional[str] = None,
     ):
         """Fetches recordings.
 
@@ -755,6 +778,7 @@ class Client:
         :param sort_order: Optionally specify the sort order, either "asc" or "desc".
         :param limit: Optionally limit the number of records returned.
         :param offset: Optionally offset the results by this many records.
+        :param project_id: Optional Project to filter recordings by.
         """
         all_params = {
             "deviceId": device_id,
@@ -769,6 +793,7 @@ class Client:
             "sortOrder": sort_order,
             "limit": limit,
             "offset": offset,
+            "projectId": project_id,
         }
         response = self.__session.get(
             self.__url__("/v1/recordings"),
@@ -797,6 +822,7 @@ class Client:
                     "device": i.get("device"),
                     "metadata": i.get("metadata"),
                     "key": i.get("key"),
+                    "project_id": i.get("projectId"),
                 }
             )
 
@@ -813,6 +839,7 @@ class Client:
         offset: Optional[int] = None,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
+        project_id: Optional[str] = None,
     ):
         """List recording attachments.
 
@@ -825,6 +852,7 @@ class Client:
         :param sort_order: Optionally specify the sort order, either "asc" or "desc".
         :param limit: Optionally limit the number of records returned.
         :param offset: Optionally offset the results by this many records.
+        :param project_id: Optional Project to filter attachments by.
         """
         all_params = {
             "deviceId": device_id,
@@ -835,6 +863,7 @@ class Client:
             "sortOrder": sort_order,
             "limit": limit,
             "offset": offset,
+            "projectId": project_id,
         }
         response = self.__session.get(
             self.__url__("/v1/recording-attachments"),
@@ -883,7 +912,18 @@ class Client:
         start: datetime.datetime,
         end: datetime.datetime,
         include_schemas: bool = False,
+        project_id: Optional[str] = None,
     ):
+        """
+        List topics.
+
+        :param device_id: Optionally filter topics by this device ID.
+        :param device_name: Optionally filter topics by this device name.
+        :param start: Filter topics by this start time.
+        :param end: Filter topics by this end time.
+        :param include_schemas: Optionally include the schema in the response.
+        :param project_id: Optional Project to filter topics by.
+        """
         response = self.__session.get(
             self.__url__("/v1/data/topics"),
             params={
@@ -892,6 +932,7 @@ class Client:
                 "start": start.astimezone().isoformat(),
                 "end": end.astimezone().isoformat(),
                 "includeSchemas": "true" if include_schemas else "false",
+                "projectId": project_id,
             },
         )
 
@@ -920,6 +961,7 @@ class Client:
         filename: str,
         data: Union[bytes, IO[Any]],
         callback: Optional[SizeProgressCallback] = None,
+        project_id: Optional[str] = None,
     ):
         """
         Uploads data in bytes.
@@ -932,12 +974,15 @@ class Client:
             inferred from the file extension.
         data: The raw data in .bag or .mcap format.
         callback: An optional callback to report progress on the upload.
+        project_id: Optional Project to upload data to. Required for multi-project
+            organizations if an existing device is not specified.
         """
         params = {
             "deviceId": device_id,
             "deviceName": device_name,
             "filename": filename,
             "key": key,
+            "projectId": project_id,
         }
         link_response = self.__session.post(
             self.__url__("/v1/data/upload"),

@@ -697,6 +697,9 @@ class Client:
         """
         Fetches imports.
 
+        .. deprecated:: 0.15.7
+            Use :func:`get_recordings` with `import_status: "complete"` instead.
+
         :param device_id: The id of the device associated with the import.
         :param start: Optionally filter by import start time.
         :param end: Optionally filter by import end time.
@@ -709,6 +712,10 @@ class Client:
         :param limit: Optionally limit the number of records returned.
         :param offset: Optionally offset the results by this many records.
         """
+        warnings.warn(
+            "Use `get_recordings` with `import_status: 'complete'` instead.",
+            DeprecationWarning,
+        )
         all_params = {
             "deviceId": device_id,
             "start": start.astimezone().isoformat() if start else None,

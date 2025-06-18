@@ -35,7 +35,8 @@ client.upload_data(
     callback=lambda size, progress: print(size, progress),
 )
 
-# Upload to a specific project
+# Upload to a specific Project
+# https://docs.foxglove.dev/docs/projects
 project_id = "<YOUR PROJECT ID>"
 client.upload_data(
     device_id=device_id,

@@ -661,13 +661,16 @@ class Client:
         """
         Deletes an existing import.
 
+        .. deprecated:: 0.16.2
+            Use :func:`delete_recording` with a `recording_id` instead.
+
         :param device_id: The id of the device associated with the import. (Deprecated; ignored.)
         :param import_id: The id of the import to delete.
         """
-        if device_id is not None:
-            warnings.warn(
-                "The `device_id` parameter is deprecated.", DeprecationWarning
-            )
+        warnings.warn(
+            "Use `delete_recording` with a `recording_id` instead.",
+            DeprecationWarning,
+        )
         response = self.__session.delete(
             self.__url__(f"/v1/data/imports/{import_id}"),
         )

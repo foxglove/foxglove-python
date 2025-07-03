@@ -1,4 +1,4 @@
-# Python Client Library for Foxglove
+# Python Client Library for the Foxglove API
 
 [![foxglove-client on PyPI](https://img.shields.io/pypi/v/foxglove-client?label=pypi%20%7C%20foxglove-client)](https://pypi.org/project/foxglove-client/)
 

@@ -18,7 +18,6 @@ def test_get_projects():
     project1_last_seen_at = datetime(2025, 1, 1, 12, 0, 0)
 
     project2_id = fake.uuid4()
-    project2_org_member_count = 0
 
     responses.add(
         responses.GET,
@@ -32,7 +31,6 @@ def test_get_projects():
             },
             {
                 "id": project2_id,
-                "orgMemberCount": project2_org_member_count,
             },
         ],
     )
@@ -50,7 +48,7 @@ def test_get_projects():
     project2 = next(p for p in projects if p["id"] == project2_id)
     assert project2["id"] == project2_id
     assert project2["name"] is None
-    assert project2["org_member_count"] == project2_org_member_count
+    assert project2["org_member_count"] == 0
     assert project2["last_seen_at"] is None
 
 

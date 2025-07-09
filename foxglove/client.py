@@ -962,6 +962,25 @@ class Client:
             results.append(result)
         return results
 
+    def get_projects(self):
+        """
+        List all available projects in the organization.
+        """
+        response = self.__session.get(self.__url__("/v1/projects"))
+        json = json_or_raise(response)
+
+        return [
+            {
+                "id": p["id"],
+                "name": p.get("name"),
+                "org_member_count": p.get("orgMemberCount", 0),
+                "last_seen_at": arrow.get(p["lastSeenAt"]).datetime
+                if p.get("lastSeenAt")
+                else None,
+            }
+            for p in json
+        ]
+
     def upload_data(
         self,
         *,

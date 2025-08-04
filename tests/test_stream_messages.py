@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from mcap.records import Schema, Channel, Message
 
-from foxglove.client import Client
+from foxglove_client.client import Client
 
 from .generate import generate_json_data
 

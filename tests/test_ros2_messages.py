@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from foxglove.client import Client
+from foxglove_client.client import Client
 
 from .generate import generate_ros2_data
 

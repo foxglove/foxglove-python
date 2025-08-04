@@ -3,7 +3,7 @@ from dateutil.tz import tzoffset
 
 import responses
 from faker import Faker
-from foxglove.client import Client
+from foxglove_client.client import Client
 
 from .api_url import api_url
 

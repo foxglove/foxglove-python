@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from foxglove.client import Client
+from foxglove_client.client import Client
 
 token = "<YOUR API TOKEN>"
 device_id = "<YOUR DEVICE ID>"

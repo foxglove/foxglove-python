@@ -974,9 +974,9 @@ class Client:
                 "id": p["id"],
                 "name": p.get("name"),
                 "org_member_count": p.get("orgMemberCount", 0),
-                "last_seen_at": arrow.get(p["lastSeenAt"]).datetime
-                if p.get("lastSeenAt")
-                else None,
+                "last_seen_at": (
+                    arrow.get(p["lastSeenAt"]).datetime if p.get("lastSeenAt") else None
+                ),
             }
             for p in json
         ]

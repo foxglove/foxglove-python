@@ -4,7 +4,7 @@ import os
 from enum import Enum
 from io import BytesIO
 import json
-from typing import IO, Any, Dict, List, Optional, TypeVar, Union
+from typing import IO, Any, Dict, List, Optional, TypeVar, Union, cast
 import base64
 import warnings
 
@@ -362,7 +362,9 @@ class Client:
         if decoder_factories is None:
             # We deep-copy here as these factories might be mutated
             decoder_factories = copy.deepcopy(DEFAULT_DECODER_FACTORIES)
-        reader = make_reader(response.raw, decoder_factories=decoder_factories)
+        reader = make_reader(
+            cast(IO[bytes], response.raw), decoder_factories=decoder_factories
+        )
         # messages from Foxglove are already in log-time order.
         # specifying log_time_order=false allows us to skip a sort() in the MCAP library
         # after all messages are loaded.

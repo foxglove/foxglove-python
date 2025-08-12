@@ -9,7 +9,7 @@ from .generate import generate_protobuf_data
 
 
 def test_download_without_decoder():
-    with patch("foxglove.client.DEFAULT_DECODER_FACTORIES", []):
+    with patch("foxglove.client.api.DEFAULT_DECODER_FACTORIES", []):
         client = Client("test")
         client.download_data = MagicMock(return_value=generate_protobuf_data())
         with pytest.raises(Exception):

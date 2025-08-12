@@ -9,7 +9,7 @@ from .generate import generate_ros2_data
 
 
 def test_download_without_decoder():
-    with patch("foxglove.client.DEFAULT_DECODER_FACTORIES", []):
+    with patch("foxglove.client.api.DEFAULT_DECODER_FACTORIES", []):
         client = Client("test")
         client.download_data = MagicMock()
         client.download_data.return_value = generate_ros2_data()

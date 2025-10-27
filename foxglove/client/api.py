@@ -525,7 +525,7 @@ class Client:
 
         :param device_id: The id of the device to retrieve.
         :param device_name: The name of the device to retrieve.
-        :param project_id: Project to create the device in.
+        :param project_id: Project to retrieve the device from.
             Required for multi-project organizations.
         """
         if device_name and device_id:
@@ -624,7 +624,7 @@ class Client:
         :param properties: Optional custom properties to add to or edit on the device.
             Each key must be defined as a custom property for your organization
             and each value must be of the appropriate type.
-        :param project_id: Project to create the device in.
+        :param project_id: Project to retrieve the device from.
             Required for multi-project organizations.
         """
         if device_name and device_id:
@@ -661,7 +661,7 @@ class Client:
 
         :param device_id: The id of the device.
         :param device_name: The name of the device.
-        :param project_id: Project to create the device in.
+        :param project_id: Project to delete the device from.
             Required for multi-project organizations.
         """
         if device_name and device_id:

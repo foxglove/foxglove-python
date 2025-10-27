@@ -2,8 +2,9 @@ from datetime import datetime
 
 import responses
 from faker import Faker
-from foxglove.client import Client
 from responses.matchers import json_params_matcher
+
+from foxglove.client import Client
 
 from .api_url import api_url
 
@@ -69,7 +70,7 @@ def test_get_device():
     project_id = "prj_123"
     responses.add(
         responses.GET,
-        api_url(f"/v1/devices/{id}"),
+        api_url(f"/v1/devices/{id}?projectId={project_id}"),
         json={
             "id": id,
             "name": fake.sentence(2),
@@ -77,7 +78,7 @@ def test_get_device():
         },
     )
     client = Client("test")
-    device = client.get_device(device_id=id)
+    device = client.get_device(device_id=id, project_id=project_id)
     assert device["id"] == id
     assert device["project_id"] == project_id
 
@@ -137,14 +138,15 @@ def test_get_devices():
 def test_delete_device():
     id = fake.uuid4()
     name = "name"
+    project_id = "prj_123"
     responses.add(
         responses.DELETE,
-        api_url(f"/v1/devices/{id}"),
+        api_url(f"/v1/devices/{id}?projectId={project_id}"),
         json={"success": True},
     )
     client = Client("test")
     try:
-        client.delete_device(device_id=id)
+        client.delete_device(device_id=id, project_id=project_id)
     except:
         assert False
 
@@ -165,22 +167,10 @@ def test_update_device():
     new_name = "new_name"
     properties = {"sn": 1}
     project_id = "prj_123"
-    # Patching name alone
-    responses.add(
-        responses.PATCH,
-        api_url(f"/v1/devices/{old_name}"),
-        match=[json_params_matcher({"name": new_name}, strict_match=True)],
-        json={
-            "id": "no-new-properties",
-            "name": new_name,
-            "properties": properties,
-            "projectId": project_id,
-        },
-    )
     # Patching name and properties
     responses.add(
         responses.PATCH,
-        api_url(f"/v1/devices/{old_name}"),
+        api_url(f"/v1/devices/{old_name}?projectId={project_id}"),
         match=[
             json_params_matcher(
                 {"name": new_name, "properties": properties}, strict_match=True
@@ -195,13 +185,28 @@ def test_update_device():
     )
     client = Client("test")
     device = client.update_device(
-        device_name=old_name, new_name=new_name, properties=properties
+        device_name=old_name,
+        new_name=new_name,
+        properties=properties,
+        project_id=project_id,
     )
     assert device["id"] == "with-new-properties"
     assert device["name"] == new_name
     assert device["properties"] == properties
     assert device["project_id"] == project_id
 
+    # Patching name alone
+    responses.add(
+        responses.PATCH,
+        api_url(f"/v1/devices/{old_name}"),
+        match=[json_params_matcher({"name": new_name}, strict_match=True)],
+        json={
+            "id": "no-new-properties",
+            "name": new_name,
+            "properties": properties,
+            "projectId": project_id,
+        },
+    )
     device = client.update_device(device_name=old_name, new_name=new_name)
     assert device["id"] == "no-new-properties"
     assert device["name"] == new_name

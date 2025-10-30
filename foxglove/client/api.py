@@ -1,21 +1,20 @@
+import base64
 import copy
 import datetime
+import json
 import os
+import warnings
 from enum import Enum
 from io import BytesIO
-import json
 from typing import IO, Any, Dict, List, Optional, TypeVar, Union
-import base64
-import warnings
 
 import arrow
 import requests
-from typing_extensions import Protocol
-
+from mcap.decoder import DecoderFactory
+from mcap.reader import make_reader
 from mcap.records import Schema as McapSchema
 from mcap.well_known import MessageEncoding
-from mcap.reader import make_reader
-from mcap.decoder import DecoderFactory
+from typing_extensions import Protocol
 
 
 class _JsonDecoderFactory(DecoderFactory):
@@ -515,13 +514,19 @@ class Client:
         ]
 
     def get_device(
-        self, *, device_id: Optional[str] = None, device_name: Optional[str] = None
+        self,
+        *,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+        project_id: Optional[str] = None,
     ):
         """
         Gets a single device by name or id.
 
         :param device_id: The id of the device to retrieve.
         :param device_name: The name of the device to retrieve.
+        :param project_id: Project to retrieve the device from.
+            Required for multi-project organizations.
         """
         if device_name and device_id:
             raise RuntimeError("device_id and device_name are mutually exclusive")
@@ -529,6 +534,7 @@ class Client:
             raise RuntimeError("device_id or device_name must be provided")
         response = self.__session.get(
             self.__url__(f"/v1/devices/{device_name or device_id}"),
+            params={"projectId": project_id} if project_id is not None else None,
         )
 
         device = json_or_raise(response)
@@ -607,6 +613,7 @@ class Client:
         device_name: Optional[str] = None,
         new_name: Optional[str] = None,
         properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        project_id: Optional[str] = None,
     ):
         """
         Updates a device.
@@ -617,6 +624,8 @@ class Client:
         :param properties: Optional custom properties to add to or edit on the device.
             Each key must be defined as a custom property for your organization
             and each value must be of the appropriate type.
+        :param project_id: Project to retrieve the device from.
+            Required for multi-project organizations.
         """
         if device_name and device_id:
             raise RuntimeError("device_id and device_name are mutually exclusive")
@@ -625,6 +634,7 @@ class Client:
 
         response = self.__session.patch(
             self.__url__(f"/v1/devices/{device_name or device_id}"),
+            params={"projectId": project_id} if project_id is not None else None,
             json=without_nulls({"name": new_name, "properties": properties}),
         )
 
@@ -638,7 +648,11 @@ class Client:
         }
 
     def delete_device(
-        self, *, device_id: Optional[str] = None, device_name: Optional[str] = None
+        self,
+        *,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+        project_id: Optional[str] = None,
     ):
         """
         Deletes an existing device.
@@ -647,6 +661,8 @@ class Client:
 
         :param device_id: The id of the device.
         :param device_name: The name of the device.
+        :param project_id: Project to delete the device from.
+            Required for multi-project organizations.
         """
         if device_name and device_id:
             raise RuntimeError("device_id and device_name are mutually exclusive")
@@ -654,6 +670,7 @@ class Client:
             raise RuntimeError("device_id or device_name must be provided")
         response = self.__session.delete(
             self.__url__(f"/v1/devices/{device_name or device_id}"),
+            params={"projectId": project_id} if project_id is not None else None,
         )
         json_or_raise(response)
 
@@ -974,9 +991,9 @@ class Client:
                 "id": p["id"],
                 "name": p.get("name"),
                 "org_member_count": p.get("orgMemberCount", 0),
-                "last_seen_at": arrow.get(p["lastSeenAt"]).datetime
-                if p.get("lastSeenAt")
-                else None,
+                "last_seen_at": (
+                    arrow.get(p["lastSeenAt"]).datetime if p.get("lastSeenAt") else None
+                ),
             }
             for p in json
         ]

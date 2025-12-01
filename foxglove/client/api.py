@@ -187,6 +187,8 @@ class Client:
         start: datetime.datetime,
         end: Optional[datetime.datetime],
         metadata: Optional[Dict[str, str]] = {},
+        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        event_type_id: Optional[str] = None,
     ):
         """
         Creates a new event.
@@ -197,6 +199,11 @@ class Client:
         end: The event end time. If not provided, an instantaneous event (with end == start)
             is created.
         metadata: Optional metadata attached to the event.
+        properties: Optional custom properties for the event.
+            Each key must be defined as a custom property for your organization,
+            and each value must be of the appropriate type
+        event_type_id: Optional Event Type ID for the event.
+            If provided the event's custom properties must conform to the Event Type's schema.
         """
         if end is None:
             end = start
@@ -210,6 +217,8 @@ class Client:
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
             "metadata": metadata,
+            "properties": properties,
+            "eventTypeId": event_type_id,
         }
         response = self.__session.post(
             self.__url__("/v1/events"),
@@ -244,6 +253,7 @@ class Client:
         end: Optional[datetime.datetime] = None,
         query: Optional[str] = None,
         project_id: Optional[str] = None,
+        event_type_id: Optional[str] = None,
     ):
         """
         Retrieves events.
@@ -260,6 +270,7 @@ class Client:
             See https://foxglove.dev/docs/api#tag/Events/paths/~1events/get for a syntax definition
             of `query`.
         project_id: Optional Project to filter events by.
+        event_type_id: Optional Event Type ID to filter events by.
         """
         params = {
             "deviceId": device_id,
@@ -272,6 +283,7 @@ class Client:
             "end": end.astimezone().isoformat() if end else None,
             "query": query,
             "projectId": project_id,
+            "eventTypeId": event_type_id,
         }
         response = self.__session.get(
             self.__url__("/v1/events"),
@@ -1061,6 +1073,8 @@ def _event_dict(json_event):
         "metadata": json_event["metadata"],
         "created_at": arrow.get(json_event["createdAt"]).datetime,
         "updated_at": arrow.get(json_event["updatedAt"]).datetime,
+        "properties": json_event.get("properties"),
+        "event_type_id": json_event.get("eventTypeId"),
     }
 
 

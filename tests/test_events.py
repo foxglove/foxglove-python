@@ -125,6 +125,63 @@ def test_delete_event():
 
 
 @responses.activate
+def test_update_event():
+    event_id = fake.uuid4()
+    device_id = fake.uuid4()
+    device_name = fake.name()
+    start = datetime.datetime.now().astimezone()
+    end = start + datetime.timedelta(seconds=20)
+    updated_at = datetime.datetime.now().astimezone()
+    created_at = updated_at - datetime.timedelta(minutes=2)
+    properties = {"key": "value", "number": 42, "to_remove": None}
+    # does not contain the removed property
+    new_properties = {"key": "value", "number": 42}
+    event_type_id = "evtt_789"
+    responses.add(
+        responses.PATCH,
+        api_url(f"/v1/events/{event_id}"),
+        match=[
+            json_params_matcher(
+                {
+                    "start": start.astimezone().isoformat(),
+                    "end": end.astimezone().isoformat(),
+                    "properties": properties,
+                    "eventTypeId": event_type_id,
+                },
+            )
+        ],
+        json={
+            "id": event_id,
+            "deviceId": device_id,
+            "device": {"id": device_id, "name": device_name},
+            "start": start.astimezone().isoformat(),
+            "end": end.astimezone().isoformat(),
+            "createdAt": created_at.astimezone().isoformat(),
+            "updatedAt": updated_at.astimezone().isoformat(),
+            "metadata": {},
+            "properties": new_properties,
+            "eventTypeId": event_type_id,
+        },
+    )
+    client = Client("test")
+    event = client.update_event(
+        event_id=event_id,
+        start=start,
+        end=end,
+        properties=properties,
+        event_type_id=event_type_id,
+    )
+    assert event["id"] == event_id
+    assert event["start"] == start
+    assert event["end"] == end
+    assert event["metadata"] == {}
+    assert event["properties"] == new_properties
+    assert event["event_type_id"] == event_type_id
+    assert event["created_at"] == created_at
+    assert event["updated_at"] == updated_at
+
+
+@responses.activate
 def test_get_events():
     device_id = "my_device_id"
     device_name = "device_name"

@@ -227,6 +227,47 @@ class Client:
 
         return _event_dict(json_or_raise(response))
 
+    def update_event(
+        self,
+        *,
+        event_id: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        metadata: Optional[Dict[str, str]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        event_type_id: Optional[str] = None,
+    ):
+        """
+        Updates an existing event.
+
+        event_id: The id of the event to update.
+        start: New event start time.
+        end: New event end time.
+        metadata: An object with user-defined string keys and string values.
+            Key order is not preserved. Will replace all existing metadata.
+        properties: A key-value map, where each key is one of your pre-defined device custom property keys.
+            Keys which are not recognized as custom properties will be ignored. Keys which are not included
+            in the request, but exist on the device, will be unchanged. To unset a property, pass None as the value.
+
+            Must conform to the event_type_id schema if provided.
+        event_type_id: New Event Type ID for the event.
+        """
+        params = {
+            "start": start.astimezone().isoformat() if start else None,
+            "end": end.astimezone().isoformat() if end else None,
+            # allow sending {} for metadata or properties
+            "metadata": metadata if metadata is not None else None,
+            "properties": properties if properties is not None else None,
+            # allow sending "" to unset the event_type_id
+            "eventTypeId": event_type_id if event_type_id is not None else None,
+        }
+        response = self.__session.patch(
+            self.__url__(f"/v1/events/{event_id}"),
+            json=without_nulls(params),
+        )
+
+        return _event_dict(json_or_raise(response))
+
     def delete_event(
         self,
         *,

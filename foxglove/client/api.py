@@ -245,9 +245,10 @@ class Client:
         end: New event end time.
         metadata: An object with user-defined string keys and string values.
             Key order is not preserved. Will replace all existing metadata.
-        properties: A key-value map, where each key is one of your pre-defined device custom property keys.
-            Keys which are not recognized as custom properties will be ignored. Keys which are not included
-            in the request, but exist on the device, will be unchanged. To unset a property, pass None as the value.
+        properties: A key-value map, where each key is one of your pre-defined device
+            custom property keys. Keys which are not recognized as custom properties
+            will be ignored. Keys which are not included in the request, but exist on
+            the device, will be unchanged. To unset a property, pass None as the value.
 
             Must conform to the event_type_id schema if provided.
         event_type_id: New Event Type ID for the event.

@@ -187,6 +187,8 @@ class Client:
         start: datetime.datetime,
         end: Optional[datetime.datetime],
         metadata: Optional[Dict[str, str]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        event_type_id: Optional[str] = None,
     ):
         """
         Creates a new event.
@@ -197,6 +199,11 @@ class Client:
         end: The event end time. If not provided, an instantaneous event (with end == start)
             is created.
         metadata: Optional metadata attached to the event.
+        properties: Optional custom properties for the event.
+            Each key must be defined as a custom property for your organization,
+            and each value must be of the appropriate type
+        event_type_id: Optional Event Type ID for the event.
+            If provided the event's custom properties must conform to the Event Type's schema.
         """
         if metadata is None:
             metadata = {}
@@ -212,10 +219,54 @@ class Client:
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
             "metadata": metadata,
+            "properties": properties,
+            "eventTypeId": event_type_id,
         }
         response = self.__session.post(
             self.__url__("/v1/events"),
             json={k: v for k, v in params.items() if v is not None},
+        )
+
+        return _event_dict(json_or_raise(response))
+
+    def update_event(
+        self,
+        *,
+        event_id: str,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        metadata: Optional[Dict[str, str]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        event_type_id: Optional[str] = None,
+    ):
+        """
+        Updates an existing event.
+
+        event_id: The id of the event to update.
+        start: New event start time.
+        end: New event end time.
+        metadata: An object with user-defined string keys and string values.
+            Key order is not preserved. Will replace all existing metadata.
+        properties: A key-value map, where each key is one of your pre-defined device
+            custom property keys. Keys which are not recognized as custom properties
+            will be ignored. Keys which are not included in the request, but exist on
+            the device, will be unchanged. To unset a property, pass None as the value.
+
+            Must conform to the event_type_id schema if provided.
+        event_type_id: New Event Type ID for the event.
+        """
+        params = {
+            "start": start.astimezone().isoformat() if start else None,
+            "end": end.astimezone().isoformat() if end else None,
+            # allow sending {} for metadata or properties
+            "metadata": metadata if metadata is not None else None,
+            "properties": properties if properties is not None else None,
+            # allow sending "" to unset the event_type_id
+            "eventTypeId": event_type_id if event_type_id is not None else None,
+        }
+        response = self.__session.patch(
+            self.__url__(f"/v1/events/{event_id}"),
+            json=without_nulls(params),
         )
 
         return _event_dict(json_or_raise(response))
@@ -246,6 +297,7 @@ class Client:
         end: Optional[datetime.datetime] = None,
         query: Optional[str] = None,
         project_id: Optional[str] = None,
+        event_type_id: Optional[str] = None,
     ):
         """
         Retrieves events.
@@ -262,6 +314,7 @@ class Client:
             See https://foxglove.dev/docs/api#tag/Events/paths/~1events/get for a syntax definition
             of `query`.
         project_id: Optional Project to filter events by.
+        event_type_id: Optional Event Type ID to filter events by.
         """
         params = {
             "deviceId": device_id,
@@ -274,6 +327,7 @@ class Client:
             "end": end.astimezone().isoformat() if end else None,
             "query": query,
             "projectId": project_id,
+            "eventTypeId": event_type_id,
         }
         response = self.__session.get(
             self.__url__("/v1/events"),
@@ -1073,6 +1127,8 @@ def _event_dict(json_event):
         "metadata": json_event["metadata"],
         "created_at": arrow.get(json_event["createdAt"]).datetime,
         "updated_at": arrow.get(json_event["updatedAt"]).datetime,
+        "properties": json_event.get("properties"),
+        "event_type_id": json_event.get("eventTypeId"),
     }
 
 

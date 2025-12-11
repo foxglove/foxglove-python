@@ -309,7 +309,7 @@ class Client:
         """
         if topics is None:
             topics = []
-        warnings.warn("Use `iter_messages` instead.", DeprecationWarning)
+        warnings.warn("Use `iter_messages` instead.", DeprecationWarning, stacklevel=2)
         data = self.download_data(
             device_name=device_name,
             device_id=device_id,
@@ -697,6 +697,7 @@ class Client:
         warnings.warn(
             "Use `delete_recording` with a `recording_id` instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
         response = self.__session.delete(
             self.__url__(f"/v1/data/imports/{import_id}"),
@@ -745,6 +746,7 @@ class Client:
         warnings.warn(
             "Use `get_recordings` with `import_status: 'complete'` instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
         all_params = {
             "deviceId": device_id,

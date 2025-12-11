@@ -186,7 +186,7 @@ class Client:
         device_name: Optional[str] = None,
         start: datetime.datetime,
         end: Optional[datetime.datetime],
-        metadata: Optional[Dict[str, str]] = {},
+        metadata: Optional[Dict[str, str]] = None,
     ):
         """
         Creates a new event.
@@ -198,6 +198,8 @@ class Client:
             is created.
         metadata: Optional metadata attached to the event.
         """
+        if metadata is None:
+            metadata = {}
         if end is None:
             end = start
         if device_id is None and device_name is None:
@@ -287,7 +289,7 @@ class Client:
         device_name: Optional[str] = None,
         start: datetime.datetime,
         end: datetime.datetime,
-        topics: List[str] = [],
+        topics: Optional[List[str]] = None,
         decoder_factories: Optional[List[DecoderFactory]] = None,
     ):
         """
@@ -305,6 +307,8 @@ class Client:
         decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
             used to decode message content.
         """
+        if topics is None:
+            topics = []
         warnings.warn("Use `iter_messages` instead.", DeprecationWarning)
         data = self.download_data(
             device_name=device_name,
@@ -334,7 +338,7 @@ class Client:
         device_name: Optional[str] = None,
         start: datetime.datetime,
         end: datetime.datetime,
-        topics: List[str] = [],
+        topics: Optional[List[str]] = None,
         decoder_factories: Optional[List[DecoderFactory]] = None,
     ):
         """
@@ -349,6 +353,8 @@ class Client:
         decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
             used to decode message content.
         """
+        if topics is None:
+            topics = []
         stream_link = self._make_stream_link(
             device_id=device_id,
             device_name=device_name,
@@ -412,9 +418,11 @@ class Client:
         device_name: Optional[str] = None,
         start: datetime.datetime,
         end: datetime.datetime,
-        topics: List[str] = [],
+        topics: Optional[List[str]] = None,
         output_format: OutputFormat = OutputFormat.mcap,
     ) -> str:
+        if topics is None:
+            topics = []
         if device_id is None and device_name is None:
             raise RuntimeError("device_id or device_name must be provided")
 
@@ -441,7 +449,7 @@ class Client:
         device_name: Optional[str] = None,
         start: datetime.datetime,
         end: datetime.datetime,
-        topics: List[str] = [],
+        topics: Optional[List[str]] = None,
         output_format: OutputFormat = OutputFormat.mcap,
         callback: Optional[ProgressCallback] = None,
     ) -> bytes:
@@ -456,6 +464,8 @@ class Client:
             All topics will be retrieved if this is omitted.
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
         """
+        if topics is None:
+            topics = []
         return _download_stream_with_progress(
             self._make_stream_link(
                 device_id=device_id,

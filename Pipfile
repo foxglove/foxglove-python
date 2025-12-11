@@ -26,6 +26,7 @@ pyright = "*"
 pytest = "*"
 responses = "*"
 std_msgs = {version="*", index="ros"}
+flake8-bugbear = "*"
 
 [requires]
 python_version = "3"

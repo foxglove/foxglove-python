@@ -100,6 +100,12 @@ class OutputFormat(Enum):
     mcap0 = "mcap0"
 
 
+class CompressionFormat(Enum):
+    none = ""
+    zstd = "zstd"
+    lz4 = "lz4"
+
+
 class ProgressBufferReader(IO[Any]):
     def __init__(
         self,
@@ -474,6 +480,7 @@ class Client:
         end: datetime.datetime,
         topics: Optional[List[str]] = None,
         output_format: OutputFormat = OutputFormat.mcap,
+        compression_format: Optional[CompressionFormat] = None,
     ) -> str:
         if topics is None:
             topics = []
@@ -488,6 +495,9 @@ class Client:
             "start": start.astimezone().isoformat(),
             "topics": topics,
         }
+        if compression_format is not None:
+            params["compressionFormat"] = compression_format.value
+
         link_response = self.__session.post(
             self.__url__("/v1/data/stream"),
             json={k: v for k, v in params.items() if v is not None},
@@ -505,6 +515,7 @@ class Client:
         end: datetime.datetime,
         topics: Optional[List[str]] = None,
         output_format: OutputFormat = OutputFormat.mcap,
+        compression_format: Optional[CompressionFormat] = None,
         callback: Optional[ProgressCallback] = None,
     ) -> bytes:
         """
@@ -517,6 +528,7 @@ class Client:
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
+        compression_format: Compression format for MCAP chunks. Can be lz4, zstd or no compression.
         """
         if topics is None:
             topics = []
@@ -528,6 +540,7 @@ class Client:
                 end=end,
                 topics=topics,
                 output_format=output_format,
+                compression_format=compression_format,
             ),
             self.__session,
             callback=callback,
@@ -1132,4 +1145,4 @@ def _event_dict(json_event):
     }
 
 
-__all__ = ["Client", "FoxgloveException", "OutputFormat"]
+__all__ = ["Client", "CompressionFormat", "FoxgloveException", "OutputFormat"]

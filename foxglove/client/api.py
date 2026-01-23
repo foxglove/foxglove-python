@@ -529,6 +529,8 @@ class Client:
             All topics will be retrieved if this is omitted.
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
         compression_format: Compression format for MCAP chunks. Can be lz4, zstd or no compression.
+            If omitted the API will select a default compression format. See API documentation
+            for more info https://docs.foxglove.dev/api#tag/Stream-data/paths/~1data~1stream/post
         """
         if topics is None:
             topics = []

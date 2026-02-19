@@ -56,6 +56,54 @@ def test_create_event():
 
 
 @responses.activate
+def test_create_event_with_device_name_and_project_id():
+    id = fake.uuid4()
+    device_id = fake.uuid4()
+    device_name = fake.name()
+    project_id = "prj_123"
+    start = datetime.datetime.now().astimezone()
+    end = start + datetime.timedelta(seconds=10)
+    now = datetime.datetime.now().astimezone()
+    responses.add(
+        responses.POST,
+        api_url("/v1/events"),
+        match=[
+            json_params_matcher(
+                {
+                    "deviceName": device_name,
+                    "projectId": project_id,
+                    "start": start.astimezone().isoformat(),
+                    "end": end.astimezone().isoformat(),
+                    "metadata": {},
+                },
+            )
+        ],
+        json={
+            "id": id,
+            "deviceId": device_id,
+            "device": {"id": device_id, "name": device_name},
+            "start": start.astimezone().isoformat(),
+            "end": end.astimezone().isoformat(),
+            "createdAt": now.astimezone().isoformat(),
+            "updatedAt": now.astimezone().isoformat(),
+            "metadata": {},
+        },
+    )
+    client = Client("test")
+    event = client.create_event(
+        device_name=device_name, project_id=project_id, start=start, end=end
+    )
+    assert event["start"] == start
+    assert event["device_id"] == device_id
+    assert event["device"] == {"id": device_id, "name": device_name}
+    assert event["end"] == end
+    assert event["id"] == id
+    assert event["created_at"] == now
+    assert event["updated_at"] == now
+    assert event["metadata"] == {}
+
+
+@responses.activate
 def test_create_event_with_properties():
     id = fake.uuid4()
     device_id = fake.uuid4()

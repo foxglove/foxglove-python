@@ -19,6 +19,8 @@ pipenv install --dev
 pipenv run python -m pytest
 ```
 
+In addition to unit tests, all PRs that change behavior should also be tested against the Foxglove API.
+
 ## Release Process
 
 Release numbering follows a major.minor.patch format, abbreviated as "X.Y.Z" below.

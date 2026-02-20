@@ -190,6 +190,7 @@ class Client:
         *,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
+        project_id: Optional[str] = None,
         start: datetime.datetime,
         end: Optional[datetime.datetime],
         metadata: Optional[Dict[str, str]] = None,
@@ -201,6 +202,8 @@ class Client:
 
         device_id: The id of the device associated with this event.
         device_name: The name of the device associated with this event.
+        project_id: Optional Project to associate with this event.
+            Required when `device_name` is shared across projects.
         start: The event start time.
         end: The event end time. If not provided, an instantaneous event (with end == start)
             is created.
@@ -222,6 +225,7 @@ class Client:
         params = {
             "deviceId": device_id,
             "deviceName": device_name,
+            "projectId": project_id,
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
             "metadata": metadata,

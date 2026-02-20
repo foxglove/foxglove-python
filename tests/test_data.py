@@ -25,7 +25,10 @@ def test_download():
     responses.add(responses.GET, download_link, body=data)
     client = Client("test")
     response_data = client.download_data(
-        device_id="test_id", start=datetime.now(), end=datetime.now()
+        device_id="test_id",
+        project_id="project_123",
+        start=datetime.now(),
+        end=datetime.now(),
     )
     assert data == response_data
 
@@ -78,6 +81,7 @@ def test_download_with_compression_format_none():
             json_params_matcher(
                 {
                     "deviceId": "test_id",
+                    "projectId": "project_123",
                     "start": start.astimezone().isoformat(),
                     "end": end.astimezone().isoformat(),
                     "outputFormat": "mcap",
@@ -95,6 +99,7 @@ def test_download_with_compression_format_none():
     client = Client("test")
     response_data = client.download_data(
         device_id="test_id",
+        project_id="project_123",
         start=start,
         end=end,
         compression_format=CompressionFormat.none,
@@ -115,6 +120,7 @@ def test_download_without_compression_format():
             json_params_matcher(
                 {
                     "deviceId": "test_id",
+                    "projectId": "project_123",
                     "start": start.astimezone().isoformat(),
                     "end": end.astimezone().isoformat(),
                     "outputFormat": "mcap",
@@ -131,6 +137,7 @@ def test_download_without_compression_format():
     client = Client("test")
     response_data = client.download_data(
         device_id="test_id",
+        project_id="project_123",
         start=start,
         end=end,
     )

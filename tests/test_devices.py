@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import responses
+from dateutil.tz import tzoffset
 from faker import Faker
 from responses.matchers import json_params_matcher
 
@@ -9,6 +10,7 @@ from foxglove.client import Client
 from .api_url import api_url
 
 fake = Faker()
+now = datetime.now(tzoffset(None, 0))
 
 
 @responses.activate
@@ -28,12 +30,16 @@ def test_create_device():
             "id": id,
             "name": name,
             "projectId": project_id,
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
         },
     )
     client = Client("test")
     device = client.create_device(name=name, project_id=project_id)
     assert device["name"] == name
     assert device["project_id"] == project_id
+    assert device["created_at"] == now
+    assert device["updated_at"] == now
 
 
 @responses.activate
@@ -54,6 +60,8 @@ def test_create_device_with_properties():
             "name": name,
             "properties": properties,
             "projectId": None,
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
         },
     )
     client = Client("test")
@@ -61,6 +69,8 @@ def test_create_device_with_properties():
     assert device["name"] == name
     assert device["properties"] == properties
     assert device["project_id"] is None
+    assert device["created_at"] == now
+    assert device["updated_at"] == now
 
 
 @responses.activate
@@ -75,12 +85,16 @@ def test_get_device():
             "id": id,
             "name": fake.sentence(2),
             "projectId": project_id,
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
         },
     )
     client = Client("test")
     device = client.get_device(device_id=id, project_id=project_id)
     assert device["id"] == id
     assert device["project_id"] == project_id
+    assert device["created_at"] == now
+    assert device["updated_at"] == now
 
     responses.add(
         responses.GET,
@@ -89,14 +103,18 @@ def test_get_device():
             "id": id,
             "name": fake.sentence(2),
             "projectId": project_id,
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
         },
     )
     device = client.get_device(device_name=name)
     assert device["id"] == id
     assert device["properties"] is None
     assert device["project_id"] == project_id
+    assert device["created_at"] == now
+    assert device["updated_at"] == now
 
-    # projectId is optional on the API response
+    # projectId and timestamps are optional on the API response
     responses.add(
         responses.GET,
         api_url(f"/v1/devices/{name}"),
@@ -109,6 +127,8 @@ def test_get_device():
     assert device["id"] == id
     assert device["properties"] is None
     assert device["project_id"] is None
+    assert device["created_at"] is None
+    assert device["updated_at"] is None
 
 
 @responses.activate
@@ -123,6 +143,8 @@ def test_get_devices():
                 "id": id,
                 "name": fake.sentence(2),
                 "projectId": project_id,
+                "createdAt": now.isoformat(),
+                "updatedAt": now.isoformat(),
             }
         ],
     )
@@ -132,6 +154,8 @@ def test_get_devices():
     assert devices[0]["id"] == id
     assert devices[0]["properties"] is None
     assert devices[0]["project_id"] == project_id
+    assert devices[0]["created_at"] == now
+    assert devices[0]["updated_at"] == now
 
 
 @responses.activate
@@ -181,6 +205,8 @@ def test_update_device():
             "name": new_name,
             "properties": properties,
             "projectId": project_id,
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
         },
     )
     client = Client("test")
@@ -194,6 +220,8 @@ def test_update_device():
     assert device["name"] == new_name
     assert device["properties"] == properties
     assert device["project_id"] == project_id
+    assert device["created_at"] == now
+    assert device["updated_at"] == now
 
     # Patching name alone
     responses.add(
@@ -205,9 +233,13 @@ def test_update_device():
             "name": new_name,
             "properties": properties,
             "projectId": project_id,
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
         },
     )
     device = client.update_device(device_name=old_name, new_name=new_name)
     assert device["id"] == "no-new-properties"
     assert device["name"] == new_name
     assert device["project_id"] == project_id
+    assert device["created_at"] == now
+    assert device["updated_at"] == now

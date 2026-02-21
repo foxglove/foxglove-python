@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from tempfile import TemporaryFile
 
 import responses
 from faker import Faker
-from foxglove.client import Client
+from foxglove.client import Client, CompressionFormat
 from responses.matchers import json_params_matcher
 
 from .api_url import api_url
@@ -25,7 +25,138 @@ def test_download():
     responses.add(responses.GET, download_link, body=data)
     client = Client("test")
     response_data = client.download_data(
-        device_id="test_id", start=datetime.now(), end=datetime.now()
+        device_id="test_id",
+        start=datetime.now(),
+        end=datetime.now(),
+    )
+    assert data == response_data
+
+
+@responses.activate
+def test_download_with_device_name():
+    download_link = fake.url()
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        json={
+            "link": download_link,
+        },
+    )
+    data = fake.binary(4096)
+    responses.add(responses.GET, download_link, body=data)
+    client = Client("test")
+    response_data = client.download_data(
+        device_name="test_name",
+        project_id="project_123",
+        start=datetime.now(),
+        end=datetime.now(),
+    )
+    assert data == response_data
+
+
+@responses.activate
+def test_download_with_compression_format():
+    download_link = fake.url()
+    start = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    end = datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        match=[
+            json_params_matcher(
+                {
+                    "deviceId": "test_id",
+                    "start": start.astimezone().isoformat(),
+                    "end": end.astimezone().isoformat(),
+                    "outputFormat": "mcap",
+                    "compressionFormat": "lz4",
+                    "topics": [],
+                },
+            )
+        ],
+        json={
+            "link": download_link,
+        },
+    )
+    data = fake.binary(4096)
+    responses.add(responses.GET, download_link, body=data)
+    client = Client("test")
+    response_data = client.download_data(
+        device_id="test_id",
+        start=start,
+        end=end,
+        compression_format=CompressionFormat.lz4,
+    )
+    assert data == response_data
+
+
+@responses.activate
+def test_download_with_compression_format_none():
+    download_link = fake.url()
+    start = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    end = datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        match=[
+            json_params_matcher(
+                {
+                    "deviceId": "test_id",
+                    "start": start.astimezone().isoformat(),
+                    "end": end.astimezone().isoformat(),
+                    "outputFormat": "mcap",
+                    "compressionFormat": "",
+                    "topics": [],
+                },
+            )
+        ],
+        json={
+            "link": download_link,
+        },
+    )
+    data = fake.binary(4096)
+    responses.add(responses.GET, download_link, body=data)
+    client = Client("test")
+    response_data = client.download_data(
+        device_id="test_id",
+        start=start,
+        end=end,
+        compression_format=CompressionFormat.none,
+    )
+    assert data == response_data
+
+
+@responses.activate
+def test_download_without_compression_format():
+    """Test that compressionFormat is not sent when not specified."""
+    download_link = fake.url()
+    start = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    end = datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        match=[
+            json_params_matcher(
+                {
+                    "deviceId": "test_id",
+                    "start": start.astimezone().isoformat(),
+                    "end": end.astimezone().isoformat(),
+                    "outputFormat": "mcap",
+                    "topics": [],
+                },
+            )
+        ],
+        json={
+            "link": download_link,
+        },
+    )
+    data = fake.binary(4096)
+    responses.add(responses.GET, download_link, body=data)
+    client = Client("test")
+    response_data = client.download_data(
+        device_id="test_id",
+        start=start,
+        end=end,
     )
     assert data == response_data
 

@@ -100,6 +100,12 @@ class OutputFormat(Enum):
     mcap0 = "mcap0"
 
 
+class CompressionFormat(Enum):
+    none = ""
+    zstd = "zstd"
+    lz4 = "lz4"
+
+
 class ProgressBufferReader(IO[Any]):
     def __init__(
         self,
@@ -394,6 +400,7 @@ class Client:
         end: datetime.datetime,
         topics: Optional[List[str]] = None,
         decoder_factories: Optional[List[DecoderFactory]] = None,
+        project_id: Optional[str] = None,
     ):
         """
         yields a stream of (schema, channel, message, decoded message) values.
@@ -406,6 +413,8 @@ class Client:
             All topics will be retrieved if this is omitted.
         decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
             used to decode message content.
+        project_id: The id of the project associated with the device. Required when using
+            device_name as an identifier in multi-project organizations.
         """
         if topics is None:
             topics = []
@@ -415,6 +424,7 @@ class Client:
             start=start,
             end=end,
             topics=topics,
+            project_id=project_id,
         )
         response = self.__session.get(stream_link, stream=True)
         response.raise_for_status()
@@ -474,6 +484,8 @@ class Client:
         end: datetime.datetime,
         topics: Optional[List[str]] = None,
         output_format: OutputFormat = OutputFormat.mcap,
+        compression_format: Optional[CompressionFormat] = None,
+        project_id: Optional[str] = None,
     ) -> str:
         if topics is None:
             topics = []
@@ -487,7 +499,11 @@ class Client:
             "outputFormat": output_format.value,
             "start": start.astimezone().isoformat(),
             "topics": topics,
+            "projectId": project_id,
         }
+        if compression_format is not None:
+            params["compressionFormat"] = compression_format.value
+
         link_response = self.__session.post(
             self.__url__("/v1/data/stream"),
             json={k: v for k, v in params.items() if v is not None},
@@ -505,7 +521,9 @@ class Client:
         end: datetime.datetime,
         topics: Optional[List[str]] = None,
         output_format: OutputFormat = OutputFormat.mcap,
+        compression_format: Optional[CompressionFormat] = None,
         callback: Optional[ProgressCallback] = None,
+        project_id: Optional[str] = None,
     ) -> bytes:
         """
         Returns raw data bytes for a device and time range.
@@ -517,6 +535,11 @@ class Client:
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
+        compression_format: Compression format for MCAP chunks. Can be lz4, zstd or no compression.
+            If omitted the API will select a default compression format. See API documentation
+            for more info https://docs.foxglove.dev/api#tag/Stream-data/paths/~1data~1stream/post
+        project_id: The id of the project associated with the device. Required when using
+            device_name as an identifier in multi-project organizations.
         """
         if topics is None:
             topics = []
@@ -528,6 +551,8 @@ class Client:
                 end=end,
                 topics=topics,
                 output_format=output_format,
+                compression_format=compression_format,
+                project_id=project_id,
             ),
             self.__session,
             callback=callback,
@@ -1116,4 +1141,4 @@ def _device_dict(device):
     }
 
 
-__all__ = ["Client", "FoxgloveException", "OutputFormat"]
+__all__ = ["Client", "CompressionFormat", "FoxgloveException", "OutputFormat"]

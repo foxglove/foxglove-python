@@ -626,14 +626,7 @@ class Client:
             params={"projectId": project_id} if project_id is not None else None,
         )
 
-        device = json_or_raise(response)
-
-        return {
-            "id": device["id"],
-            "name": device["name"],
-            "properties": device["properties"] if "properties" in device else None,
-            "project_id": device["projectId"] if "projectId" in device else None,
-        }
+        return _device_dict(json_or_raise(response))
 
     def get_devices(self, *, project_id: Optional[str] = None):
         """
@@ -648,15 +641,7 @@ class Client:
 
         json = json_or_raise(response)
 
-        return [
-            {
-                "id": d["id"],
-                "name": d["name"],
-                "properties": d["properties"] if "properties" in d else None,
-                "project_id": d["projectId"] if "projectId" in d else None,
-            }
-            for d in json
-        ]
+        return [_device_dict(d) for d in json]
 
     def create_device(
         self,
@@ -686,14 +671,7 @@ class Client:
             ),
         )
 
-        device = json_or_raise(response)
-
-        return {
-            "id": device["id"],
-            "name": device["name"],
-            "properties": device["properties"] if "properties" in device else None,
-            "project_id": device["projectId"] if "projectId" in device else None,
-        }
+        return _device_dict(json_or_raise(response))
 
     def update_device(
         self,
@@ -727,14 +705,7 @@ class Client:
             json=without_nulls({"name": new_name, "properties": properties}),
         )
 
-        device = json_or_raise(response)
-
-        return {
-            "id": device["id"],
-            "name": device["name"],
-            "properties": device["properties"] if "properties" in device else None,
-            "project_id": device["projectId"] if "projectId" in device else None,
-        }
+        return _device_dict(json_or_raise(response))
 
     def delete_device(
         self,
@@ -1154,6 +1125,19 @@ def _event_dict(json_event):
         "updated_at": arrow.get(json_event["updatedAt"]).datetime,
         "properties": json_event.get("properties"),
         "event_type_id": json_event.get("eventTypeId"),
+    }
+
+
+def _device_dict(device):
+    created_at = device.get("createdAt")
+    updated_at = device.get("updatedAt")
+    return {
+        "id": device["id"],
+        "name": device["name"],
+        "properties": device.get("properties"),
+        "project_id": device.get("projectId"),
+        "created_at": arrow.get(created_at).datetime if created_at else None,
+        "updated_at": arrow.get(updated_at).datetime if updated_at else None,
     }
 
 

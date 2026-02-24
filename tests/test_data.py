@@ -25,7 +25,31 @@ def test_download():
     responses.add(responses.GET, download_link, body=data)
     client = Client("test")
     response_data = client.download_data(
-        device_id="test_id", start=datetime.now(), end=datetime.now()
+        device_id="test_id",
+        start=datetime.now(),
+        end=datetime.now(),
+    )
+    assert data == response_data
+
+
+@responses.activate
+def test_download_with_device_name():
+    download_link = fake.url()
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        json={
+            "link": download_link,
+        },
+    )
+    data = fake.binary(4096)
+    responses.add(responses.GET, download_link, body=data)
+    client = Client("test")
+    response_data = client.download_data(
+        device_name="test_name",
+        project_id="project_123",
+        start=datetime.now(),
+        end=datetime.now(),
     )
     assert data == response_data
 

@@ -404,6 +404,7 @@ class Client:
         end: datetime.datetime,
         topics: Optional[List[str]] = None,
         decoder_factories: Optional[List[DecoderFactory]] = None,
+        project_id: Optional[str] = None,
     ):
         """
         yields a stream of (schema, channel, message, decoded message) values.
@@ -416,6 +417,8 @@ class Client:
             All topics will be retrieved if this is omitted.
         decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
             used to decode message content.
+        project_id: The id of the project associated with the device. Required when using
+            device_name as an identifier in multi-project organizations.
         """
         if topics is None:
             topics = []
@@ -425,6 +428,7 @@ class Client:
             start=start,
             end=end,
             topics=topics,
+            project_id=project_id,
         )
         response = self.__session.get(stream_link, stream=True)
         response.raise_for_status()
@@ -485,6 +489,7 @@ class Client:
         topics: Optional[List[str]] = None,
         output_format: OutputFormat = OutputFormat.mcap,
         compression_format: Optional[CompressionFormat] = None,
+        project_id: Optional[str] = None,
     ) -> str:
         if topics is None:
             topics = []
@@ -498,6 +503,7 @@ class Client:
             "outputFormat": output_format.value,
             "start": start.astimezone().isoformat(),
             "topics": topics,
+            "projectId": project_id,
         }
         if compression_format is not None:
             params["compressionFormat"] = compression_format.value
@@ -521,6 +527,7 @@ class Client:
         output_format: OutputFormat = OutputFormat.mcap,
         compression_format: Optional[CompressionFormat] = None,
         callback: Optional[ProgressCallback] = None,
+        project_id: Optional[str] = None,
     ) -> bytes:
         """
         Returns raw data bytes for a device and time range.
@@ -535,6 +542,8 @@ class Client:
         compression_format: Compression format for MCAP chunks. Can be lz4, zstd or no compression.
             If omitted the API will select a default compression format. See API documentation
             for more info https://docs.foxglove.dev/api#tag/Stream-data/paths/~1data~1stream/post
+        project_id: The id of the project associated with the device. Required when using
+            device_name as an identifier in multi-project organizations.
         """
         if topics is None:
             topics = []
@@ -547,6 +556,7 @@ class Client:
                 topics=topics,
                 output_format=output_format,
                 compression_format=compression_format,
+                project_id=project_id,
             ),
             self.__session,
             callback=callback,
@@ -620,14 +630,7 @@ class Client:
             params={"projectId": project_id} if project_id is not None else None,
         )
 
-        device = json_or_raise(response)
-
-        return {
-            "id": device["id"],
-            "name": device["name"],
-            "properties": device["properties"] if "properties" in device else None,
-            "project_id": device["projectId"] if "projectId" in device else None,
-        }
+        return _device_dict(json_or_raise(response))
 
     def get_devices(self, *, project_id: Optional[str] = None):
         """
@@ -642,15 +645,7 @@ class Client:
 
         json = json_or_raise(response)
 
-        return [
-            {
-                "id": d["id"],
-                "name": d["name"],
-                "properties": d["properties"] if "properties" in d else None,
-                "project_id": d["projectId"] if "projectId" in d else None,
-            }
-            for d in json
-        ]
+        return [_device_dict(d) for d in json]
 
     def create_device(
         self,
@@ -680,14 +675,7 @@ class Client:
             ),
         )
 
-        device = json_or_raise(response)
-
-        return {
-            "id": device["id"],
-            "name": device["name"],
-            "properties": device["properties"] if "properties" in device else None,
-            "project_id": device["projectId"] if "projectId" in device else None,
-        }
+        return _device_dict(json_or_raise(response))
 
     def update_device(
         self,
@@ -721,14 +709,7 @@ class Client:
             json=without_nulls({"name": new_name, "properties": properties}),
         )
 
-        device = json_or_raise(response)
-
-        return {
-            "id": device["id"],
-            "name": device["name"],
-            "properties": device["properties"] if "properties" in device else None,
-            "project_id": device["projectId"] if "projectId" in device else None,
-        }
+        return _device_dict(json_or_raise(response))
 
     def delete_device(
         self,
@@ -1148,6 +1129,19 @@ def _event_dict(json_event):
         "updated_at": arrow.get(json_event["updatedAt"]).datetime,
         "properties": json_event.get("properties"),
         "event_type_id": json_event.get("eventTypeId"),
+    }
+
+
+def _device_dict(device):
+    created_at = device.get("createdAt")
+    updated_at = device.get("updatedAt")
+    return {
+        "id": device["id"],
+        "name": device["name"],
+        "properties": device.get("properties"),
+        "project_id": device.get("projectId"),
+        "created_at": arrow.get(created_at).datetime if created_at else None,
+        "updated_at": arrow.get(updated_at).datetime if updated_at else None,
     }
 
 

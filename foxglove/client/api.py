@@ -1,4 +1,5 @@
 import base64
+from urllib.parse import quote as urlquote
 import copy
 import datetime
 import json
@@ -1116,6 +1117,173 @@ class Client:
             "code": upload_request.status_code,
         }
 
+    def get_sessions(
+        self,
+        *,
+        project_id: Optional[str] = None,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+        key_matches: Optional[str] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """Fetches sessions.
+
+        project_id: Optionally filter sessions by this project ID.
+        device_id: Optionally filter sessions by this device ID.
+        device_name: Optionally filter sessions by this device name.
+        key_matches: Optionally filter sessions by partially matching on this key.
+        start: Optionally specify the start of an inclusive time range.
+            Only sessions with messages within this time range will be returned.
+        end: Optionally specify the end of an inclusive time range.
+            Only sessions with messages within this time range will be returned.
+        sort_by: Optionally sort returned sessions by a field in the response type.
+            Must be one of "id", "created_at", "updated_at".
+        sort_order: Optionally specify the sort order, either "asc" or "desc".
+        limit: Optionally limit the number of records returned.
+        offset: Optionally offset the results by this many records.
+        """
+
+        all_params = {
+            "projectId": project_id,
+            "deviceId": device_id,
+            "deviceName": device_name,
+            "keyMatches": key_matches,
+            "start": start.astimezone().isoformat() if start else None,
+            "end": end.astimezone().isoformat() if end else None,
+            "sortBy": camelize(sort_by),
+            "sortOrder": sort_order,
+            "limit": limit,
+            "offset": offset,
+        }
+        response = self.__session.get(
+            self.__url__("/v1/sessions"),
+            params={k: v for k, v in all_params.items() if v is not None},
+        )
+        json = json_or_raise(response)
+
+        return [_session_dict(s) for s in json]
+
+    def get_session(
+        self,
+        *,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
+        project_id: str,
+    ):
+        """Fetches a single session.
+
+        session_id: The ID of the session to fetch - use this or session_key.
+        session_key: The key of the session to fetch - use this or session_id.
+        project_id: The project ID to fetch the session from.
+        """
+        if session_id is None and session_key is None:
+            raise RuntimeError("session_id or session_key must be provided")
+
+        identifier = session_id if session_id is not None else session_key
+
+        response = self.__session.get(
+            self.__url__(f"/v1/sessions/{urlquote(identifier, safe='')}"),
+            params={"projectId": project_id},
+        )
+        return _session_dict(json_or_raise(response))
+
+    def create_session(
+        self,
+        *,
+        device_id: Optional[str] = None,
+        key: Optional[str] = None,
+        recording_ids: Optional[List[str]] = None,
+    ):
+        """Creates a new session.
+
+        device_id: The ID of the device to associate with the session.
+            If omitted, inferred from recording_ids.
+        key: A user-supplied identifier, unique within the project.
+        recording_ids: IDs of recordings to associate with the new session.
+            All recordings must belong to the same device and project.
+        """
+
+        if device_id is None and recording_ids is None:
+            raise RuntimeError("device_id or recording_ids must be provided")
+
+        params = {
+            "deviceId": device_id,
+            "key": key,
+            "recordingIds": recording_ids,
+        }
+        response = self.__session.post(
+            self.__url__("/v1/sessions"),
+            json={k: v for k, v in params.items() if v is not None},
+        )
+
+        return _session_dict(json_or_raise(response))
+
+    def update_session(
+        self,
+        *,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
+        project_id: str,
+        add_recording_ids: Optional[List[str]] = None,
+        remove_recording_ids: Optional[List[str]] = None,
+    ):
+        """Updates a session.
+
+        session_id: The ID of the session to update - use this or session_key.
+        session_key: The key of the session to update - use this or session_id.
+        project_id: The Project ID to which the session belongs.
+        add_recording_ids: IDs of recordings to add to the session.
+        remove_recording_ids: IDs of recordings to remove from the session.
+        """
+
+        if session_id is None and session_key is None:
+            raise RuntimeError("session_id or session_key must be provided")
+
+        identifier = session_id if session_id is not None else session_key
+
+        params = {
+            "addRecordingIds": add_recording_ids,
+            "removeRecordingIds": remove_recording_ids,
+        }
+        response = self.__session.patch(
+            self.__url__(f"/v1/sessions/{urlquote(identifier, safe='')}"),
+            params={"projectId": project_id},
+            json={k: v for k, v in params.items() if v is not None},
+        )
+
+        return _session_dict(json_or_raise(response))
+
+    def delete_session(
+        self,
+        *,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
+        project_id: str,
+    ):
+        """Deletes a session.
+
+        session_id: The ID of the session to delete - use this or session_key.
+        session_key: The key of the session to delete - use this or session_id.
+        project_id: The Project ID to which the session belongs.
+        """
+
+        if session_id is None and session_key is None:
+            raise RuntimeError("session_id or session_key must be provided")
+
+        identifier = session_id if session_id is not None else session_key
+
+        response = self.__session.delete(
+            self.__url__(f"/v1/sessions/{urlquote(identifier, safe='')}"),
+            params={"projectId": project_id},
+        )
+
+        return json_or_raise(response)
+
 
 def _event_dict(json_event):
     return {
@@ -1142,6 +1310,18 @@ def _device_dict(device):
         "project_id": device.get("projectId"),
         "created_at": arrow.get(created_at).datetime if created_at else None,
         "updated_at": arrow.get(updated_at).datetime if updated_at else None,
+    }
+
+
+def _session_dict(session):
+    return {
+        "id": session["id"],
+        "project_id": session["projectId"],
+        "device": session["device"],
+        "key": session["key"],
+        "created_at": arrow.get(session["createdAt"]).datetime,
+        "updated_at": arrow.get(session["updatedAt"]).datetime,
+        "recordings": session["recordings"],
     }
 
 

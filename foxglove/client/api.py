@@ -1281,6 +1281,7 @@ def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -
         raise RuntimeError("session_id or session_key must be provided")
 
     identifier = session_id if session_id is not None else session_key
+    assert identifier is not None, "one of session_id or session_key must be provided"
     return identifier
 
 

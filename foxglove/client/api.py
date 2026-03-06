@@ -1177,8 +1177,8 @@ class Client:
     ):
         """Fetches a single session.
 
-        session_id: The ID of the session to fetch - use this or session_key.
-        session_key: The key of the session to fetch - use this or session_id.
+        session_id: The ID of the session to fetch
+        session_key: The key of the session to fetch
         project_id: The project ID to fetch the session from.
         """
         if session_id is None and session_key is None:

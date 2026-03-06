@@ -1207,7 +1207,7 @@ class Client:
             If omitted, inferred from recording_ids.
         key: A user-supplied identifier, unique within the project.
         recording_ids: IDs of recordings to associate with the new session.
-            All recordings must belong to the same device and project.
+            All recordings must belong to the same device.
         """
 
         if device_id is None and recording_ids is None:
@@ -1236,8 +1236,8 @@ class Client:
     ):
         """Updates a session.
 
-        session_id: The ID of the session to update - use this or session_key.
-        session_key: The key of the session to update - use this or session_id.
+        session_id: The ID of the session to update.
+        session_key: The key of the session to update.
         project_id: The Project ID to which the session belongs.
         add_recording_ids: IDs of recordings to add to the session.
         remove_recording_ids: IDs of recordings to remove from the session.
@@ -1245,6 +1245,8 @@ class Client:
 
         if session_id is None and session_key is None:
             raise RuntimeError("session_id or session_key must be provided")
+        if session_id and session_key:
+            raise RuntimeError("session_id and session_key are mutually exclusive")
 
         identifier = session_id if session_id is not None else session_key
 
@@ -1269,13 +1271,15 @@ class Client:
     ):
         """Deletes a session.
 
-        session_id: The ID of the session to delete - use this or session_key.
-        session_key: The key of the session to delete - use this or session_id.
+        session_id: The ID of the session to delete.
+        session_key: The key of the session to delete.
         project_id: The Project ID to which the session belongs.
         """
 
         if session_id is None and session_key is None:
             raise RuntimeError("session_id or session_key must be provided")
+        if session_id and session_key:
+            raise RuntimeError("session_id and session_key are mutually exclusive")
 
         identifier = session_id if session_id is not None else session_key
 

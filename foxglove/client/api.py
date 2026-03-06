@@ -1183,6 +1183,8 @@ class Client:
         """
         if session_id is None and session_key is None:
             raise RuntimeError("session_id or session_key must be provided")
+        if session_id and session_key:
+            raise RuntimeError("session_id and session_key are mutually exclusive")
 
         identifier = session_id if session_id is not None else session_key
 

@@ -1181,12 +1181,7 @@ class Client:
         session_key: The key of the session to fetch
         project_id: The project ID to fetch the session from.
         """
-        if session_id is None and session_key is None:
-            raise RuntimeError("session_id or session_key must be provided")
-        if session_id and session_key:
-            raise RuntimeError("session_id and session_key are mutually exclusive")
-
-        identifier = session_id if session_id is not None else session_key
+        identifier = _session_identifier(session_id, session_key)
 
         response = self.__session.get(
             self.__url__(f"/v1/sessions/{urlquote(identifier, safe='')}"),
@@ -1242,13 +1237,7 @@ class Client:
         add_recording_ids: IDs of recordings to add to the session.
         remove_recording_ids: IDs of recordings to remove from the session.
         """
-
-        if session_id is None and session_key is None:
-            raise RuntimeError("session_id or session_key must be provided")
-        if session_id and session_key:
-            raise RuntimeError("session_id and session_key are mutually exclusive")
-
-        identifier = session_id if session_id is not None else session_key
+        identifier = _session_identifier(session_id, session_key)
 
         params = {
             "addRecordingIds": add_recording_ids,
@@ -1275,13 +1264,7 @@ class Client:
         session_key: The key of the session to delete.
         project_id: The Project ID to which the session belongs.
         """
-
-        if session_id is None and session_key is None:
-            raise RuntimeError("session_id or session_key must be provided")
-        if session_id and session_key:
-            raise RuntimeError("session_id and session_key are mutually exclusive")
-
-        identifier = session_id if session_id is not None else session_key
+        identifier = _session_identifier(session_id, session_key)
 
         response = self.__session.delete(
             self.__url__(f"/v1/sessions/{urlquote(identifier, safe='')}"),
@@ -1289,6 +1272,16 @@ class Client:
         )
 
         return json_or_raise(response)
+
+
+def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -> str:
+    if session_id is not None and session_key is not None:
+        raise RuntimeError("session_id and session_key are mutually exclusive")
+    if session_id is None and session_key is None:
+        raise RuntimeError("session_id or session_key must be provided")
+
+    identifier = session_id if session_id is not None else session_key
+    return identifier
 
 
 def _event_dict(json_event):

@@ -401,6 +401,8 @@ class Client:
         *,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
         start: datetime.datetime,
         end: datetime.datetime,
         topics: Optional[List[str]] = None,
@@ -412,6 +414,8 @@ class Client:
 
         device_id: The id of the device that originated the desired data.
         device_name: The name of the device that originated the desired data.
+        session_id: Optional ID of a recording session to download data from
+        session_key: Optional key of a recording session to download data from
         start: The earliest time from which to retrieve data.
         end: The latest time from which to retrieve data.
         topics: An optional list of topics to retrieve.
@@ -426,6 +430,8 @@ class Client:
         stream_link = self._make_stream_link(
             device_id=device_id,
             device_name=device_name,
+            session_id=session_id,
+            session_key=session_key,
             start=start,
             end=end,
             topics=topics,
@@ -485,6 +491,8 @@ class Client:
         *,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
         start: datetime.datetime,
         end: datetime.datetime,
         topics: Optional[List[str]] = None,
@@ -500,6 +508,8 @@ class Client:
         params = {
             "deviceId": device_id,
             "deviceName": device_name,
+            "sessionId": session_id,
+            "sessionKey": session_key,
             "end": end.astimezone().isoformat(),
             "outputFormat": output_format.value,
             "start": start.astimezone().isoformat(),
@@ -522,6 +532,8 @@ class Client:
         *,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
         start: datetime.datetime,
         end: datetime.datetime,
         topics: Optional[List[str]] = None,
@@ -535,6 +547,8 @@ class Client:
 
         device_id: The id of the device that originated the desired data.
         device_name: The name of the device that originated the desired data.
+        session_id: Optional ID of a recording session to download data from
+        session_key: Optional key of a recording session to download data from
         start: The earliest time from which to retrieve data.
         end: The latest time from which to retrieve data.
         topics: An optional list of topics to retrieve.
@@ -552,6 +566,8 @@ class Client:
             self._make_stream_link(
                 device_id=device_id,
                 device_name=device_name,
+                session_id=session_id,
+                session_key=session_key,
                 start=start,
                 end=end,
                 topics=topics,
@@ -572,6 +588,8 @@ class Client:
         device_name: Optional[str] = None,
         tolerance: Optional[int] = None,
         project_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
     ):
         """
         List coverage ranges for data.
@@ -582,6 +600,8 @@ class Client:
         :param tolerance: Minimum interval (in seconds) that ranges must be separated by
             to be considered discrete.
         :param project_id: Optional Project to filter coverage by.
+        :param session_id: Optional Session ID to filter coverage by.
+        :param session_key: Optional Session key to filter coverage by.
         """
         params = {
             "deviceId": device_id,
@@ -590,6 +610,8 @@ class Client:
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
             "projectId": project_id,
+            "sessionId": session_id,
+            "sessionKey": session_key,
         }
         response = self.__session.get(
             self.__url__("/v1/data/coverage"),
@@ -854,6 +876,8 @@ class Client:
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         project_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
     ):
         """Fetches recordings.
 
@@ -873,6 +897,8 @@ class Client:
         :param limit: Optionally limit the number of records returned.
         :param offset: Optionally offset the results by this many records.
         :param project_id: Optional Project to filter recordings by.
+        :param session_id: Optional Session ID to filter recordings by.
+        :param session_key: Optional Session key to filter recordings by.
         """
         all_params = {
             "deviceId": device_id,
@@ -888,6 +914,8 @@ class Client:
             "limit": limit,
             "offset": offset,
             "projectId": project_id,
+            "sessionId": session_id,
+            "sessionKey": session_key,
         }
         response = self.__session.get(
             self.__url__("/v1/recordings"),
@@ -917,6 +945,7 @@ class Client:
                     "metadata": i.get("metadata"),
                     "key": i.get("key"),
                     "project_id": i.get("projectId"),
+                    "session_id": i.get("sessionId"),
                 }
             )
 
@@ -1007,6 +1036,8 @@ class Client:
         end: datetime.datetime,
         include_schemas: bool = False,
         project_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
     ):
         """
         List topics.
@@ -1017,6 +1048,8 @@ class Client:
         :param end: Filter topics by this end time.
         :param include_schemas: Optionally include the schema in the response.
         :param project_id: Optional Project to filter topics by.
+        :param session_id: Optional ID of a recording session to list topics from
+        :param session_key: Optional key of a recording session to list topics from
         """
         response = self.__session.get(
             self.__url__("/v1/data/topics"),
@@ -1027,6 +1060,8 @@ class Client:
                 "end": end.astimezone().isoformat(),
                 "includeSchemas": "true" if include_schemas else "false",
                 "projectId": project_id,
+                "sessionId": session_id,
+                "sessionKey": session_key,
             },
         )
 
@@ -1075,6 +1110,8 @@ class Client:
         data: Union[bytes, IO[Any]],
         callback: Optional[SizeProgressCallback] = None,
         project_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
     ):
         """
         Uploads data in bytes.
@@ -1089,6 +1126,9 @@ class Client:
         callback: An optional callback to report progress on the upload.
         project_id: Optional Project to upload data to. Required for multi-project
             organizations if an existing device is not specified.
+        session_id: ID of an existing session to associate the upload with.
+        session_key: Key of a session to associate the upload with. If no session exists
+            with this key, a new session will be created using the provided device.
         """
         params = {
             "deviceId": device_id,
@@ -1096,6 +1136,8 @@ class Client:
             "filename": filename,
             "key": key,
             "projectId": project_id,
+            "sessionId": session_id,
+            "sessionKey": session_key,
         }
         link_response = self.__session.post(
             self.__url__("/v1/data/upload"),

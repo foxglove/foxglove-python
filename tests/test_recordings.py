@@ -30,6 +30,7 @@ def test_get_recordings():
     device_id = fake.uuid4()
     recording_id_a = fake.uuid4()
     recording_id_b = fake.uuid4()
+    session_id = fake.uuid4()
     path = fake.file_name(extension="mcap")
     size = fake.random_number()
     message_count = fake.random_number()
@@ -57,6 +58,7 @@ def test_get_recordings():
                 "metadata": {"hey": "now", "brown": "cow"},
                 "key": "recording_key",
                 "projectId": project_id,
+                "sessionId": session_id,
             },
             {
                 "id": recording_id_b,
@@ -97,6 +99,7 @@ def test_get_recordings():
             "metadata": {"hey": "now", "brown": "cow"},
             "key": "recording_key",
             "project_id": project_id,
+            "session_id": session_id,
         },
         {
             "id": recording_id_b,
@@ -114,5 +117,6 @@ def test_get_recordings():
             "metadata": None,
             "key": None,
             "project_id": project_id,
+            "session_id": None,
         },
     ]

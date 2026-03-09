@@ -502,8 +502,15 @@ class Client:
     ) -> str:
         if topics is None:
             topics = []
-        if device_id is None and device_name is None:
-            raise RuntimeError("device_id or device_name must be provided")
+        if (
+            device_id is None
+            and device_name is None
+            and session_id is None
+            and session_key is None
+        ):
+            raise RuntimeError(
+                "device_id or device_name or session_id or session_key must be provided"
+            )
 
         params = {
             "deviceId": device_id,

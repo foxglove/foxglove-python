@@ -100,6 +100,7 @@ def test_get_recordings():
             "key": "recording_key",
             "project_id": project_id,
             "session_id": session_id,
+            "session_key": None,
         },
         {
             "id": recording_id_b,
@@ -118,5 +119,6 @@ def test_get_recordings():
             "key": None,
             "project_id": project_id,
             "session_id": None,
+            "session_key": None,
         },
     ]

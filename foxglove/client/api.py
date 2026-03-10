@@ -414,8 +414,8 @@ class Client:
 
         device_id: The id of the device that originated the desired data.
         device_name: The name of the device that originated the desired data.
-        session_id: Optional ID of a recording session to download data from
-        session_key: Optional key of a recording session to download data from
+        session_id: ID of a session to download data from
+        session_key: Key of a session to download data from
         start: The earliest time from which to retrieve data.
         end: The latest time from which to retrieve data.
         topics: An optional list of topics to retrieve.
@@ -554,8 +554,8 @@ class Client:
 
         device_id: The id of the device that originated the desired data.
         device_name: The name of the device that originated the desired data.
-        session_id: Optional ID of a recording session to download data from
-        session_key: Optional key of a recording session to download data from
+        session_id: ID of a session to download data from
+        session_key: Key of a session to download data from
         start: The earliest time from which to retrieve data.
         end: The latest time from which to retrieve data.
         topics: An optional list of topics to retrieve.
@@ -953,6 +953,7 @@ class Client:
                     "key": i.get("key"),
                     "project_id": i.get("projectId"),
                     "session_id": i.get("sessionId"),
+                    "session_key": i.get("sessionKey"),
                 }
             )
 
@@ -1055,8 +1056,8 @@ class Client:
         :param end: Filter topics by this end time.
         :param include_schemas: Optionally include the schema in the response.
         :param project_id: Optional Project to filter topics by.
-        :param session_id: Optional ID of a recording session to list topics from
-        :param session_key: Optional key of a recording session to list topics from
+        :param session_id: ID of a session to list topics from
+        :param session_key: Key of a session to list topics from
         """
         response = self.__session.get(
             self.__url__("/v1/data/topics"),
@@ -1249,7 +1250,7 @@ class Client:
 
         device_id: The ID of the device to associate with the session.
             If omitted, inferred from recording_ids.
-        key: A user-supplied identifier, unique within the project.
+        key: An optional user-supplied identifier, unique within the project.
         recording_ids: IDs of recordings to associate with the new session.
             All recordings must belong to the same device.
         """

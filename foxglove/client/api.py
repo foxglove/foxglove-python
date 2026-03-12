@@ -1245,6 +1245,7 @@ class Client:
         device_id: Optional[str] = None,
         key: Optional[str] = None,
         recording_ids: Optional[List[str]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
     ):
         """Creates a new session.
 
@@ -1253,6 +1254,9 @@ class Client:
         key: An optional user-supplied identifier, unique within the project.
         recording_ids: IDs of recordings to associate with the new session.
             All recordings must belong to the same device.
+        properties: Optional custom properties for the session.
+            Each key must be defined as a custom property for your organization,
+            and each value must be of the appropriate type.
         """
 
         if device_id is None and recording_ids is None:
@@ -1262,6 +1266,7 @@ class Client:
             "deviceId": device_id,
             "key": key,
             "recordingIds": recording_ids,
+            "properties": properties,
         }
         response = self.__session.post(
             self.__url__("/v1/sessions"),
@@ -1278,6 +1283,7 @@ class Client:
         project_id: str,
         add_recording_ids: Optional[List[str]] = None,
         remove_recording_ids: Optional[List[str]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
     ):
         """Updates a session.
 
@@ -1286,12 +1292,16 @@ class Client:
         project_id: The Project ID to which the session belongs.
         add_recording_ids: IDs of recordings to add to the session.
         remove_recording_ids: IDs of recordings to remove from the session.
+        properties: Optional custom properties to add to or edit on the session.
+            Each key must be defined as a custom property for your organization,
+            and each value must be of the appropriate type.
         """
         identifier = _session_identifier(session_id, session_key)
 
         params = {
             "addRecordingIds": add_recording_ids,
             "removeRecordingIds": remove_recording_ids,
+            "properties": properties,
         }
         response = self.__session.patch(
             self.__url__(f"/v1/sessions/{urlquote(identifier, safe='')}"),
@@ -1368,10 +1378,11 @@ def _session_dict(session):
         "id": session["id"],
         "project_id": session["projectId"],
         "device": session["device"],
-        "key": session["key"],
+        "key": session.get("key"),
         "created_at": arrow.get(session["createdAt"]).datetime,
         "updated_at": arrow.get(session["updatedAt"]).datetime,
         "recordings": session["recordings"],
+        "properties": session.get("properties"),
     }
 
 

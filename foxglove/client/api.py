@@ -1254,8 +1254,8 @@ class Client:
         key: An optional user-supplied identifier, unique within the project.
         recording_ids: IDs of recordings to associate with the new session.
             All recordings must belong to the same device.
-        properties: Optional custom properties to add to or edit on the session.
-            Each key must be defined as a custom property for your organization
+        properties: Optional custom properties for the session.
+            Each key must be defined as a custom property for your organization,
             and each value must be of the appropriate type.
         """
 
@@ -1292,9 +1292,9 @@ class Client:
         project_id: The Project ID to which the session belongs.
         add_recording_ids: IDs of recordings to add to the session.
         remove_recording_ids: IDs of recordings to remove from the session.
-        properties: Optional custom properties for the session.
+        properties: Optional custom properties to add to or edit on the session.
             Each key must be defined as a custom property for your organization,
-            and each value must be of the appropriate type
+            and each value must be of the appropriate type.
         """
         identifier = _session_identifier(session_id, session_key)
 

@@ -1245,7 +1245,7 @@ class Client:
         device_id: Optional[str] = None,
         key: Optional[str] = None,
         recording_ids: Optional[List[str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None
+        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
     ):
         """Creates a new session.
 
@@ -1254,9 +1254,9 @@ class Client:
         key: An optional user-supplied identifier, unique within the project.
         recording_ids: IDs of recordings to associate with the new session.
             All recordings must belong to the same device.
-        properties: Optional custom properties for the session.
-            Each key must be defined as a custom property for your organization,
-            and each value must be of the appropriate type
+        properties: Optional custom properties to add to or edit on the session.
+            Each key must be defined as a custom property for your organization
+            and each value must be of the appropriate type.
         """
 
         if device_id is None and recording_ids is None:

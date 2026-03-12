@@ -1294,7 +1294,7 @@ class Client:
         remove_recording_ids: IDs of recordings to remove from the session.
         properties: Optional custom properties for the session.
             Each key must be defined as a custom property for your organization,
-            and each value must be of the appropriate type
+            and each value must be of the appropriate type.
         """
         identifier = _session_identifier(session_id, session_key)
 

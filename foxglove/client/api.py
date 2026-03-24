@@ -651,12 +651,9 @@ class Client:
         :param project_id: Project to retrieve the device from.
             Required for multi-project organizations.
         """
-        if device_name and device_id:
-            raise RuntimeError("device_id and device_name are mutually exclusive")
-        if device_name is None and device_id is None:
-            raise RuntimeError("device_id or device_name must be provided")
+        identifier = _device_identifier(device_id, device_name)
         response = self.__session.get(
-            self.__url__(f"/v1/devices/{device_name or device_id}"),
+            self.__url__(f"/v1/devices/{urlquote(identifier, safe='')}"),
             params={"projectId": project_id} if project_id is not None else None,
         )
 
@@ -728,13 +725,10 @@ class Client:
         :param project_id: Project to retrieve the device from.
             Required for multi-project organizations.
         """
-        if device_name and device_id:
-            raise RuntimeError("device_id and device_name are mutually exclusive")
-        if device_name is None and device_id is None:
-            raise RuntimeError("device_id or device_name must be provided")
+        identifier = _device_identifier(device_id, device_name)
 
         response = self.__session.patch(
-            self.__url__(f"/v1/devices/{device_name or device_id}"),
+            self.__url__(f"/v1/devices/{urlquote(identifier, safe='')}"),
             params={"projectId": project_id} if project_id is not None else None,
             json=without_nulls({"name": new_name, "properties": properties}),
         )
@@ -758,12 +752,9 @@ class Client:
         :param project_id: Project to delete the device from.
             Required for multi-project organizations.
         """
-        if device_name and device_id:
-            raise RuntimeError("device_id and device_name are mutually exclusive")
-        if device_name is None and device_id is None:
-            raise RuntimeError("device_id or device_name must be provided")
+        identifier = _device_identifier(device_id, device_name)
         response = self.__session.delete(
-            self.__url__(f"/v1/devices/{device_name or device_id}"),
+            self.__url__(f"/v1/devices/{urlquote(identifier, safe='')}"),
             params={"projectId": project_id} if project_id is not None else None,
         )
         json_or_raise(response)
@@ -1333,6 +1324,133 @@ class Client:
 
         return json_or_raise(response)
 
+    def get_device_custom_property_history(
+        self,
+        *,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+        project_id: Optional[str] = None,
+        id: str,
+    ):
+        """
+        Fetches a single device custom property history record.
+
+        device_id: The ID of the device to retrieve the history record from.
+            Use this or name.
+        device_name: The name of the device to retrieve the history record from.
+            Use this or device_id.
+        project_id: Project to retrieve the history record from.
+            Required for multi-project organizations.
+        id: The ID of the history record to fetch.
+        """
+        identifier = _device_identifier(device_id, device_name)
+
+        response = self.__session.get(
+            self.__url__(
+                f"/v1/devices/{urlquote(identifier, safe='')}/property-history/"
+                f"{urlquote(id, safe='')}"
+            ),
+            params=without_nulls({"projectId": project_id}),
+        )
+        return _device_custom_property_history_dict(json_or_raise(response))
+
+    def get_device_custom_property_history_records(
+        self,
+        *,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+        project_id: Optional[str] = None,
+        key: Optional[str] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """
+        Lists device custom property history records.
+
+        device_id: The ID of the device to retrieve history records from.
+            Use this or name.
+        device_name: The name of the device to retrieve history records from.
+            Use this or id.
+        project_id: Project to retrieve history records from.
+            Required for multi-project organizations.
+        key: Optional property key to filter by.
+        start: Optionally include records active at or after this time.
+        end: Optionally include records active before this time.
+        limit: Optionally limit the number of history records returned.
+        offset: Optionally offset the history records by this many records.
+        """
+        identifier = _device_identifier(device_id, device_name)
+
+        params = {
+            "projectId": project_id,
+            "key": key,
+            "start": start.astimezone().isoformat() if start else None,
+            "end": end.astimezone().isoformat() if end else None,
+            "limit": limit,
+            "offset": offset,
+        }
+
+        response = self.__session.get(
+            self.__url__(
+                f"/v1/devices/{urlquote(identifier, safe='')}/property-history"
+            ),
+            params={k: v for k, v in params.items() if v is not None},
+        )
+        return [
+            _device_custom_property_history_dict(r) for r in json_or_raise(response)
+        ]
+
+    def update_device_custom_property_history(
+        self,
+        *,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+        project_id: Optional[str] = None,
+        key: str,
+        value: Optional[Union[str, bool, float, int, List[str]]] = None,
+        start: datetime.datetime,
+        end: datetime.datetime,
+    ):
+        """
+        Updates device custom property history over a time range.
+
+        The request is treated as an assertion of truth for the given range,
+        so existing records may be split, trimmed, or deleted as needed.
+
+        device_id: The ID of the device to update history for.
+            Use this or name.
+        device_name: The name of the device to update history for.
+            Use this or device_id.
+        project_id: Project to update history in.
+            Required for multi-project organizations.
+        key: The property key to update.
+        value: The value to apply over the given time range.
+            When omitted, the value will be treated as explicitly unset for that range.
+        start: Inclusive start of the property's effective time range.
+        end: Exclusive end of the property's effective time range.
+        """
+        identifier = _device_identifier(device_id, device_name)
+
+        params: Dict[str, Any] = {
+            "projectId": project_id,
+            "key": key,
+            "value": value,
+            "start": start.astimezone().isoformat(),
+            "end": end.astimezone().isoformat(),
+        }
+        params["deviceId" if device_id is not None else "deviceName"] = identifier
+
+        response = self.__session.post(
+            self.__url__("/v1/actions/devices/update-device-property-history"),
+            json=without_nulls(params),
+        )
+        # This endpoint returns 204 No Content on success (no body)
+        if response.status_code == 204:
+            return None
+        return json_or_raise(response)
+
 
 def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -> str:
     if session_id is not None and session_key is not None:
@@ -1342,6 +1460,17 @@ def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -
 
     identifier = session_id if session_id is not None else session_key
     assert identifier is not None, "one of session_id or session_key must be provided"
+    return identifier
+
+
+def _device_identifier(device_id: Optional[str], device_name: Optional[str]) -> str:
+    if device_id is not None and device_name is not None:
+        raise RuntimeError("device_id and device_name are mutually exclusive")
+    if device_id is None and device_name is None:
+        raise RuntimeError("device_id or device_name must be provided")
+
+    identifier = device_id if device_id is not None else device_name
+    assert identifier is not None, "one of device_id or device_name must be provided"
     return identifier
 
 
@@ -1383,6 +1512,18 @@ def _session_dict(session):
         "updated_at": arrow.get(session["updatedAt"]).datetime,
         "recordings": session["recordings"],
         "properties": session.get("properties"),
+    }
+
+
+def _device_custom_property_history_dict(property_history):
+    end = property_history.get("end")
+    return {
+        "id": property_history["id"],
+        "device_id": property_history["deviceId"],
+        "key": property_history["key"],
+        "value": property_history["value"],
+        "start": arrow.get(property_history["start"]).datetime,
+        "end": arrow.get(end).datetime if end else None,
     }
 
 

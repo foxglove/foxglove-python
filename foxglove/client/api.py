@@ -1336,7 +1336,7 @@ class Client:
         Fetches a single device custom property history record.
 
         device_id: The ID of the device to retrieve the history record from.
-            Use this or name.
+            Use this or device_name.
         device_name: The name of the device to retrieve the history record from.
             Use this or device_id.
         project_id: Project to retrieve the history record from.
@@ -1370,9 +1370,9 @@ class Client:
         Lists device custom property history records.
 
         device_id: The ID of the device to retrieve history records from.
-            Use this or name.
+            Use this or device_name.
         device_name: The name of the device to retrieve history records from.
-            Use this or id.
+            Use this or device_id.
         project_id: Project to retrieve history records from.
             Required for multi-project organizations.
         key: Optional property key to filter by.
@@ -1420,7 +1420,7 @@ class Client:
         so existing records may be split, trimmed, or deleted as needed.
 
         device_id: The ID of the device to update history for.
-            Use this or name.
+            Use this or device_name.
         device_name: The name of the device to update history for.
             Use this or device_id.
         project_id: Project to update history in.

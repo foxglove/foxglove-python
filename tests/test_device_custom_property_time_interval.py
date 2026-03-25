@@ -14,18 +14,18 @@ fake = Faker()
 
 
 @responses.activate
-def test_get_device_custom_property_history_quotes_path_and_passes_project_id():
+def test_get_device_custom_property_time_interval_quotes_path_and_passes_project_id():
     device_name = "Device / Name"
-    property_history_id = "dcph/id"
+    time_interval_id = "dcph/id"
     now = datetime.now()
     responses.add(
         responses.GET,
         api_url(
-            f"/v1/devices/{quote(device_name, safe='')}/property-history/"
-            f"{quote(property_history_id, safe='')}"
+            f"/v1/devices/{quote(device_name, safe='')}/property-time-intervals/"
+            f"{quote(time_interval_id, safe='')}"
         ),
         json={
-            "id": property_history_id,
+            "id": time_interval_id,
             "deviceId": fake.uuid4(),
             "key": "env",
             "value": "prod",
@@ -35,42 +35,42 @@ def test_get_device_custom_property_history_quotes_path_and_passes_project_id():
     )
 
     client = Client("test")
-    response = client.get_device_custom_property_history(
+    response = client.get_device_custom_property_time_interval(
         device_name=device_name,
         project_id="project-id",
-        id=property_history_id,
+        id=time_interval_id,
     )
 
-    assert response["id"] == property_history_id
+    assert response["id"] == time_interval_id
     assert parse_qs(urlparse(responses.calls[0].request.url).query) == {
         "projectId": ["project-id"]
     }
 
 
-def test_get_device_custom_property_history_rejects_multiple_device_selectors():
+def test_get_device_custom_property_time_interval_rejects_multiple_device_selectors():
     client = Client("test")
 
     with pytest.raises(RuntimeError) as exception:
-        client.get_device_custom_property_history(
+        client.get_device_custom_property_time_interval(
             device_id="device-id",
             device_name="device-name",
-            id="history-id",
+            id="time-interval-id",
         )
 
     assert str(exception.value) == "device_id and device_name are mutually exclusive"
 
 
 @responses.activate
-def test_get_device_custom_property_history_records_uses_path_selector_only():
+def test_get_device_custom_property_time_intervals_uses_path_selector_only():
     device_name = "Device / Name"
     responses.add(
         responses.GET,
-        api_url(f"/v1/devices/{quote(device_name, safe='')}/property-history"),
+        api_url(f"/v1/devices/{quote(device_name, safe='')}/property-time-intervals"),
         json=[],
     )
 
     client = Client("test")
-    client.get_device_custom_property_history_records(
+    client.get_device_custom_property_time_intervals(
         device_name=device_name,
         project_id="project-id",
         key="env",
@@ -87,17 +87,20 @@ def test_get_device_custom_property_history_records_uses_path_selector_only():
 
 
 @responses.activate
-def test_update_device_custom_property_history_omits_value_for_clear():
+def test_update_device_custom_property_time_intervals_omits_value_for_clear():
+    device_name = "Device / Name"
     responses.add(
         responses.POST,
-        api_url("/v1/actions/devices/update-device-property-history"),
+        api_url(
+            f"/v1/actions/devices/{quote(device_name, safe='')}/update-property-time-interval"
+        ),
         status=204,
         body="",
     )
 
     client = Client("test")
-    client.update_device_custom_property_history(
-        device_name="Device / Name",
+    client.update_device_custom_property_time_intervals(
+        device_name=device_name,
         project_id="project-id",
         key="env",
         start=datetime.now(),
@@ -105,24 +108,24 @@ def test_update_device_custom_property_history_omits_value_for_clear():
     )
 
     request_body = json.loads(responses.calls[0].request.body)
-    assert request_body["deviceName"] == "Device / Name"
     assert request_body["projectId"] == "project-id"
     assert request_body["key"] == "env"
     assert "value" not in request_body
+    assert "deviceName" not in request_body
     assert "deviceId" not in request_body
 
 
 @responses.activate
-def test_update_device_custom_property_history_supports_array_values():
+def test_update_device_custom_property_time_intervals_supports_array_values():
     responses.add(
         responses.POST,
-        api_url("/v1/actions/devices/update-device-property-history"),
+        api_url("/v1/actions/devices/device-id/update-property-time-interval"),
         status=204,
         body="",
     )
 
     client = Client("test")
-    client.update_device_custom_property_history(
+    client.update_device_custom_property_time_intervals(
         device_id="device-id",
         key="labels",
         value=["one", "two"],
@@ -131,6 +134,6 @@ def test_update_device_custom_property_history_supports_array_values():
     )
 
     request_body = json.loads(responses.calls[0].request.body)
-    assert request_body["deviceId"] == "device-id"
     assert request_body["value"] == ["one", "two"]
     assert "deviceName" not in request_body
+    assert "deviceId" not in request_body

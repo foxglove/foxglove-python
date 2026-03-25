@@ -1324,7 +1324,7 @@ class Client:
 
         return json_or_raise(response)
 
-    def get_device_custom_property_history(
+    def get_device_custom_property_time_interval(
         self,
         *,
         device_id: Optional[str] = None,
@@ -1333,28 +1333,27 @@ class Client:
         id: str,
     ):
         """
-        Fetches a single device custom property history record.
+        Fetches a single device custom propety time intervalrecord.
 
-        device_id: The ID of the device to retrieve the history record from.
+        device_id: The ID of the device to retrieve the time interval record from.
             Use this or device_name.
-        device_name: The name of the device to retrieve the history record from.
+        device_name: The name of the device to retrieve the time interval record from.
             Use this or device_id.
-        project_id: Project to retrieve the history record from.
-            Required for multi-project organizations.
-        id: The ID of the history record to fetch.
+        project_id: Project associated with the device. Required for multi-project organizations.
+        id: The ID of the time interval record to fetch.
         """
         identifier = _device_identifier(device_id, device_name)
 
         response = self.__session.get(
             self.__url__(
-                f"/v1/devices/{urlquote(identifier, safe='')}/property-history/"
+                f"/v1/devices/{urlquote(identifier, safe='')}/property-time-intervals/"
                 f"{urlquote(id, safe='')}"
             ),
             params=without_nulls({"projectId": project_id}),
         )
-        return _device_custom_property_history_dict(json_or_raise(response))
+        return _device_custom_property_time_interval_dict(json_or_raise(response))
 
-    def get_device_custom_property_history_records(
+    def get_device_custom_property_time_intervals(
         self,
         *,
         device_id: Optional[str] = None,
@@ -1367,19 +1366,18 @@ class Client:
         offset: Optional[int] = None,
     ):
         """
-        Lists device custom property history records.
+        Lists device custom property time intervals.
 
-        device_id: The ID of the device to retrieve history records from.
+        device_id: The ID of the device to retrieve time intervals from.
             Use this or device_name.
-        device_name: The name of the device to retrieve history records from.
+        device_name: The name of the device to retrieve time intervals from.
             Use this or device_id.
-        project_id: Project to retrieve history records from.
-            Required for multi-project organizations.
+        project_id: Project associated with the device. Required for multi-project organizations.
         key: Optional property key to filter by.
-        start: Optionally include records active at or after this time.
-        end: Optionally include records active before this time.
-        limit: Optionally limit the number of history records returned.
-        offset: Optionally offset the history records by this many records.
+        start: Optionally include intervals active at or after this time.
+        end: Optionally include intervals active before this time.
+        limit: Optionally limit the number of time intervals returned.
+        offset: Optionally offset the time intervals by this many intervals.
         """
         identifier = _device_identifier(device_id, device_name)
 
@@ -1394,15 +1392,16 @@ class Client:
 
         response = self.__session.get(
             self.__url__(
-                f"/v1/devices/{urlquote(identifier, safe='')}/property-history"
+                f"/v1/devices/{urlquote(identifier, safe='')}/property-time-intervals"
             ),
             params={k: v for k, v in params.items() if v is not None},
         )
         return [
-            _device_custom_property_history_dict(r) for r in json_or_raise(response)
+            _device_custom_property_time_interval_dict(r)
+            for r in json_or_raise(response)
         ]
 
-    def update_device_custom_property_history(
+    def update_device_custom_property_time_intervals(
         self,
         *,
         device_id: Optional[str] = None,
@@ -1414,17 +1413,16 @@ class Client:
         end: datetime.datetime,
     ):
         """
-        Updates device custom property history over a time range.
+        Updates device custom property time intervals over a time range.
 
         The request is treated as an assertion of truth for the given range,
-        so existing records may be split, trimmed, or deleted as needed.
+        so existing intervals may be split, trimmed, or deleted as needed.
 
-        device_id: The ID of the device to update history for.
+        device_id: The ID of the device to update time intervals for.
             Use this or device_name.
-        device_name: The name of the device to update history for.
+        device_name: The name of the device to update time intervals for.
             Use this or device_id.
-        project_id: Project to update history in.
-            Required for multi-project organizations.
+        project_id: Project associated with the device. Required for multi-project organizations.
         key: The property key to update.
         value: The value to apply over the given time range.
             When omitted, the value will be treated as explicitly unset for that range.
@@ -1440,10 +1438,11 @@ class Client:
             "start": start.astimezone().isoformat(),
             "end": end.astimezone().isoformat(),
         }
-        params["deviceId" if device_id is not None else "deviceName"] = identifier
 
         response = self.__session.post(
-            self.__url__("/v1/actions/devices/update-device-property-history"),
+            self.__url__(
+                f"/v1/actions/devices/{urlquote(identifier, safe='')}/update-property-time-interval"
+            ),
             json=without_nulls(params),
         )
         # This endpoint returns 204 No Content on success (no body)
@@ -1515,7 +1514,7 @@ def _session_dict(session):
     }
 
 
-def _device_custom_property_history_dict(property_history):
+def _device_custom_property_time_interval_dict(property_history):
     end = property_history.get("end")
     return {
         "id": property_history["id"],

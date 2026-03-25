@@ -108,7 +108,7 @@ def test_get_device_custom_property_time_intervals_supports_multiple_keys():
 
 
 @responses.activate
-def test_update_device_custom_property_time_intervals_omits_value_for_clear():
+def test_update_device_custom_property_time_interval_omits_value_for_clear():
     device_name = "Device / Name"
     responses.add(
         responses.POST,
@@ -137,7 +137,7 @@ def test_update_device_custom_property_time_intervals_omits_value_for_clear():
 
 
 @responses.activate
-def test_update_device_custom_property_time_intervals_supports_array_values():
+def test_update_device_custom_property_time_interval_supports_array_values():
     responses.add(
         responses.POST,
         api_url("/v1/actions/devices/device-id/update-property-time-interval"),

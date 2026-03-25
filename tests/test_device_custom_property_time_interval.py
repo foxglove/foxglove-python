@@ -120,7 +120,7 @@ def test_update_device_custom_property_time_intervals_omits_value_for_clear():
     )
 
     client = Client("test")
-    client.update_device_custom_property_time_intervals(
+    client.update_device_custom_property_time_interval(
         device_name=device_name,
         project_id="project-id",
         key="env",
@@ -146,7 +146,7 @@ def test_update_device_custom_property_time_intervals_supports_array_values():
     )
 
     client = Client("test")
-    client.update_device_custom_property_time_intervals(
+    client.update_device_custom_property_time_interval(
         device_id="device-id",
         key="labels",
         value=["one", "two"],

@@ -1412,7 +1412,7 @@ class Client:
             for r in json_or_raise(response)
         ]
 
-    def update_device_custom_property_time_intervals(
+    def update_device_custom_property_time_interval(
         self,
         *,
         device_id: Optional[str] = None,

@@ -87,6 +87,27 @@ def test_get_device_custom_property_time_intervals_uses_path_selector_only():
 
 
 @responses.activate
+def test_get_device_custom_property_time_intervals_supports_multiple_keys():
+    responses.add(
+        responses.GET,
+        api_url("/v1/devices/device-id/property-time-intervals"),
+        json=[],
+    )
+
+    client = Client("test")
+    client.get_device_custom_property_time_intervals(
+        device_id="device-id",
+        project_id="project-id",
+        key=["env", "region"],
+    )
+
+    assert parse_qs(urlparse(responses.calls[0].request.url).query) == {
+        "key": ["env,region"],
+        "projectId": ["project-id"],
+    }
+
+
+@responses.activate
 def test_update_device_custom_property_time_intervals_omits_value_for_clear():
     device_name = "Device / Name"
     responses.add(

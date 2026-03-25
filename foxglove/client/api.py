@@ -1333,7 +1333,7 @@ class Client:
         id: str,
     ):
         """
-        Fetches a single device custom propety time intervalrecord.
+        Fetches a single device custom property time interval record.
 
         device_id: The ID of the device to retrieve the time interval record from.
             Use this or device_name.
@@ -1514,14 +1514,14 @@ def _session_dict(session):
     }
 
 
-def _device_custom_property_time_interval_dict(property_history):
-    end = property_history.get("end")
+def _device_custom_property_time_interval_dict(interval):
+    end = interval.get("end")
     return {
-        "id": property_history["id"],
-        "device_id": property_history["deviceId"],
-        "key": property_history["key"],
-        "value": property_history["value"],
-        "start": arrow.get(property_history["start"]).datetime,
+        "id": interval["id"],
+        "device_id": interval["deviceId"],
+        "key": interval["key"],
+        "value": interval["value"],
+        "start": arrow.get(interval["start"]).datetime,
         "end": arrow.get(end).datetime if end else None,
     }
 

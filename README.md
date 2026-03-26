@@ -2,17 +2,23 @@
 
 [![foxglove-client on PyPI](https://img.shields.io/pypi/v/foxglove-client?label=pypi%20%7C%20foxglove-client)](https://pypi.org/project/foxglove-client/)
 
-This library provides a convenient python client for [Foxglove](https://foxglove.dev/).
+A convenient python client for [Foxglove](https://foxglove.dev/).
 
-In order to use the client you will first have to create an API token for your organization on your organization's [settings page](https://app.foxglove.dev/~/settings).
+## Getting Started
 
-Read more about the API in the [Foxglove API Docs](https://docs.foxglove.dev/api/).
+Install from [PyPi](https://pypi.org/project/foxglove-client/):
 
-## Sample Usage
+```
+pip install foxglove-client
+```
+
+Create an API token for your organization on your organization's [settings page](https://app.foxglove.dev/~/settings) and read more in the [Foxglove API Docs](https://docs.foxglove.dev/api/).
 
 Examples of various client features can be found in the `examples` directory.
 
-## Running Tests
+## Development
+
+### Running Tests
 
 ```bash
 pipenv install --dev
@@ -21,7 +27,7 @@ pipenv run python -m pytest
 
 In addition to unit tests, all PRs that change behavior should also be tested against the Foxglove API.
 
-## Release Process
+### Release Process
 
 Release numbering follows a major.minor.patch format, abbreviated as "X.Y.Z" below.
 

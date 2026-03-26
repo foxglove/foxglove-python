@@ -6,7 +6,7 @@ A convenient python client for [Foxglove](https://foxglove.dev/).
 
 ## Getting Started
 
-Install from [PyPi](https://pypi.org/project/foxglove-client/):
+Install from [PyPI](https://pypi.org/project/foxglove-client/):
 
 ```
 pip install foxglove-client

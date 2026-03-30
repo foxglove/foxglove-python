@@ -662,9 +662,9 @@ class Client:
         :param project_id: Project to retrieve the device from.
             Required for multi-project organizations.
         """
-        identifier = _device_identifier(device_id, device_name)
+        identifier = _device_identifier_for_path(device_id, device_name)
         response = self.__session.get(
-            self.__url__(f"/v1/devices/{urlquote(identifier, safe='')}"),
+            self.__url__(f"/v1/devices/{identifier}"),
             params={"projectId": project_id} if project_id is not None else None,
         )
 
@@ -736,10 +736,10 @@ class Client:
         :param project_id: Project to retrieve the device from.
             Required for multi-project organizations.
         """
-        identifier = _device_identifier(device_id, device_name)
+        identifier = _device_identifier_for_path(device_id, device_name)
 
         response = self.__session.patch(
-            self.__url__(f"/v1/devices/{urlquote(identifier, safe='')}"),
+            self.__url__(f"/v1/devices/{identifier}"),
             params={"projectId": project_id} if project_id is not None else None,
             json=without_nulls({"name": new_name, "properties": properties}),
         )
@@ -763,9 +763,9 @@ class Client:
         :param project_id: Project to delete the device from.
             Required for multi-project organizations.
         """
-        identifier = _device_identifier(device_id, device_name)
+        identifier = _device_identifier_for_path(device_id, device_name)
         response = self.__session.delete(
-            self.__url__(f"/v1/devices/{urlquote(identifier, safe='')}"),
+            self.__url__(f"/v1/devices/{identifier}"),
             params={"projectId": project_id} if project_id is not None else None,
         )
         json_or_raise(response)
@@ -1233,10 +1233,10 @@ class Client:
         session_key: The key of the session to fetch
         project_id: The project ID to fetch the session from.
         """
-        identifier = _session_identifier(session_id, session_key)
+        identifier = _session_identifier_for_path(session_id, session_key)
 
         response = self.__session.get(
-            self.__url__(f"/v1/sessions/{urlquote(identifier, safe='')}"),
+            self.__url__(f"/v1/sessions/{identifier}"),
             params={"projectId": project_id},
         )
         return _session_dict(json_or_raise(response))
@@ -1298,7 +1298,7 @@ class Client:
             Each key must be defined as a custom property for your organization,
             and each value must be of the appropriate type.
         """
-        identifier = _session_identifier(session_id, session_key)
+        identifier = _session_identifier_for_path(session_id, session_key)
 
         params = {
             "addRecordingIds": add_recording_ids,
@@ -1306,7 +1306,7 @@ class Client:
             "properties": properties,
         }
         response = self.__session.patch(
-            self.__url__(f"/v1/sessions/{urlquote(identifier, safe='')}"),
+            self.__url__(f"/v1/sessions/{identifier}"),
             params={"projectId": project_id},
             json={k: v for k, v in params.items() if v is not None},
         )
@@ -1326,10 +1326,10 @@ class Client:
         session_key: The key of the session to delete.
         project_id: The Project ID to which the session belongs.
         """
-        identifier = _session_identifier(session_id, session_key)
+        identifier = _session_identifier_for_path(session_id, session_key)
 
         response = self.__session.delete(
-            self.__url__(f"/v1/sessions/{urlquote(identifier, safe='')}"),
+            self.__url__(f"/v1/sessions/{identifier}"),
             params={"projectId": project_id},
         )
 
@@ -1353,11 +1353,11 @@ class Client:
         project_id: Project associated with the device. Required for multi-project organizations.
         id: The ID of the time interval record to fetch.
         """
-        identifier = _device_identifier(device_id, device_name)
+        identifier = _device_identifier_for_path(device_id, device_name)
 
         response = self.__session.get(
             self.__url__(
-                f"/v1/devices/{urlquote(identifier, safe='')}/property-time-intervals/"
+                f"/v1/devices/{identifier}/property-time-intervals/"
                 f"{urlquote(id, safe='')}"
             ),
             params=without_nulls({"projectId": project_id}),
@@ -1390,7 +1390,7 @@ class Client:
         limit: Optionally limit the number of time intervals returned.
         offset: Optionally offset the time intervals by this many intervals.
         """
-        identifier = _device_identifier(device_id, device_name)
+        identifier = _device_identifier_for_path(device_id, device_name)
 
         params = {
             "projectId": project_id,
@@ -1402,9 +1402,7 @@ class Client:
         }
 
         response = self.__session.get(
-            self.__url__(
-                f"/v1/devices/{urlquote(identifier, safe='')}/property-time-intervals"
-            ),
+            self.__url__(f"/v1/devices/{identifier}/property-time-intervals"),
             params={k: v for k, v in params.items() if v is not None},
         )
         return [
@@ -1440,7 +1438,7 @@ class Client:
         start: Inclusive start of the property's effective time range.
         end: Exclusive end of the property's effective time range.
         """
-        identifier = _device_identifier(device_id, device_name)
+        identifier = _device_identifier_for_path(device_id, device_name)
 
         params: Dict[str, Any] = {
             "projectId": project_id,
@@ -1452,7 +1450,7 @@ class Client:
 
         response = self.__session.post(
             self.__url__(
-                f"/v1/actions/devices/{urlquote(identifier, safe='')}/update-property-time-interval"
+                f"/v1/actions/devices/{identifier}/update-property-time-interval"
             ),
             json=without_nulls(params),
         )
@@ -1473,6 +1471,12 @@ def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -
     return identifier
 
 
+def _session_identifier_for_path(
+    session_id: Optional[str], session_key: Optional[str]
+) -> str:
+    return urlquote(_session_identifier(session_id, session_key), safe="")
+
+
 def _device_identifier(device_id: Optional[str], device_name: Optional[str]) -> str:
     if device_id is not None and device_name is not None:
         raise RuntimeError("device_id and device_name are mutually exclusive")
@@ -1482,6 +1486,12 @@ def _device_identifier(device_id: Optional[str], device_name: Optional[str]) -> 
     identifier = device_id if device_id is not None else device_name
     assert identifier is not None, "one of device_id or device_name must be provided"
     return identifier
+
+
+def _device_identifier_for_path(
+    device_id: Optional[str], device_name: Optional[str]
+) -> str:
+    return urlquote(_device_identifier(device_id, device_name), safe="")
 
 
 def _event_dict(json_event):

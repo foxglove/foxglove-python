@@ -1,4 +1,5 @@
 import datetime
+from urllib.parse import quote
 
 import arrow
 import responses
@@ -93,6 +94,25 @@ def test_get_session_by_key():
     responses.add(
         responses.GET,
         api_url(f"/v1/sessions/{session_key}"),
+        match=[
+            query_string_matcher(f"projectId={project_id}"),
+        ],
+        json=s,
+    )
+    client = Client("test")
+    result = client.get_session(session_key=session_key, project_id=project_id)
+    assert result["key"] == session_key
+    assert result["project_id"] == project_id
+
+
+@responses.activate
+def test_get_session_by_key_quotes_path():
+    session_key = "session / key"
+    project_id = fake.uuid4()
+    s = _make_session_json(key=session_key, project_id=project_id)
+    responses.add(
+        responses.GET,
+        api_url(f"/v1/sessions/{quote(session_key, safe='')}"),
         match=[
             query_string_matcher(f"projectId={project_id}"),
         ],

@@ -1344,7 +1344,7 @@ class Client:
         id: str,
     ):
         """
-        Fetches a single device custom property time interval record.
+        Fetches a single device custom property time interval record for the given device.
 
         device_id: The ID of the device to retrieve the time interval record from.
             Use this or device_name.
@@ -1424,7 +1424,7 @@ class Client:
         end: datetime.datetime,
     ):
         """
-        Updates device custom property time intervals over a time range.
+        Updates device custom property time intervals over a time range for the given device.
 
         The request is treated as an assertion of truth for the given range,
         so existing intervals may be split, trimmed, or deleted as needed.

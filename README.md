@@ -21,8 +21,8 @@ Examples of various client features can be found in the `examples` directory.
 ### Running Tests
 
 ```bash
-pipenv install --dev
-pipenv run python -m pytest
+uv sync
+uv run python -m pytest
 ```
 
 In addition to unit tests, all PRs that change behavior should also be tested against the Foxglove API.
@@ -33,7 +33,7 @@ Release numbering follows a major.minor.patch format, abbreviated as "X.Y.Z" bel
 
 CI will build the package and publish to PyPI once tags are pushed, as described below.
 
-1. Update the `version` in setup.cfg with the new version `X.Y.Z`
+1. Update the `version` in `pyproject.toml` with the new version `X.Y.Z`
 2. Draft a [release on GitHub](https://github.com/foxglove/foxglove-python/releases/new) and create a new tag `releases/vX.Y.Z`
 3. Generate release notes, review, and publish the release
 

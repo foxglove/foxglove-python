@@ -14,18 +14,16 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: astral-sh/setup-uv@v8.0.0
         with:
           python-version: 3.8
-          cache: pipenv
-      - run: pip install pipenv==2022.12.19
-      - run: pipenv install --dev --deploy
-      - run: pipenv run black --check --diff --color --exclude '.*_pb2.py' .
-      - run: pipenv run pyright foxglove
-      - run: pipenv run python -m flake8 foxglove
-      - run: pipenv run python -m flake8 examples
-      - run: pipenv run python -m pytest
-      - run: pipenv run python -m build
+      - run: uv sync --frozen
+      - run: uv run black --check --diff --color --extend-exclude '.*_pb2.py' .
+      - run: uv run pyright foxglove
+      - run: uv run python -m flake8 foxglove
+      - run: uv run python -m flake8 examples
+      - run: uv run python -m pytest
+      - run: uv run python -m build
 
       - name: Publish to TestPyPI
         if: |

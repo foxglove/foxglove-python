@@ -1,6 +1,66 @@
 [build-system]
-requires = [
-    "setuptools>=42",
-    "wheel"
-]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "foxglove-client"
+version = "0.19.1"
+description = "Client library for the Foxglove API."
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = [
+    "arrow",
+    "requests",
+    "typing_extensions",
+    "mcap>=1.1.0",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/foxglove/foxglove-python"
+
+[dependency-groups]
+dev = [
+    "black",
+    "build",
+    "faker",
+    "flake8",
+    "flake8-bugbear",
+    "genmsg==0.5.12",
+    "genpy==0.6.14",
+    "mcap==1.1.0",
+    "mcap-protobuf-support==0.3.0",
+    "mcap-ros1-support==0.7.0",
+    "mcap-ros2-support==0.5.0",
+    "protobuf==4.24.2",
+    "pyright==1.1.324",
+    "pytest",
+    "responses",
+    "std_msgs",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["foxglove*"]
+
+[tool.setuptools.package-data]
+foxglove = ["py.typed"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.uv.sources]
+genmsg = { index = "ros" }
+genpy = { index = "ros" }
+std_msgs = { index = "ros" }
+
+[[tool.uv.index]]
+name = "ros"
+url = "https://rospypi.github.io/simple"
+explicit = true

@@ -73,21 +73,25 @@ def test_get_device_custom_property_time_intervals_uses_path_selector_only():
     client.get_device_custom_property_time_intervals(
         device_name=device_name,
         project_id="project-id",
-        key="env",
+        query='env:"production fleet"',
+        sort_by="start",
+        sort_order="desc",
         limit=5,
         offset=10,
     )
 
     assert parse_qs(urlparse(responses.calls[0].request.url).query) == {
-        "key": ["env"],
+        "query": ['env:"production fleet"'],
         "limit": ["5"],
         "offset": ["10"],
         "projectId": ["project-id"],
+        "sortBy": ["start"],
+        "sortOrder": ["desc"],
     }
 
 
 @responses.activate
-def test_get_device_custom_property_time_intervals_supports_multiple_keys():
+def test_get_device_custom_property_time_intervals_camelizes_sort_by():
     responses.add(
         responses.GET,
         api_url("/v1/devices/device-id/property-time-intervals"),
@@ -98,12 +102,12 @@ def test_get_device_custom_property_time_intervals_supports_multiple_keys():
     client.get_device_custom_property_time_intervals(
         device_id="device-id",
         project_id="project-id",
-        key=["env", "region"],
+        sort_by="start_time",
     )
 
     assert parse_qs(urlparse(responses.calls[0].request.url).query) == {
-        "key": ["env,region"],
         "projectId": ["project-id"],
+        "sortBy": ["startTime"],
     }
 
 

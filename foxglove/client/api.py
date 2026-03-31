@@ -1375,7 +1375,9 @@ class Client:
         device_name: The name of the device to retrieve time intervals from.
             Use this or device_id.
         project_id: Project associated with the device. Required for multi-project organizations.
-        query: Optional query string to filter device property history.
+        query: optional query string to filter property time intervals by metadata.
+            See https://docs.foxglove.dev/api#tag/Devices/paths/~1devices/get for
+            a syntax definition of `query`.
         start: Optionally include intervals active at or after this time.
         end: Optionally include intervals active before this time.
         sort_by: Optionally sort records by this field name.

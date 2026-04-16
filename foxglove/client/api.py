@@ -74,17 +74,6 @@ def bool_query_param(val: bool) -> Optional[str]:
     return str(val).lower() if val is not None else None
 
 
-def comma_separated_query_param(val: Optional[Union[str, List[str]]]) -> Optional[str]:
-    """
-    Serialize a string or list of strings to a comma-separated query parameter.
-    """
-    if val is None:
-        return None
-    if isinstance(val, list):
-        return ",".join(val) if val else None
-    return val
-
-
 def without_nulls(params: Dict[str, Union[T, None]]) -> Dict[str, T]:
     """
     Filter out `None` values from params
@@ -1370,9 +1359,11 @@ class Client:
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
         project_id: Optional[str] = None,
-        key: Optional[Union[str, List[str]]] = None,
+        query: Optional[str] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
     ):
@@ -1384,9 +1375,13 @@ class Client:
         device_name: The name of the device to retrieve time intervals from.
             Use this or device_id.
         project_id: Project associated with the device. Required for multi-project organizations.
-        key: Optional property key or keys to filter by.
+        query: optional query string to filter property time intervals by metadata.
+            See https://docs.foxglove.dev/api#tag/Devices/paths/~1devices/get for
+            a syntax definition of `query`.
         start: Optionally include intervals active at or after this time.
         end: Optionally include intervals active before this time.
+        sort_by: Optionally sort records by this field name.
+        sort_order: Optionally specify the sort order, either "asc" or "desc".
         limit: Optionally limit the number of time intervals returned.
         offset: Optionally offset the time intervals by this many intervals.
         """
@@ -1394,9 +1389,11 @@ class Client:
 
         params = {
             "projectId": project_id,
-            "key": comma_separated_query_param(key),
+            "query": query,
             "start": start.astimezone().isoformat() if start else None,
             "end": end.astimezone().isoformat() if end else None,
+            "sortBy": camelize(sort_by),
+            "sortOrder": sort_order,
             "limit": limit,
             "offset": offset,
         }

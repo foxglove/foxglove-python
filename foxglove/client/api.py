@@ -1031,7 +1031,10 @@ class Client:
         if response.is_redirect:
             location = response.headers.get("Location")
             if location is None:
-                response.raise_for_status()
+                raise requests.exceptions.HTTPError(
+                    "Redirect response missing Location header",
+                    response=response,
+                )
             return _download_stream_with_progress(location, callback=callback)
         return _download_response_with_progress(response, callback=callback)
 

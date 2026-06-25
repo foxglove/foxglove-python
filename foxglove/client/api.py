@@ -156,12 +156,10 @@ def json_or_raise(response: requests.Response):
     return json
 
 
-def _download_stream_with_progress(
-    url: str,
-    session: requests.Session,
+def _download_response_with_progress(
+    response: requests.Response,
     callback: Optional[ProgressCallback] = None,
 ):
-    response = session.get(url, stream=True)
     response.raise_for_status()
     data = BytesIO()
     for chunk in response.iter_content(chunk_size=32 * 1024):
@@ -169,6 +167,14 @@ def _download_stream_with_progress(
         if callback:
             callback(progress=data.tell())
     return data.getvalue()
+
+
+def _download_stream_with_progress(
+    url: str,
+    callback: Optional[ProgressCallback] = None,
+):
+    response = requests.get(url, stream=True)
+    return _download_response_with_progress(response, callback=callback)
 
 
 class Client:
@@ -437,7 +443,7 @@ class Client:
             topics=topics,
             project_id=project_id,
         )
-        response = self.__session.get(stream_link, stream=True)
+        response = requests.get(stream_link, stream=True)
         response.raise_for_status()
         if decoder_factories is None:
             # We deep-copy here as these factories might be mutated
@@ -482,9 +488,7 @@ class Client:
 
         json = json_or_raise(link_response)
 
-        return _download_stream_with_progress(
-            json["link"], self.__session, callback=callback
-        )
+        return _download_stream_with_progress(json["link"], callback=callback)
 
     def _make_stream_link(
         self,
@@ -582,7 +586,6 @@ class Client:
                 compression_format=compression_format,
                 project_id=project_id,
             ),
-            self.__session,
             callback=callback,
         )
 
@@ -1020,11 +1023,17 @@ class Client:
         :param callback: a callback to track download progress
         :returns: The downloaded attachment bytes.
         """
-        return _download_stream_with_progress(
+        response = self.__session.get(
             self.__url__(f"/v1/recording-attachments/{id}/download"),
-            self.__session,
-            callback=callback,
+            stream=True,
+            allow_redirects=False,
         )
+        if response.is_redirect:
+            location = response.headers.get("Location")
+            if location is None:
+                response.raise_for_status()
+            return _download_stream_with_progress(location, callback=callback)
+        return _download_response_with_progress(response, callback=callback)
 
     def get_topics(
         self,
@@ -1147,7 +1156,7 @@ class Client:
 
         link = json["link"]
         buffer = ProgressBufferReader(data, callback=callback)
-        upload_request = self.__session.put(
+        upload_request = requests.put(
             link,
             data=buffer,
             headers={"Content-Type": "application/octet-stream"},

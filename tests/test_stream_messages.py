@@ -19,6 +19,9 @@ def get_generated_data(url, **kwargs):
         def raise_for_status(self):
             return None
 
+        def close(self):
+            return None
+
     return Resp()
 
 

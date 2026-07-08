@@ -20,7 +20,8 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - run: uv sync --frozen --dev
+      - run: uv sync --frozen --dev --python 3.8
+      - run: uv run python -V
       - run: uv run black --check --diff --color .
       - run: uv run pyright foxglove
       - run: uv run python -m flake8 foxglove

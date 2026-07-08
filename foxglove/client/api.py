@@ -7,7 +7,7 @@ import os
 import warnings
 from enum import Enum
 from io import BytesIO
-from typing import IO, Any, Dict, List, Optional, TypeVar, Union
+from typing import IO, Any, Dict, List, Optional, TypeVar, Union, cast
 
 import arrow
 import requests
@@ -174,7 +174,9 @@ def _download_response_with_progress(
 
 def _iter_decoded_messages(response: requests.Response, decoder_factories):
     try:
-        reader = make_reader(response.raw, decoder_factories=decoder_factories)
+        reader = make_reader(
+            cast(IO[bytes], response.raw), decoder_factories=decoder_factories
+        )
         # messages from Foxglove are already in log-time order.
         # specifying log_time_order=false allows us to skip a sort() in the MCAP library
         # after all messages are loaded.

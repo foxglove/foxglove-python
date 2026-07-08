@@ -21,12 +21,12 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --frozen --dev
-      - run: uv run black --check --diff --color --exclude '.*_pb2.py' .
+      - run: uv run black --check --diff --color .
       - run: uv run pyright foxglove
       - run: uv run python -m flake8 foxglove
       - run: uv run python -m flake8 examples
       - run: uv run python -m pytest
-      - run: uv run python -m build
+      - run: uv run python -m build --installer uv
 
       - name: Publish to TestPyPI
         if: |

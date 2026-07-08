@@ -33,10 +33,13 @@ dev = [
     "faker",
     "flake8",
     "flake8-bugbear",
+    "genmsg",
+    "genpy",
     "mcap==1.1.0",
     "mcap-protobuf-support==0.3.0",
     "mcap-ros1-support==0.7.0",
     "mcap-ros2-support==0.5.0",
+    "protobuf==4.24.2",
     "pyright",
     "pytest",
     "responses",
@@ -49,7 +52,12 @@ url = "https://rospypi.github.io/simple"
 explicit = true
 
 [tool.uv.sources]
+"genmsg" = { index = "ros" }
+"genpy" = { index = "ros" }
 "std-msgs" = { index = "ros" }
+
+[tool.black]
+extend-exclude = ".*_pb2.py"
 
 [tool.setuptools]
 include-package-data = true

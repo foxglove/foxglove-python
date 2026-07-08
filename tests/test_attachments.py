@@ -76,3 +76,27 @@ def test_download_attachment():
     client = Client("test")
     response_data = client.download_attachment(id=id)
     assert data == response_data
+
+
+@responses.activate
+def test_download_attachment_signed_url_uses_unauthenticated_request():
+    id = "abcde"
+    download_link = fake.url()
+    data = fake.binary(4096)
+    responses.add(
+        responses.GET,
+        api_url(f"/v1/recording-attachments/{id}/download"),
+        status=302,
+        headers={"Location": download_link},
+    )
+    responses.add(responses.GET, download_link, body=data)
+    client = Client("test")
+
+    response_data = client.download_attachment(id=id)
+
+    assert data == response_data
+    api_request_headers = responses.calls[0].request.headers
+    signed_request_headers = responses.calls[1].request.headers
+    assert api_request_headers.get("Authorization") == "Bearer test"
+    assert "Authorization" not in signed_request_headers
+    assert signed_request_headers.get("Content-Type") is None

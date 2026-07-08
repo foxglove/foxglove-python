@@ -19,10 +19,13 @@ def get_generated_data(url, **kwargs):
         def raise_for_status(self):
             return None
 
+        def close(self):
+            return None
+
     return Resp()
 
 
-@patch("requests.Session.get", side_effect=get_generated_data)
+@patch("requests.get", side_effect=get_generated_data)
 def test_boot(arg):
     client = Client("test")
     client._make_stream_link = MagicMock(return_value="the_link")

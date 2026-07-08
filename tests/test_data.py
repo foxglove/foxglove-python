@@ -33,6 +33,30 @@ def test_download():
 
 
 @responses.activate
+def test_download_signed_url_uses_unauthenticated_request():
+    download_link = fake.url()
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        json={
+            "link": download_link,
+        },
+    )
+    responses.add(responses.GET, download_link, body=fake.binary(4096))
+    client = Client("test")
+
+    client.download_data(
+        device_id="test_id",
+        start=datetime.now(),
+        end=datetime.now(),
+    )
+
+    signed_request_headers = responses.calls[1].request.headers
+    assert "Authorization" not in signed_request_headers
+    assert signed_request_headers.get("Content-Type") is None
+
+
+@responses.activate
 def test_download_with_device_name():
     download_link = fake.url()
     responses.add(
@@ -230,6 +254,30 @@ def test_upload():
         device_id=device_id, filename=filename, data=data
     )
     assert upload_response["link"] == upload_link
+
+
+@responses.activate
+def test_upload_signed_url_uses_unauthenticated_request():
+    upload_link = fake.url()
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/upload"),
+        json={
+            "link": upload_link,
+        },
+    )
+    responses.add(responses.PUT, upload_link)
+    client = Client("test")
+
+    client.upload_data(
+        device_id="test_device_id",
+        filename="test_file.mcap",
+        data=fake.binary(4096),
+    )
+
+    signed_request_headers = responses.calls[1].request.headers
+    assert "Authorization" not in signed_request_headers
+    assert signed_request_headers.get("Content-Type") == "application/octet-stream"
 
 
 @responses.activate

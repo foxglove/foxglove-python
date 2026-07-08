@@ -31,7 +31,7 @@ jobs:
 
       - name: Publish to TestPyPI
         if: |
-          !github.event.pull_request.head.repo.fork &&
+          github.event_name != 'pull_request' &&
           github.actor != 'dependabot[bot]'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

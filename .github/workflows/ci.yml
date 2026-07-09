@@ -29,11 +29,41 @@ jobs:
       - run: uv run python -m pytest
       - run: uv run python -m build --installer uv
 
-      - name: Publish to TestPyPI
+      - name: Check TestPyPI version
+        id: testpypi
         if: |
           github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository &&
           github.actor != 'dependabot[bot]'
+        run: |
+          uv run python - <<'PY' >> "$GITHUB_OUTPUT"
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          import tomli
+
+          project = tomli.loads(Path("pyproject.toml").read_text())["project"]
+          name = project["name"]
+          version = project["version"]
+          url = f"https://test.pypi.org/pypi/{name}/{version}/json"
+
+          try:
+              urllib.request.urlopen(url, timeout=10).close()
+          except urllib.error.HTTPError as error:
+              if error.code != 404:
+                  raise
+              print("publish=true")
+          else:
+              print("publish=false")
+          PY
+
+      - name: Publish to TestPyPI
+        if: |
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.actor != 'dependabot[bot]' &&
+          steps.testpypi.outputs.publish == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist

@@ -13,15 +13,14 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.8
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
       - run: uv sync --frozen --dev --python 3.8
-      - run: uv run python -V
       - run: uv run black --check --diff --color .
       - run: uv run pyright foxglove
       - run: uv run python -m flake8 foxglove
@@ -29,41 +28,11 @@ jobs:
       - run: uv run python -m pytest
       - run: uv run python -m build --installer uv
 
-      - name: Check TestPyPI version
-        id: testpypi
-        if: |
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          github.actor != 'dependabot[bot]'
-        run: |
-          uv run python - <<'PY' >> "$GITHUB_OUTPUT"
-          import urllib.error
-          import urllib.request
-          from pathlib import Path
-
-          import tomli
-
-          project = tomli.loads(Path("pyproject.toml").read_text())["project"]
-          name = project["name"]
-          version = project["version"]
-          url = f"https://test.pypi.org/pypi/{name}/{version}/json"
-
-          try:
-              urllib.request.urlopen(url, timeout=10).close()
-          except urllib.error.HTTPError as error:
-              if error.code != 404:
-                  raise
-              print("publish=true")
-          else:
-              print("publish=false")
-          PY
-
       - name: Publish to TestPyPI
         if: |
           github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository &&
-          github.actor != 'dependabot[bot]' &&
-          steps.testpypi.outputs.publish == 'true'
+          github.actor != 'dependabot[bot]'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist

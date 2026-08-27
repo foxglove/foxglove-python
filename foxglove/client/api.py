@@ -1301,6 +1301,7 @@ class Client:
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
         project_id: str,
+        key: Optional[str] = None,
         add_recording_ids: Optional[List[str]] = None,
         remove_recording_ids: Optional[List[str]] = None,
         properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
@@ -1308,8 +1309,9 @@ class Client:
         """Updates a session.
 
         session_id: The ID of the session to update.
-        session_key: The key of the session to update.
+        session_key: The current key of the session to update.
         project_id: The Project ID to which the session belongs.
+        key: Optional new user-supplied identifier, unique within the project.
         add_recording_ids: IDs of recordings to add to the session.
         remove_recording_ids: IDs of recordings to remove from the session.
         properties: Optional custom properties to add to or edit on the session.
@@ -1319,6 +1321,7 @@ class Client:
         identifier = _session_identifier_for_path(session_id, session_key)
 
         params = {
+            "key": key,
             "addRecordingIds": add_recording_ids,
             "removeRecordingIds": remove_recording_ids,
             "properties": properties,

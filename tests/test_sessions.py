@@ -201,7 +201,7 @@ def test_update_session_key():
     result = client.update_session(
         session_id=session_id,
         project_id=project_id,
-        key=new_key,
+        new_key=new_key,
     )
     assert result["id"] == session_id
     assert result["key"] == new_key
@@ -226,7 +226,7 @@ def test_update_session_key_by_existing_key():
     result = client.update_session(
         session_key=session_key,
         project_id=project_id,
-        key=new_key,
+        new_key=new_key,
     )
     assert result["key"] == new_key
 

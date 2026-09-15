@@ -258,7 +258,7 @@ def test_download_dataset_rejects_editable_version(tmp_path):
 
 
 @responses.activate
-def test_download_dataset_removes_partial_file_and_keeps_completed_files(tmp_path):
+def test_download_dataset_keeps_partial_file_and_completed_files(tmp_path):
     output = tmp_path / "dataset"
     responses.add(
         responses.GET,
@@ -297,12 +297,40 @@ def test_download_dataset_removes_partial_file_and_keeps_completed_files(tmp_pat
             dataset_id="ds_1", version_number=1, output_directory=output
         )
 
-    assert str(raised.value) == "Failed to download dataset episode ep_2"
+    assert str(raised.value) == (
+        f"Failed to download dataset episode ep_2 to {output} "
+        "after downloading 1 episode(s)"
+    )
     assert isinstance(raised.value.__cause__, requests.ConnectionError)
 
     assert (output / "ep_1.mcap").read_bytes() == b"complete"
     assert not (output / "ep_2.mcap").exists()
-    assert not (output / ".ep_2.mcap.part").exists()
+    assert (output / ".ep_2.mcap.part").exists()
+
+
+def test_download_episode_keeps_partial_bytes(tmp_path, monkeypatch):
+    def interrupted_chunks(*, chunk_size):
+        assert chunk_size == 32 * 1024
+        yield b"partial data"
+        raise requests.ConnectionError("interrupted")
+
+    response = MagicMock()
+    response.iter_content.return_value = interrupted_chunks(chunk_size=32 * 1024)
+    get = MagicMock(return_value=response)
+    monkeypatch.setattr(requests, "get", get)
+
+    client = Client("test")
+    client._make_stream_link = MagicMock(
+        return_value="https://storage.example/ep_1.mcap"
+    )
+    output = tmp_path / "ep_1.mcap"
+
+    with pytest.raises(requests.ConnectionError):
+        client._download_episode_to_file(episode_id="ep_1", output_path=output)
+
+    assert not output.exists()
+    assert (tmp_path / ".ep_1.mcap.part").read_bytes() == b"partial data"
+    response.close.assert_called_once()
 
 
 def test_download_dataset_paginates(tmp_path):

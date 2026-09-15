@@ -45,6 +45,10 @@ client.download_dataset(
 The API token needs the relevant `episodes.*` and `datasets.*` capabilities, plus `data.stream` to
 download dataset contents. Datasets must also be enabled for the organization.
 
+Dataset downloads require a new or empty output directory. If an episode download fails, completed
+`.mcap` files and the failed episode's `.part` file remain in the directory. The `.part` file is an
+incomplete download and must not be used as an MCAP file. Retrying requires a new empty directory.
+
 ## Development
 
 ### Running Tests

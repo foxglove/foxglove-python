@@ -1529,7 +1529,12 @@ class Client:
         version_number: int,
         output_directory: Union[str, os.PathLike],
     ) -> Path:
-        """Download every episode in a committed dataset version as an MCAP file."""
+        """Download every episode in a committed dataset version as an MCAP file.
+
+        If a download fails, completed ``.mcap`` files and the failed episode's
+        ``.part`` file remain in ``output_directory``. The partial file is not a
+        valid MCAP file. Retrying requires a new empty output directory.
+        """
         version = self.get_dataset_version(
             dataset_id=dataset_id, version_number=version_number
         )
@@ -1551,6 +1556,7 @@ class Client:
 
         page_size = 2000
         offset = 0
+        completed_episode_count = 0
         while True:
             episodes = self.get_dataset_version_episodes(
                 dataset_id=dataset_id,
@@ -1575,8 +1581,11 @@ class Client:
                     )
                 except Exception as error:
                     raise RuntimeError(
-                        f"Failed to download dataset episode {episode_id}"
+                        f"Failed to download dataset episode {episode_id} to "
+                        f"{destination} after downloading "
+                        f"{completed_episode_count} episode(s)"
                     ) from error
+                completed_episode_count += 1
             if len(episodes) < page_size:
                 break
             offset += page_size
@@ -1585,21 +1594,18 @@ class Client:
 
     def _download_episode_to_file(self, *, episode_id: str, output_path: Path):
         temporary_path = output_path.with_name(f".{output_path.name}.part")
+        temporary_path.touch()
+        response = requests.get(
+            self._make_stream_link(episode_id=episode_id), stream=True
+        )
         try:
-            response = requests.get(
-                self._make_stream_link(episode_id=episode_id), stream=True
-            )
-            try:
-                response.raise_for_status()
-                with temporary_path.open("wb") as output:
-                    for chunk in response.iter_content(chunk_size=32 * 1024):
-                        output.write(chunk)
-                temporary_path.replace(output_path)
-            finally:
-                response.close()
+            response.raise_for_status()
+            with temporary_path.open("wb") as output:
+                for chunk in response.iter_content(chunk_size=32 * 1024):
+                    output.write(chunk)
+            temporary_path.replace(output_path)
         finally:
-            if temporary_path.exists():
-                temporary_path.unlink()
+            response.close()
 
     def upload_data(
         self,

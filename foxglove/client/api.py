@@ -1250,7 +1250,7 @@ class Client:
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
     ):
-        """List episodes in the editable version of a dataset."""
+        """List episodes in a dataset's latest committed version, or its editable first version."""
         return self._get_dataset_episodes(
             dataset_id=dataset_id,
             version_number=None,

@@ -16,6 +16,35 @@ Create an API token for your organization on your organization's [settings page]
 
 Examples of various client features can be found in the `examples` directory.
 
+## Datasets and episodes
+
+Create episodes from recordings, collect them into a versioned dataset, and download a committed
+version as one MCAP file per episode:
+
+```python
+from foxglove.client import Client
+
+client = Client(token="<YOUR API TOKEN HERE>")
+episodes = client.create_episodes(
+    project_id="prj_example",
+    episodes=[{"recordings": ["rec_example"]}],
+)
+dataset = client.create_dataset(
+    project_id="prj_example",
+    name="Training candidates",
+    episode_ids=[episodes[0]["id"]],
+)
+committed = client.commit_dataset(dataset_id=dataset["id"])
+client.download_dataset(
+    dataset_id=dataset["id"],
+    version_number=committed["committed"]["version_number"],
+    output_directory="./training-candidates",
+)
+```
+
+The API token needs the relevant `episodes.*` and `datasets.*` capabilities. Datasets must also be
+enabled for the organization.
+
 ## Development
 
 ### Running Tests

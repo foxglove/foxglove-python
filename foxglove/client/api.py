@@ -41,7 +41,7 @@ class _CreateEpisodeRequired(TypedDict):
     recordings: List[str]
 
 
-class CreateEpisodeInput(_CreateEpisodeRequired, total=False):
+class _CreateEpisodeInput(_CreateEpisodeRequired, total=False):
     """Description of an episode to create or find."""
 
     start_time: datetime.datetime
@@ -1443,7 +1443,7 @@ class Client:
         )
         return _snake_case_dict(json_or_raise(response))
 
-    def create_episodes(self, *, project_id: str, episodes: List[CreateEpisodeInput]):
+    def create_episodes(self, *, project_id: str, episodes: List[_CreateEpisodeInput]):
         """Create episodes or find existing episodes with identical membership and bounds."""
         serialized = []
         for episode in episodes:
@@ -2155,7 +2155,6 @@ def _device_custom_property_time_interval_dict(interval):
 __all__ = [
     "Client",
     "CompressionFormat",
-    "CreateEpisodeInput",
     "FoxgloveException",
     "OutputFormat",
 ]

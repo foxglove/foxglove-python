@@ -42,8 +42,8 @@ client.download_dataset(
 )
 ```
 
-The API token needs the relevant `episodes.*` and `datasets.*` capabilities. Datasets must also be
-enabled for the organization.
+The API token needs the relevant `episodes.*` and `datasets.*` capabilities, plus `data.stream` to
+download dataset contents. Datasets must also be enabled for the organization.
 
 ## Development
 

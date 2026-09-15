@@ -168,3 +168,21 @@ def test_episode_download_rejects_another_identifier():
         client.download_data(episode_id="ep_1", device_id="dev_1")
 
     assert str(raised.value) == "episode_id cannot be combined with another identifier"
+
+
+def test_download_without_episode_requires_time_range():
+    client = Client("test")
+
+    with pytest.raises(RuntimeError) as raised:
+        client.download_data(device_id="dev_1")
+
+    assert str(raised.value) == "start and end must be provided unless using episode_id"
+
+
+def test_get_topics_without_episode_requires_time_range():
+    client = Client("test")
+
+    with pytest.raises(RuntimeError) as raised:
+        client.get_topics(session_id="ses_1")
+
+    assert str(raised.value) == "start and end must be provided unless using episode_id"

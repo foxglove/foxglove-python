@@ -230,6 +230,12 @@ def test_download_dataset(tmp_path):
     assert result == output
     assert (output / "ep_1.mcap").read_bytes() == b"episode data"
     assert not (output / ".ep_1.mcap.part").exists()
+    assert responses.calls[1].request.params == {
+        "sortBy": "startTime",
+        "sortOrder": "asc",
+        "limit": "2000",
+        "offset": "0",
+    }
     assert "Authorization" not in responses.calls[3].request.headers
 
 

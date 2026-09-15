@@ -551,6 +551,8 @@ class Client:
             identifier is not None for identifier in identifiers[:-1]
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
+        if episode_id is None and (start is None or end is None):
+            raise RuntimeError("start and end must be provided unless using episode_id")
 
         params = {
             "deviceId": device_id,
@@ -1112,6 +1114,8 @@ class Client:
             for identifier in [device_id, device_name, session_id, session_key]
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
+        if episode_id is None and (start is None or end is None):
+            raise RuntimeError("start and end must be provided unless using episode_id")
         response = self.__session.get(
             self.__url__("/v1/data/topics"),
             params={
@@ -1555,7 +1559,6 @@ class Client:
                 sort_order="asc",
                 limit=page_size,
                 offset=offset,
-                include_recordings=True,
             )
             for dataset_episode in episodes:
                 if dataset_episode["has_missing_recordings"]:

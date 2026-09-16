@@ -1454,7 +1454,12 @@ class Client:
         }
 
     def create_episodes(self, *, project_id: str, episodes: List[Dict[str, Any]]):
-        """Create episodes, reusing any with identical membership and bounds."""
+        """Create episodes, reusing any with identical membership and bounds.
+
+        :param project_id: Project in which to create the episodes.
+        :param episodes: Episode definitions. Each dictionary requires ``recordings`` and
+            may include ``start_time``, ``end_time``, and ``metadata``.
+        """
         serialized = []
         for episode in episodes:
             start_time = episode.get("start_time")

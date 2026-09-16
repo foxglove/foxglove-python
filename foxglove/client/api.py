@@ -2065,7 +2065,6 @@ def _dataset_dict(dataset):
         "description": dataset.get("description"),
         "creator_org_member_id": dataset.get("creatorOrgMemberId"),
         "creator_api_key_id": dataset.get("creatorApiKeyId"),
-        "creator": dataset.get("creator"),
         "created_at": arrow.get(dataset["createdAt"]).datetime,
         "updated_at": arrow.get(dataset["updatedAt"]).datetime,
     }
@@ -2101,7 +2100,6 @@ def _episode_dict(episode):
         "metadata": episode["metadata"],
         "creator_org_member_id": episode.get("creatorOrgMemberId"),
         "creator_api_key_id": episode.get("creatorApiKeyId"),
-        "creator": episode.get("creator"),
         "created_at": arrow.get(episode["createdAt"]).datetime,
     }
     if recordings is not None:
@@ -2134,7 +2132,6 @@ def _dataset_version_dict(version):
         "committed_at": arrow.get(committed_at).datetime if committed_at else None,
         "committed_by_org_member_id": version.get("committedByOrgMemberId"),
         "committed_by_api_key_id": version.get("committedByApiKeyId"),
-        "committed_by": version.get("committedBy"),
         "episode_count": version["episodeCount"],
         "added_episode_count": version["addedEpisodeCount"],
         "removed_episode_count": version["removedEpisodeCount"],

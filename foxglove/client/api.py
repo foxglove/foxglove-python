@@ -16,7 +16,7 @@ from mcap.decoder import DecoderFactory
 from mcap.reader import make_reader
 from mcap.records import Schema as McapSchema
 from mcap.well_known import MessageEncoding
-from typing_extensions import Protocol, TypedDict
+from typing_extensions import Protocol
 
 
 class _JsonDecoderFactory(DecoderFactory):
@@ -35,16 +35,6 @@ DEFAULT_DECODER_FACTORIES: List[DecoderFactory] = [_JsonDecoderFactory()]
 
 T = TypeVar("T")
 _UNSET = object()
-
-
-class _CreateEpisodeRequired(TypedDict):
-    recordings: List[str]
-
-
-class _CreateEpisodeInput(_CreateEpisodeRequired, total=False):
-    start_time: datetime.datetime
-    end_time: datetime.datetime
-    metadata: Dict[str, Any]
 
 
 try:
@@ -539,14 +529,22 @@ class Client:
     ) -> str:
         if topics is None:
             topics = []
-        identifiers = [device_id, device_name, session_id, session_key, episode_id]
-        if all(identifier is None for identifier in identifiers):
+        if (
+            device_id is None
+            and device_name is None
+            and session_id is None
+            and session_key is None
+            and episode_id is None
+        ):
             raise RuntimeError(
                 "device_id or device_name or session_id or session_key or episode_id "
                 "must be provided"
             )
-        if episode_id is not None and any(
-            identifier is not None for identifier in identifiers[:-1]
+        if episode_id is not None and (
+            device_id is not None
+            or device_name is not None
+            or session_id is not None
+            or session_key is not None
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
         if episode_id is None and (start is None or end is None):
@@ -1107,9 +1105,11 @@ class Client:
         :param episode_id: ID of an episode to list topics from. Its time range is used when
             start and end are omitted.
         """
-        if episode_id is not None and any(
-            identifier is not None
-            for identifier in [device_id, device_name, session_id, session_key]
+        if episode_id is not None and (
+            device_id is not None
+            or device_name is not None
+            or session_id is not None
+            or session_key is not None
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
         if episode_id is None and (start is None or end is None):
@@ -1279,7 +1279,12 @@ class Client:
             self.__url__(f"/v1/datasets/{dataset_id}/episodes"),
             json=without_nulls({"add": add, "remove": remove}),
         )
-        return _snake_case_dict(json_or_raise(response))
+        result = json_or_raise(response)
+        return {
+            "added": result["added"],
+            "removed": result["removed"],
+            "already_present": result["alreadyPresent"],
+        }
 
     def get_dataset_versions(
         self, *, dataset_id: str, sort_order: Optional[str] = None
@@ -1401,10 +1406,7 @@ class Client:
         )
         result = json_or_raise(response)
         return {
-            "changes": [
-                _dataset_episode_dict(change, include_change=True)
-                for change in result["changes"]
-            ],
+            "changes": [_dataset_episode_dict(change) for change in result["changes"]],
             "added_count": result["addedCount"],
             "removed_count": result["removedCount"],
             "next_cursor": result["nextCursor"],
@@ -1426,7 +1428,11 @@ class Client:
         response = self.__session.post(
             self.__url__(f"/v1/datasets/{dataset_id}/discard"), json={}
         )
-        return _snake_case_dict(json_or_raise(response))
+        result = json_or_raise(response)
+        return {
+            "discarded_adds": result["discardedAdds"],
+            "discarded_removes": result["discardedRemoves"],
+        }
 
     def restore_dataset_version(
         self, *, dataset_id: str, version_number: int, force: bool = False
@@ -1439,9 +1445,15 @@ class Client:
             params={"force": bool_query_param(force)},
             json={},
         )
-        return _snake_case_dict(json_or_raise(response))
+        result = json_or_raise(response)
+        return {
+            "added": result["added"],
+            "removed": result["removed"],
+            "discarded_adds": result["discardedAdds"],
+            "discarded_removes": result["discardedRemoves"],
+        }
 
-    def create_episodes(self, *, project_id: str, episodes: List[_CreateEpisodeInput]):
+    def create_episodes(self, *, project_id: str, episodes: List[Dict[str, Any]]):
         """Create episodes, reusing any with identical membership and bounds."""
         serialized = []
         for episode in episodes:
@@ -2040,27 +2052,8 @@ def _session_dict(session):
     }
 
 
-def _snake_case_dict(value):
-    return {_snake_case(key): item for key, item in value.items()}
-
-
-def _snake_case(camel_name: str) -> str:
-    characters = []
-    for character in camel_name:
-        if character.isupper():
-            characters.append("_")
-            characters.append(character.lower())
-        else:
-            characters.append(character)
-    return "".join(characters)
-
-
-def _optional_datetime(value):
-    return arrow.get(value).datetime if value is not None else None
-
-
 def _dataset_dict(dataset):
-    return {
+    result = {
         "id": dataset["id"],
         "project_id": dataset["projectId"],
         "name": dataset["name"],
@@ -2070,11 +2063,16 @@ def _dataset_dict(dataset):
         "creator": dataset.get("creator"),
         "created_at": arrow.get(dataset["createdAt"]).datetime,
         "updated_at": arrow.get(dataset["updatedAt"]).datetime,
-        "episode_count": dataset.get("episodeCount"),
-        "added": dataset.get("added"),
-        "removed": dataset.get("removed"),
-        "already_present": dataset.get("alreadyPresent"),
     }
+    if "episodeCount" in dataset:
+        result["episode_count"] = dataset["episodeCount"]
+    if "added" in dataset:
+        result["added"] = dataset["added"]
+    if "removed" in dataset:
+        result["removed"] = dataset["removed"]
+    if "alreadyPresent" in dataset:
+        result["already_present"] = dataset["alreadyPresent"]
+    return result
 
 
 def _episode_recording_dict(recording):
@@ -2110,23 +2108,25 @@ def _episode_dict(episode):
     return result
 
 
-def _dataset_episode_dict(dataset_episode, *, include_change=False):
+def _dataset_episode_dict(dataset_episode):
     result = {
         "added_at": arrow.get(dataset_episode["addedAt"]).datetime,
         "added_in_version": dataset_episode["addedInVersion"],
-        "has_missing_recordings": dataset_episode.get("hasMissingRecordings"),
         "episode": _episode_dict(dataset_episode["episode"]),
     }
-    if include_change:
+    if "hasMissingRecordings" in dataset_episode:
+        result["has_missing_recordings"] = dataset_episode["hasMissingRecordings"]
+    if "change" in dataset_episode:
         result["change"] = dataset_episode["change"]
     return result
 
 
 def _dataset_version_dict(version):
+    committed_at = version.get("committedAt")
     result = {
         "version_number": version["versionNumber"],
         "created_at": arrow.get(version["createdAt"]).datetime,
-        "committed_at": _optional_datetime(version.get("committedAt")),
+        "committed_at": arrow.get(committed_at).datetime if committed_at else None,
         "committed_by_org_member_id": version.get("committedByOrgMemberId"),
         "committed_by_api_key_id": version.get("committedByApiKeyId"),
         "committed_by": version.get("committedBy"),

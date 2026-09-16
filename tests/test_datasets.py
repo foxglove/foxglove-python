@@ -71,10 +71,18 @@ def _dataset_episode_json(episode_id="ep_1", *, missing=False):
 
 @responses.activate
 def test_dataset_metadata_methods():
-    responses.add(responses.POST, api_url("/v1/datasets"), json=_dataset_json())
+    created_dataset = {
+        **_dataset_json(),
+        "added": 1,
+        "removed": 0,
+        "alreadyPresent": 0,
+    }
+    updated_dataset = _dataset_json()
+    del updated_dataset["episodeCount"]
+    responses.add(responses.POST, api_url("/v1/datasets"), json=created_dataset)
     responses.add(responses.GET, api_url("/v1/datasets"), json=[_dataset_json()])
     responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
-    responses.add(responses.PATCH, api_url("/v1/datasets/ds_1"), json=_dataset_json())
+    responses.add(responses.PATCH, api_url("/v1/datasets/ds_1"), json=updated_dataset)
     responses.add(
         responses.DELETE, api_url("/v1/datasets/ds_1"), json={"success": True}
     )
@@ -95,9 +103,12 @@ def test_dataset_metadata_methods():
 
     assert created["project_id"] == "prj_1"
     assert created["created_at"] == NOW
+    assert created["already_present"] == 0
     assert datasets[0]["episode_count"] == 1
+    assert "added" not in datasets[0]
     assert fetched["name"] == "Successful runs"
     assert updated["description"] == "Training candidates"
+    assert "episode_count" not in updated
     assert json.loads(responses.calls[3].request.body) == {"description": None}
 
 
@@ -127,6 +138,8 @@ def test_dataset_episode_methods():
 def test_dataset_version_methods():
     listed_version = _version_json()
     del listed_version["hasMissingRecordings"]
+    dataset_episode_change = _dataset_episode_json()
+    del dataset_episode_change["hasMissingRecordings"]
     responses.add(
         responses.GET,
         api_url("/v1/datasets/ds_1/versions"),
@@ -146,7 +159,7 @@ def test_dataset_version_methods():
         responses.GET,
         api_url("/v1/datasets/ds_1/versions/2/compare"),
         json={
-            "changes": [{**_dataset_episode_json(), "change": "added"}],
+            "changes": [{**dataset_episode_change, "change": "added"}],
             "addedCount": 1,
             "removedCount": 0,
             "nextCursor": "next",
@@ -171,6 +184,7 @@ def test_dataset_version_methods():
     assert version["has_missing_recordings"] is False
     assert episodes[0]["episode"]["id"] == "ep_1"
     assert comparison["changes"][0]["change"] == "added"
+    assert "has_missing_recordings" not in comparison["changes"][0]
     assert comparison["next_cursor"] == "next"
 
 

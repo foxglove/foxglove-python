@@ -877,7 +877,7 @@ wheels = [
 
 [[package]]
 name = "foxglove-client"
-version = "0.20.0"
+version = "0.19.2"
 source = { editable = "." }
 dependencies = [
     { name = "arrow", version = "1.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.8'" },

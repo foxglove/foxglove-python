@@ -2126,7 +2126,7 @@ def _dataset_episode_dict(dataset_episode, *, include_change=False):
 
 
 def _dataset_version_dict(version):
-    return {
+    result = {
         "version_number": version["versionNumber"],
         "created_at": arrow.get(version["createdAt"]).datetime,
         "committed_at": _optional_datetime(version.get("committedAt")),
@@ -2136,8 +2136,10 @@ def _dataset_version_dict(version):
         "episode_count": version["episodeCount"],
         "added_episode_count": version["addedEpisodeCount"],
         "removed_episode_count": version["removedEpisodeCount"],
-        "has_missing_recordings": version.get("hasMissingRecordings"),
     }
+    if "hasMissingRecordings" in version:
+        result["has_missing_recordings"] = version["hasMissingRecordings"]
+    return result
 
 
 def _device_custom_property_time_interval_dict(interval):

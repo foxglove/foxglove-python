@@ -125,10 +125,12 @@ def test_dataset_episode_methods():
 
 @responses.activate
 def test_dataset_version_methods():
+    listed_version = _version_json()
+    del listed_version["hasMissingRecordings"]
     responses.add(
         responses.GET,
         api_url("/v1/datasets/ds_1/versions"),
-        json={"versions": [_version_json()]},
+        json={"versions": [listed_version]},
     )
     responses.add(
         responses.GET,
@@ -164,7 +166,9 @@ def test_dataset_version_methods():
     )
 
     assert versions[0]["committed_at"] == NOW
+    assert "has_missing_recordings" not in versions[0]
     assert version["version_number"] == 1
+    assert version["has_missing_recordings"] is False
     assert episodes[0]["episode"]["id"] == "ep_1"
     assert comparison["changes"][0]["change"] == "added"
     assert comparison["next_cursor"] == "next"

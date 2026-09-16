@@ -42,8 +42,6 @@ class _CreateEpisodeRequired(TypedDict):
 
 
 class _CreateEpisodeInput(_CreateEpisodeRequired, total=False):
-    """Description of an episode to create or find."""
-
     start_time: datetime.datetime
     end_time: datetime.datetime
     metadata: Dict[str, Any]
@@ -1174,7 +1172,7 @@ class Client:
         description: Optional[str] = None,
         episode_ids: Optional[List[str]] = None,
     ):
-        """Create a dataset, optionally containing an initial set of episodes."""
+        """Create a dataset, optionally seeding its first version with episodes."""
         response = self.__session.post(
             self.__url__("/v1/datasets"),
             json=without_nulls(
@@ -1197,7 +1195,7 @@ class Client:
         limit: Optional[int] = None,
         offset: Optional[int] = None,
     ):
-        """List datasets."""
+        """Return a filtered, sorted page of datasets."""
         response = self.__session.get(
             self.__url__("/v1/datasets"),
             params=without_nulls(
@@ -1213,7 +1211,7 @@ class Client:
         return [_dataset_dict(dataset) for dataset in json_or_raise(response)]
 
     def get_dataset(self, *, dataset_id: str):
-        """Get a dataset by ID."""
+        """Return dataset metadata and its current episode count."""
         response = self.__session.get(self.__url__(f"/v1/datasets/{dataset_id}"))
         return _dataset_dict(json_or_raise(response))
 
@@ -1236,7 +1234,7 @@ class Client:
         return _dataset_dict(json_or_raise(response))
 
     def delete_dataset(self, *, dataset_id: str):
-        """Delete a dataset."""
+        """Delete a dataset without deleting its episodes."""
         response = self.__session.delete(self.__url__(f"/v1/datasets/{dataset_id}"))
         json_or_raise(response)
 
@@ -1254,7 +1252,7 @@ class Client:
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
     ):
-        """List episodes in a dataset's latest committed version, or its editable first version."""
+        """Return the latest committed membership, or the initial editable membership."""
         return self._get_dataset_episodes(
             dataset_id=dataset_id,
             version_number=None,
@@ -1276,7 +1274,7 @@ class Client:
         add: Optional[List[str]] = None,
         remove: Optional[List[str]] = None,
     ):
-        """Add and remove episodes in the editable dataset version."""
+        """Stage episode additions and removals in the editable version."""
         response = self.__session.patch(
             self.__url__(f"/v1/datasets/{dataset_id}/episodes"),
             json=without_nulls({"add": add, "remove": remove}),
@@ -1286,7 +1284,7 @@ class Client:
     def get_dataset_versions(
         self, *, dataset_id: str, sort_order: Optional[str] = None
     ):
-        """List a dataset's versions."""
+        """Return committed versions and the current editable version."""
         response = self.__session.get(
             self.__url__(f"/v1/datasets/{dataset_id}/versions"),
             params=without_nulls({"sortOrder": sort_order}),
@@ -1297,7 +1295,7 @@ class Client:
         ]
 
     def get_dataset_version(self, *, dataset_id: str, version_number: int):
-        """Get a dataset version by number."""
+        """Return one version, including its recording availability."""
         response = self.__session.get(
             self.__url__(f"/v1/datasets/{dataset_id}/versions/{version_number}")
         )
@@ -1318,7 +1316,7 @@ class Client:
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
     ):
-        """List episodes in a specific dataset version."""
+        """Return episode membership as it appeared in a specific version."""
         return self._get_dataset_episodes(
             dataset_id=dataset_id,
             version_number=version_number,
@@ -1387,7 +1385,7 @@ class Client:
         cursor: Optional[str] = None,
         include_recordings: bool = False,
     ):
-        """Compare a target dataset version with a base version."""
+        """Return membership changes from ``base_version`` to ``version_number``."""
         response = self.__session.get(
             self.__url__(
                 f"/v1/datasets/{dataset_id}/versions/{version_number}/compare"
@@ -1413,7 +1411,7 @@ class Client:
         }
 
     def commit_dataset(self, *, dataset_id: str):
-        """Commit the editable dataset version."""
+        """Commit staged changes and open the next editable version."""
         response = self.__session.post(
             self.__url__(f"/v1/datasets/{dataset_id}/commit"), json={}
         )
@@ -1424,7 +1422,7 @@ class Client:
         }
 
     def discard_dataset(self, *, dataset_id: str):
-        """Discard changes in the editable dataset version."""
+        """Discard staged changes from the editable version."""
         response = self.__session.post(
             self.__url__(f"/v1/datasets/{dataset_id}/discard"), json={}
         )
@@ -1433,7 +1431,7 @@ class Client:
     def restore_dataset_version(
         self, *, dataset_id: str, version_number: int, force: bool = False
     ):
-        """Stage changes that restore a previous dataset version."""
+        """Stage the membership changes needed to restore a previous version."""
         response = self.__session.post(
             self.__url__(
                 f"/v1/datasets/{dataset_id}/versions/{version_number}/restore"
@@ -1444,7 +1442,7 @@ class Client:
         return _snake_case_dict(json_or_raise(response))
 
     def create_episodes(self, *, project_id: str, episodes: List[_CreateEpisodeInput]):
-        """Create episodes or find existing episodes with identical membership and bounds."""
+        """Create episodes, reusing any with identical membership and bounds."""
         serialized = []
         for episode in episodes:
             start_time = episode.get("start_time")
@@ -1483,7 +1481,7 @@ class Client:
         offset: Optional[int] = None,
         include_recordings: bool = False,
     ):
-        """List episodes."""
+        """Return a filtered page of episodes, optionally with recording details."""
         response = self.__session.get(
             self.__url__("/v1/episodes"),
             params=without_nulls(
@@ -1510,7 +1508,7 @@ class Client:
         ]
 
     def get_episode(self, *, episode_id: str, include_recordings: bool = False):
-        """Get an episode by ID."""
+        """Return an episode, optionally with recording details."""
         response = self.__session.get(
             self.__url__(f"/v1/episodes/{episode_id}"),
             params={"include": "recordings"} if include_recordings else None,
@@ -1518,7 +1516,7 @@ class Client:
         return _episode_dict(json_or_raise(response))
 
     def delete_episode(self, *, episode_id: str):
-        """Delete an episode that does not belong to a dataset."""
+        """Delete an episode if it does not belong to a dataset."""
         response = self.__session.delete(self.__url__(f"/v1/episodes/{episode_id}"))
         json_or_raise(response)
 

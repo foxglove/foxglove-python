@@ -1530,8 +1530,7 @@ class Client:
         """Download every episode in a committed dataset version as an MCAP file.
 
         If a download fails, completed ``.mcap`` files and the failed episode's
-        ``.part`` file remain in ``output_directory``. The partial file is not a
-        valid MCAP file. Retrying requires a new empty output directory.
+        ``.part`` file remain in ``output_directory``.
         """
         version = self.get_dataset_version(
             dataset_id=dataset_id, version_number=version_number

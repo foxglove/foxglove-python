@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import responses
@@ -79,7 +79,8 @@ def test_get_episodes_maps_response_and_filters():
 
     episodes = Client("test").get_episodes(
         project_id="prj_1",
-        start=NOW,
+        start=NOW - timedelta(minutes=1),
+        end=NOW,
         has_missing_recordings=False,
         recording_id="rec_1",
         sort_by="start_time",
@@ -95,7 +96,8 @@ def test_get_episodes_maps_response_and_filters():
     assert episodes[0]["has_missing_recordings"] is False
     assert responses.calls[0].request.params == {
         "projectId": "prj_1",
-        "start": NOW.astimezone().isoformat(),
+        "start": (NOW - timedelta(minutes=1)).astimezone().isoformat(),
+        "end": NOW.astimezone().isoformat(),
         "hasMissingRecordings": "false",
         "recordingId": "rec_1",
         "sortBy": "startTime",

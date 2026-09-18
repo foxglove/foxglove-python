@@ -1252,7 +1252,11 @@ class Client:
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
     ):
-        """Return the latest committed membership, or the initial editable membership."""
+        """Return the latest committed membership, or the initial editable membership.
+
+        Supply ``start`` and ``end`` together to filter episodes whose time windows
+        overlap the specified range.
+        """
         return self._get_dataset_episodes(
             dataset_id=dataset_id,
             version_number=None,
@@ -1321,7 +1325,11 @@ class Client:
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
     ):
-        """Return episode membership as it appeared in a specific version."""
+        """Return episode membership as it appeared in a specific version.
+
+        Supply ``start`` and ``end`` together to filter episodes whose time windows
+        overlap the specified range.
+        """
         return self._get_dataset_episodes(
             dataset_id=dataset_id,
             version_number=version_number,
@@ -1498,7 +1506,11 @@ class Client:
         offset: Optional[int] = None,
         include_recordings: bool = False,
     ):
-        """Return a filtered page of episodes, optionally with recording details."""
+        """Return a filtered page of episodes, optionally with recording details.
+
+        Supply ``start`` and ``end`` together to filter episodes whose time windows
+        overlap the specified range.
+        """
         response = self.__session.get(
             self.__url__("/v1/episodes"),
             params=without_nulls(

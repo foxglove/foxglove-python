@@ -40,3 +40,24 @@ def test_boot(arg):
         count += 1
 
     assert count == 10
+
+
+@patch("requests.get", side_effect=get_generated_data)
+def test_iter_messages_by_episode(_get):
+    client = Client("test")
+    client._make_stream_link = MagicMock(return_value="the_link")
+
+    messages = list(client.iter_messages(episode_id="ep_1"))
+
+    assert len(messages) == 10
+    client._make_stream_link.assert_called_once_with(
+        device_id=None,
+        device_name=None,
+        session_id=None,
+        session_key=None,
+        start=None,
+        end=None,
+        topics=[],
+        project_id=None,
+        episode_id="ep_1",
+    )

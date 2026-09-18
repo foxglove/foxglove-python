@@ -7,6 +7,7 @@ import os
 import warnings
 from enum import Enum
 from io import BytesIO
+from pathlib import Path
 from typing import IO, Any, Dict, List, Optional, TypeVar, Union, cast
 
 import arrow
@@ -33,6 +34,7 @@ class _JsonDecoderFactory(DecoderFactory):
 DEFAULT_DECODER_FACTORIES: List[DecoderFactory] = [_JsonDecoderFactory()]
 
 T = TypeVar("T")
+_UNSET = object()
 
 
 try:
@@ -425,11 +427,12 @@ class Client:
         device_name: Optional[str] = None,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        start: datetime.datetime,
-        end: datetime.datetime,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
         topics: Optional[List[str]] = None,
         decoder_factories: Optional[List[DecoderFactory]] = None,
         project_id: Optional[str] = None,
+        episode_id: Optional[str] = None,
     ):
         """
         yields a stream of (schema, channel, message, decoded message) values.
@@ -446,6 +449,8 @@ class Client:
             used to decode message content.
         project_id: The id of the project associated with the device. Required when using
             device_name as an identifier in multi-project organizations.
+        episode_id: ID of an episode to download. Its time range is used when start and end
+            are omitted.
         """
         if topics is None:
             topics = []
@@ -458,6 +463,7 @@ class Client:
             end=end,
             topics=topics,
             project_id=project_id,
+            episode_id=episode_id,
         )
         response = requests.get(stream_link, stream=True)
         try:
@@ -513,12 +519,13 @@ class Client:
         device_name: Optional[str] = None,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        start: datetime.datetime,
-        end: datetime.datetime,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
         topics: Optional[List[str]] = None,
         output_format: OutputFormat = OutputFormat.mcap,
         compression_format: Optional[CompressionFormat] = None,
         project_id: Optional[str] = None,
+        episode_id: Optional[str] = None,
     ) -> str:
         if topics is None:
             topics = []
@@ -527,19 +534,31 @@ class Client:
             and device_name is None
             and session_id is None
             and session_key is None
+            and episode_id is None
         ):
             raise RuntimeError(
-                "device_id or device_name or session_id or session_key must be provided"
+                "device_id or device_name or session_id or session_key or episode_id "
+                "must be provided"
             )
+        if episode_id is not None and (
+            device_id is not None
+            or device_name is not None
+            or session_id is not None
+            or session_key is not None
+        ):
+            raise RuntimeError("episode_id cannot be combined with another identifier")
+        if episode_id is None and (start is None or end is None):
+            raise RuntimeError("start and end must be provided unless using episode_id")
 
         params = {
             "deviceId": device_id,
             "deviceName": device_name,
             "sessionId": session_id,
             "sessionKey": session_key,
-            "end": end.astimezone().isoformat(),
+            "episodeId": episode_id,
+            "end": end.astimezone().isoformat() if end else None,
             "outputFormat": output_format.value,
-            "start": start.astimezone().isoformat(),
+            "start": start.astimezone().isoformat() if start else None,
             "topics": topics,
             "projectId": project_id,
         }
@@ -561,13 +580,14 @@ class Client:
         device_name: Optional[str] = None,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        start: datetime.datetime,
-        end: datetime.datetime,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
         topics: Optional[List[str]] = None,
         output_format: OutputFormat = OutputFormat.mcap,
         compression_format: Optional[CompressionFormat] = None,
         callback: Optional[ProgressCallback] = None,
         project_id: Optional[str] = None,
+        episode_id: Optional[str] = None,
     ) -> bytes:
         """
         Returns raw data bytes for a device and time range.
@@ -586,6 +606,8 @@ class Client:
             for more info https://docs.foxglove.dev/api#tag/Stream-data/paths/~1data~1stream/post
         project_id: The id of the project associated with the device. Required when using
             device_name as an identifier in multi-project organizations.
+        episode_id: ID of an episode to download. Its time range is used when start and end
+            are omitted.
         """
         if topics is None:
             topics = []
@@ -601,6 +623,7 @@ class Client:
                 output_format=output_format,
                 compression_format=compression_format,
                 project_id=project_id,
+                episode_id=episode_id,
             ),
             callback=callback,
         )
@@ -1060,12 +1083,13 @@ class Client:
         *,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
-        start: datetime.datetime,
-        end: datetime.datetime,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
         include_schemas: bool = False,
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
+        episode_id: Optional[str] = None,
     ):
         """
         List topics.
@@ -1078,18 +1102,30 @@ class Client:
         :param project_id: Optional Project to filter topics by.
         :param session_id: ID of a session to list topics from
         :param session_key: Key of a session to list topics from
+        :param episode_id: ID of an episode to list topics from. Its time range is used when
+            start and end are omitted.
         """
+        if episode_id is not None and (
+            device_id is not None
+            or device_name is not None
+            or session_id is not None
+            or session_key is not None
+        ):
+            raise RuntimeError("episode_id cannot be combined with another identifier")
+        if episode_id is None and (start is None or end is None):
+            raise RuntimeError("start and end must be provided unless using episode_id")
         response = self.__session.get(
             self.__url__("/v1/data/topics"),
             params={
                 "deviceId": device_id,
                 "deviceName": device_name,
-                "start": start.astimezone().isoformat(),
-                "end": end.astimezone().isoformat(),
+                "start": start.astimezone().isoformat() if start else None,
+                "end": end.astimezone().isoformat() if end else None,
                 "includeSchemas": "true" if include_schemas else "false",
                 "projectId": project_id,
                 "sessionId": session_id,
                 "sessionKey": session_key,
+                "episodeId": episode_id,
             },
         )
 
@@ -1127,6 +1163,475 @@ class Client:
             }
             for p in json
         ]
+
+    def create_dataset(
+        self,
+        *,
+        project_id: str,
+        name: str,
+        description: Optional[str] = None,
+        episode_ids: Optional[List[str]] = None,
+    ):
+        """Create a dataset, optionally seeding its first version with episodes."""
+        response = self.__session.post(
+            self.__url__("/v1/datasets"),
+            json=without_nulls(
+                {
+                    "projectId": project_id,
+                    "name": name,
+                    "description": description,
+                    "episodeIds": episode_ids,
+                }
+            ),
+        )
+        return _dataset_dict(json_or_raise(response))
+
+    def get_datasets(
+        self,
+        *,
+        project_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """Return a filtered, sorted page of datasets."""
+        response = self.__session.get(
+            self.__url__("/v1/datasets"),
+            params=without_nulls(
+                {
+                    "projectId": project_id,
+                    "sortBy": camelize(sort_by),
+                    "sortOrder": sort_order,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ),
+        )
+        return [_dataset_dict(dataset) for dataset in json_or_raise(response)]
+
+    def get_dataset(self, *, dataset_id: str):
+        """Return dataset metadata and its current episode count."""
+        response = self.__session.get(self.__url__(f"/v1/datasets/{dataset_id}"))
+        return _dataset_dict(json_or_raise(response))
+
+    def update_dataset(
+        self,
+        *,
+        dataset_id: str,
+        name: Optional[str] = None,
+        description: Any = _UNSET,
+    ):
+        """Update a dataset. Pass ``description=None`` to clear its description."""
+        params = {}
+        if name is not None:
+            params["name"] = name
+        if description is not _UNSET:
+            params["description"] = description
+        response = self.__session.patch(
+            self.__url__(f"/v1/datasets/{dataset_id}"), json=params
+        )
+        return _dataset_dict(json_or_raise(response))
+
+    def delete_dataset(self, *, dataset_id: str):
+        """Delete a dataset without deleting its episodes."""
+        response = self.__session.delete(self.__url__(f"/v1/datasets/{dataset_id}"))
+        json_or_raise(response)
+
+    def get_dataset_episodes(
+        self,
+        *,
+        dataset_id: str,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        has_missing_recordings: Optional[bool] = None,
+        recording_id: Optional[str] = None,
+        include_recordings: bool = False,
+    ):
+        """Return the latest committed membership, or the initial editable membership.
+
+        Supply ``start`` and ``end`` together to filter episodes whose time windows
+        overlap the specified range.
+        """
+        return self._get_dataset_episodes(
+            dataset_id=dataset_id,
+            version_number=None,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            limit=limit,
+            offset=offset,
+            start=start,
+            end=end,
+            has_missing_recordings=has_missing_recordings,
+            recording_id=recording_id,
+            include_recordings=include_recordings,
+        )
+
+    def update_dataset_episodes(
+        self,
+        *,
+        dataset_id: str,
+        add: Optional[List[str]] = None,
+        remove: Optional[List[str]] = None,
+    ):
+        """Stage episode additions and removals in the editable version."""
+        response = self.__session.patch(
+            self.__url__(f"/v1/datasets/{dataset_id}/episodes"),
+            json=without_nulls({"add": add, "remove": remove}),
+        )
+        result = json_or_raise(response)
+        return {
+            "added": result["added"],
+            "removed": result["removed"],
+            "already_present": result["alreadyPresent"],
+        }
+
+    def get_dataset_versions(
+        self, *, dataset_id: str, sort_order: Optional[str] = None
+    ):
+        """Return committed versions and the current editable version."""
+        response = self.__session.get(
+            self.__url__(f"/v1/datasets/{dataset_id}/versions"),
+            params=without_nulls({"sortOrder": sort_order}),
+        )
+        return [
+            _dataset_version_dict(version)
+            for version in json_or_raise(response)["versions"]
+        ]
+
+    def get_dataset_version(self, *, dataset_id: str, version_number: int):
+        """Return one version, including its recording availability."""
+        response = self.__session.get(
+            self.__url__(f"/v1/datasets/{dataset_id}/versions/{version_number}")
+        )
+        return _dataset_version_dict(json_or_raise(response))
+
+    def get_dataset_version_episodes(
+        self,
+        *,
+        dataset_id: str,
+        version_number: int,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        has_missing_recordings: Optional[bool] = None,
+        recording_id: Optional[str] = None,
+        include_recordings: bool = False,
+    ):
+        """Return episode membership as it appeared in a specific version.
+
+        Supply ``start`` and ``end`` together to filter episodes whose time windows
+        overlap the specified range.
+        """
+        return self._get_dataset_episodes(
+            dataset_id=dataset_id,
+            version_number=version_number,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            limit=limit,
+            offset=offset,
+            start=start,
+            end=end,
+            has_missing_recordings=has_missing_recordings,
+            recording_id=recording_id,
+            include_recordings=include_recordings,
+        )
+
+    def _get_dataset_episodes(
+        self,
+        *,
+        dataset_id: str,
+        version_number: Optional[int],
+        sort_by: Optional[str],
+        sort_order: Optional[str],
+        limit: Optional[int],
+        offset: Optional[int],
+        start: Optional[datetime.datetime],
+        end: Optional[datetime.datetime],
+        has_missing_recordings: Optional[bool],
+        recording_id: Optional[str],
+        include_recordings: bool,
+    ):
+        path = f"/v1/datasets/{dataset_id}"
+        if version_number is not None:
+            path += f"/versions/{version_number}"
+        path += "/episodes"
+        response = self.__session.get(
+            self.__url__(path),
+            params=without_nulls(
+                {
+                    "sortBy": camelize(sort_by),
+                    "sortOrder": sort_order,
+                    "limit": limit,
+                    "offset": offset,
+                    "start": start.astimezone().isoformat() if start else None,
+                    "end": end.astimezone().isoformat() if end else None,
+                    "hasMissingRecordings": (
+                        bool_query_param(has_missing_recordings)
+                        if has_missing_recordings is not None
+                        else None
+                    ),
+                    "recordingId": recording_id,
+                    "include": "recordings" if include_recordings else None,
+                }
+            ),
+        )
+        return [
+            _dataset_episode_dict(episode)
+            for episode in json_or_raise(response)["episodes"]
+        ]
+
+    def compare_dataset_versions(
+        self,
+        *,
+        dataset_id: str,
+        version_number: int,
+        base_version: int,
+        limit: Optional[int] = None,
+        cursor: Optional[str] = None,
+        include_recordings: bool = False,
+    ):
+        """Return membership changes from ``base_version`` to ``version_number``."""
+        response = self.__session.get(
+            self.__url__(
+                f"/v1/datasets/{dataset_id}/versions/{version_number}/compare"
+            ),
+            params=without_nulls(
+                {
+                    "version": base_version,
+                    "limit": limit,
+                    "cursor": cursor,
+                    "include": "recordings" if include_recordings else None,
+                }
+            ),
+        )
+        result = json_or_raise(response)
+        return {
+            "changes": [_dataset_episode_dict(change) for change in result["changes"]],
+            "added_count": result["addedCount"],
+            "removed_count": result["removedCount"],
+            "next_cursor": result["nextCursor"],
+        }
+
+    def commit_dataset(self, *, dataset_id: str):
+        """Commit staged changes and open the next editable version."""
+        response = self.__session.post(
+            self.__url__(f"/v1/datasets/{dataset_id}/commit"), json={}
+        )
+        result = json_or_raise(response)
+        return {
+            "committed": _dataset_version_dict(result["committed"]),
+            "editable_version_number": result["editableVersionNumber"],
+        }
+
+    def discard_dataset(self, *, dataset_id: str):
+        """Discard staged changes from the editable version."""
+        response = self.__session.post(
+            self.__url__(f"/v1/datasets/{dataset_id}/discard"), json={}
+        )
+        result = json_or_raise(response)
+        return {
+            "discarded_adds": result["discardedAdds"],
+            "discarded_removes": result["discardedRemoves"],
+        }
+
+    def restore_dataset_version(
+        self, *, dataset_id: str, version_number: int, force: bool = False
+    ):
+        """Stage the membership changes needed to restore a previous version."""
+        response = self.__session.post(
+            self.__url__(
+                f"/v1/datasets/{dataset_id}/versions/{version_number}/restore"
+            ),
+            params={"force": bool_query_param(force)},
+            json={},
+        )
+        result = json_or_raise(response)
+        return {
+            "added": result["added"],
+            "removed": result["removed"],
+            "discarded_adds": result["discardedAdds"],
+            "discarded_removes": result["discardedRemoves"],
+        }
+
+    def create_episodes(self, *, project_id: str, episodes: List[Dict[str, Any]]):
+        """Create episodes, reusing any with identical membership and bounds.
+
+        :param project_id: Project in which to create the episodes.
+        :param episodes: Episode definitions. Each dictionary requires ``recordings`` and
+            may include ``start_time``, ``end_time``, and ``metadata``.
+        """
+        serialized = []
+        for episode in episodes:
+            start_time = episode.get("start_time")
+            end_time = episode.get("end_time")
+            serialized.append(
+                without_nulls(
+                    {
+                        "recordings": episode["recordings"],
+                        "startTime": (
+                            start_time.astimezone().isoformat() if start_time else None
+                        ),
+                        "endTime": (
+                            end_time.astimezone().isoformat() if end_time else None
+                        ),
+                        "metadata": episode.get("metadata"),
+                    }
+                )
+            )
+        response = self.__session.post(
+            self.__url__("/v1/episodes"),
+            json={"projectId": project_id, "episodes": serialized},
+        )
+        return json_or_raise(response)["episodes"]
+
+    def get_episodes(
+        self,
+        *,
+        project_id: Optional[str] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        has_missing_recordings: Optional[bool] = None,
+        recording_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        include_recordings: bool = False,
+    ):
+        """Return a filtered page of episodes, optionally with recording details.
+
+        Supply ``start`` and ``end`` together to filter episodes whose time windows
+        overlap the specified range.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/episodes"),
+            params=without_nulls(
+                {
+                    "projectId": project_id,
+                    "start": start.astimezone().isoformat() if start else None,
+                    "end": end.astimezone().isoformat() if end else None,
+                    "hasMissingRecordings": (
+                        bool_query_param(has_missing_recordings)
+                        if has_missing_recordings is not None
+                        else None
+                    ),
+                    "recordingId": recording_id,
+                    "sortBy": camelize(sort_by),
+                    "sortOrder": sort_order,
+                    "limit": limit,
+                    "offset": offset,
+                    "include": "recordings" if include_recordings else None,
+                }
+            ),
+        )
+        return [
+            _episode_dict(episode) for episode in json_or_raise(response)["episodes"]
+        ]
+
+    def get_episode(self, *, episode_id: str, include_recordings: bool = False):
+        """Return an episode, optionally with recording details."""
+        response = self.__session.get(
+            self.__url__(f"/v1/episodes/{episode_id}"),
+            params={"include": "recordings"} if include_recordings else None,
+        )
+        return _episode_dict(json_or_raise(response))
+
+    def delete_episode(self, *, episode_id: str):
+        """Delete an episode if it does not belong to a dataset."""
+        response = self.__session.delete(self.__url__(f"/v1/episodes/{episode_id}"))
+        json_or_raise(response)
+
+    def download_dataset(
+        self,
+        *,
+        dataset_id: str,
+        version_number: int,
+        output_directory: Union[str, os.PathLike],
+    ) -> Path:
+        """Download every episode in a committed dataset version as an MCAP file.
+
+        If a download fails, completed ``.mcap`` files and the failed episode's
+        ``.part`` file remain in ``output_directory``.
+        """
+        version = self.get_dataset_version(
+            dataset_id=dataset_id, version_number=version_number
+        )
+        if version["committed_at"] is None:
+            raise RuntimeError("Cannot download an editable dataset version")
+        if version["has_missing_recordings"]:
+            raise RuntimeError(
+                "Cannot download a dataset version with missing recordings"
+            )
+
+        destination = Path(output_directory)
+        if destination.exists():
+            if not destination.is_dir():
+                raise RuntimeError("output_directory must be a directory")
+            if any(destination.iterdir()):
+                raise RuntimeError("output_directory must be empty")
+        else:
+            destination.mkdir(parents=True)
+
+        page_size = 2000
+        offset = 0
+        completed_episode_count = 0
+        while True:
+            episodes = self.get_dataset_version_episodes(
+                dataset_id=dataset_id,
+                version_number=version_number,
+                sort_by="start_time",
+                sort_order="asc",
+                limit=page_size,
+                offset=offset,
+            )
+            for dataset_episode in episodes:
+                if dataset_episode["has_missing_recordings"]:
+                    raise RuntimeError(
+                        "Cannot download episode "
+                        f"{dataset_episode['episode']['id']} with missing recordings"
+                    )
+            for dataset_episode in episodes:
+                episode_id = dataset_episode["episode"]["id"]
+                try:
+                    self._download_episode_to_file(
+                        episode_id=episode_id,
+                        output_path=destination / f"{episode_id}.mcap",
+                    )
+                except Exception as error:
+                    raise RuntimeError(
+                        f"Failed to download dataset episode {episode_id} to "
+                        f"{destination} after downloading "
+                        f"{completed_episode_count} episode(s)"
+                    ) from error
+                completed_episode_count += 1
+            if len(episodes) < page_size:
+                break
+            offset += page_size
+
+        return destination
+
+    def _download_episode_to_file(self, *, episode_id: str, output_path: Path):
+        temporary_path = output_path.with_name(f".{output_path.name}.part")
+        temporary_path.touch()
+        response = requests.get(
+            self._make_stream_link(episode_id=episode_id), stream=True
+        )
+        try:
+            response.raise_for_status()
+            with temporary_path.open("wb") as output:
+                for chunk in response.iter_content(chunk_size=32 * 1024):
+                    output.write(chunk)
+            temporary_path.replace(output_path)
+        finally:
+            response.close()
 
     def upload_data(
         self,
@@ -1564,6 +2069,90 @@ def _session_dict(session):
     }
 
 
+def _dataset_dict(dataset):
+    result = {
+        "id": dataset["id"],
+        "project_id": dataset["projectId"],
+        "name": dataset["name"],
+        "description": dataset.get("description"),
+        "creator_org_member_id": dataset.get("creatorOrgMemberId"),
+        "creator_api_key_id": dataset.get("creatorApiKeyId"),
+        "created_at": arrow.get(dataset["createdAt"]).datetime,
+        "updated_at": arrow.get(dataset["updatedAt"]).datetime,
+    }
+    if "episodeCount" in dataset:
+        result["episode_count"] = dataset["episodeCount"]
+    if "added" in dataset:
+        result["added"] = dataset["added"]
+    if "removed" in dataset:
+        result["removed"] = dataset["removed"]
+    if "alreadyPresent" in dataset:
+        result["already_present"] = dataset["alreadyPresent"]
+    return result
+
+
+def _episode_recording_dict(recording):
+    return {
+        "id": recording["id"],
+        "path": recording["path"],
+        "start": arrow.get(recording["start"]).datetime,
+        "end": arrow.get(recording["end"]).datetime,
+        "device_id": recording.get("deviceId"),
+        "available": recording["available"],
+    }
+
+
+def _episode_dict(episode):
+    recordings = episode.get("recordings")
+    result = {
+        "id": episode["id"],
+        "project_id": episode["projectId"],
+        "start_time": arrow.get(episode["startTime"]).datetime,
+        "end_time": arrow.get(episode["endTime"]).datetime,
+        "metadata": episode["metadata"],
+        "creator_org_member_id": episode.get("creatorOrgMemberId"),
+        "creator_api_key_id": episode.get("creatorApiKeyId"),
+        "created_at": arrow.get(episode["createdAt"]).datetime,
+    }
+    if recordings is not None:
+        result["recordings"] = [
+            _episode_recording_dict(recording) for recording in recordings
+        ]
+    if "hasMissingRecordings" in episode:
+        result["has_missing_recordings"] = episode["hasMissingRecordings"]
+    return result
+
+
+def _dataset_episode_dict(dataset_episode):
+    result = {
+        "added_at": arrow.get(dataset_episode["addedAt"]).datetime,
+        "added_in_version": dataset_episode["addedInVersion"],
+        "episode": _episode_dict(dataset_episode["episode"]),
+    }
+    if "hasMissingRecordings" in dataset_episode:
+        result["has_missing_recordings"] = dataset_episode["hasMissingRecordings"]
+    if "change" in dataset_episode:
+        result["change"] = dataset_episode["change"]
+    return result
+
+
+def _dataset_version_dict(version):
+    committed_at = version.get("committedAt")
+    result = {
+        "version_number": version["versionNumber"],
+        "created_at": arrow.get(version["createdAt"]).datetime,
+        "committed_at": arrow.get(committed_at).datetime if committed_at else None,
+        "committed_by_org_member_id": version.get("committedByOrgMemberId"),
+        "committed_by_api_key_id": version.get("committedByApiKeyId"),
+        "episode_count": version["episodeCount"],
+        "added_episode_count": version["addedEpisodeCount"],
+        "removed_episode_count": version["removedEpisodeCount"],
+    }
+    if "hasMissingRecordings" in version:
+        result["has_missing_recordings"] = version["hasMissingRecordings"]
+    return result
+
+
 def _device_custom_property_time_interval_dict(interval):
     end = interval.get("end")
     return {
@@ -1576,4 +2165,9 @@ def _device_custom_property_time_interval_dict(interval):
     }
 
 
-__all__ = ["Client", "CompressionFormat", "FoxgloveException", "OutputFormat"]
+__all__ = [
+    "Client",
+    "CompressionFormat",
+    "FoxgloveException",
+    "OutputFormat",
+]

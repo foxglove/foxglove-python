@@ -1,4 +1,5 @@
 import json
+import io
 import datetime
 import warnings
 from pathlib import Path
@@ -7,6 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 import responses
+from mcap.reader import make_reader
+from mcap.writer import Writer
 
 from foxglove.client import Client, DatasetDownloadWarning
 from foxglove.client.dataset_download import selection_digest, export_dataset
@@ -54,6 +57,53 @@ def run_download(tmp_path, **kwargs):
     )
 
 
+@responses.activate
+def test_dataset_download_preserves_attachments_and_manifest_paths(tmp_path):
+    mock_selection(count=1, missing=False)
+    data = io.BytesIO()
+    writer = Writer(data)
+    writer.start()
+    writer.add_attachment(0, 0, "calibration.json", "application/json", b'{"scale": 1}')
+    writer.finish()
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        json={"link": "https://storage.example/episode.mcap"},
+    )
+    responses.add(
+        responses.GET, "https://storage.example/episode.mcap", body=data.getvalue()
+    )
+    output = run_download(tmp_path, topics=["/camera"])
+    request = json.loads(responses.calls[3].request.body)
+    assert request["includeAttachments"] is True
+    assert request["topics"] == ["/camera"]
+    manifest = json.loads((output / "manifest.json").read_text())
+    path = output / manifest["episodes"][0]["file"]
+    assert path.parent == output
+    with path.open("rb") as stream:
+        attachments = list(make_reader(stream).iter_attachments())
+    assert len(attachments) == 1
+    assert attachments[0].name == "calibration.json"
+    assert attachments[0].data == b'{"scale": 1}'
+
+
+@pytest.mark.parametrize("include", [None, False, True])
+@responses.activate
+def test_stream_attachment_option_preserves_default(include):
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        json={"link": "https://storage.example"},
+    )
+    kwargs = {} if include is None else {"include_attachments": include}
+    Client("test")._make_stream_link(episode_id="ep_1", **kwargs)
+    body = json.loads(responses.calls[0].request.body)
+    if include is None:
+        assert "includeAttachments" not in body
+    else:
+        assert body["includeAttachments"] is include
+
+
 @pytest.mark.parametrize("topics", [None, [], ["/a"]])
 @responses.activate
 def test_partial_and_skipped_episodes(tmp_path, topics):
@@ -77,6 +127,7 @@ def test_partial_and_skipped_episodes(tmp_path, topics):
     for call in responses.calls:
         if call.request.method == "POST":
             assert json.loads(call.request.body)["topics"] == (topics or [])
+            assert json.loads(call.request.body)["includeAttachments"] is True
     assert not list(tmp_path.glob("*.part"))
 
 

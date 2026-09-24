@@ -69,9 +69,17 @@ existing list return values. `get_topics()` supports `limit` and `offset`: reque
 with increasing offsets until a page contains fewer items than the requested limit.
 
 Dataset downloads require a new or empty output directory and write `episode_0000_<id>.mcap` files
-plus an app-format `manifest.json`. Pass `topics=["/camera", "/joint_states"]` to select topics;
+plus a `manifest.json` using the app's schema and selection digest. MCAP downloads include
+recording attachments, matching the app. Pass `topics=["/camera", "/joint_states"]` to select topics;
 omitting `topics` or passing `[]` downloads all topics. The exporter gathers episode metadata across
 all pages to identify the selection, then streams each MCAP directly to disk.
+
+In Python exports, each manifest `file` path is relative to the returned `output_directory`,
+which also contains `manifest.json`: resolve it as `output_directory / entry["file"]`.
+The app's ZIP exports instead use ZIP-root-relative paths such as
+`dataset-v1/episode_0000_<id>.mcap`, with the manifest also inside `dataset-v1/`.
+Do not resolve app ZIP paths relative to the manifest's directory. Python exports do not
+add that enclosing archive folder.
 
 Read the manifest to check completeness: successful episodes have `status: "downloaded"`, a relative
 `file` path, and `byteSize`. `episodeHasMissingRecordings: true` marks a download containing only the

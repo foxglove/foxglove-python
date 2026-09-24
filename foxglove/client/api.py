@@ -534,6 +534,7 @@ class Client:
         compression_format: Optional[CompressionFormat] = None,
         project_id: Optional[str] = None,
         episode_id: Optional[str] = None,
+        include_attachments: Optional[bool] = None,
     ) -> str:
         if topics is None:
             topics = []
@@ -564,6 +565,7 @@ class Client:
             "sessionId": session_id,
             "sessionKey": session_key,
             "episodeId": episode_id,
+            "includeAttachments": include_attachments,
             "end": end.astimezone().isoformat() if end else None,
             "outputFormat": output_format.value,
             "start": start.astimezone().isoformat() if start else None,
@@ -1631,7 +1633,11 @@ class Client:
         output_directory: Union[str, os.PathLike],
         topics: Optional[List[str]] = None,
     ) -> Path:
-        """Export a committed version to MCAP files and an app-format manifest.json.
+        """Export a committed version to MCAP files (including attachments) and a manifest.
+
+        The manifest uses the app's schema and selection digest, but ``file`` paths
+        are relative to the returned output directory, which contains manifest.json.
+        App ZIP exports instead use paths relative to the ZIP root.
 
         ``topics`` selects topics; None or [] downloads all topics. Episodes with
         some missing recordings are downloaded partially and flagged in the manifest.
@@ -1690,7 +1696,9 @@ class Client:
     ) -> int:
         return download_episode(
             output_path,
-            lambda: self._make_stream_link(episode_id=episode_id, topics=topics),
+            lambda: self._make_stream_link(
+                episode_id=episode_id, topics=topics, include_attachments=True
+            ),
         )
 
     def upload_data(

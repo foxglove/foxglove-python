@@ -23,5 +23,12 @@ output_directory = client.download_dataset(
     dataset_id=dataset["id"],
     version_number=commit["committed"]["version_number"],
     output_directory=Path("training-candidates"),
+    # topics=["/camera", "/joint_states"],  # Omit to download all topics.
 )
-print(f"Downloaded dataset to {output_directory}")
+print(f"Exported dataset to {output_directory}")
+print("Check manifest.json for partial, skipped, or failed episodes")
+
+# A list call fetches one page. Automatic iteration follows cursors as needed.
+page = client.get_dataset_versions(dataset_id=dataset["id"], limit=100)
+for version in page.auto_paging_iter():
+    print(version["version_number"], version["episode_count"])

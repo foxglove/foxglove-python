@@ -8,7 +8,7 @@ import warnings
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-from typing import IO, Any, Dict, List, Optional, TypeVar, Union, cast
+from typing import IO, Any, Callable, Dict, List, Optional, TypeVar, Union, cast
 
 import arrow
 import requests
@@ -17,6 +17,9 @@ from mcap.reader import make_reader
 from mcap.records import Schema as McapSchema
 from mcap.well_known import MessageEncoding
 from typing_extensions import Protocol
+
+from .pagination import Page
+from .dataset_download import download_episode, export_dataset
 
 
 class _JsonDecoderFactory(DecoderFactory):
@@ -35,6 +38,11 @@ DEFAULT_DECODER_FACTORIES: List[DecoderFactory] = [_JsonDecoderFactory()]
 
 T = TypeVar("T")
 _UNSET = object()
+
+
+def _validate_episode_range(start, end):
+    if (start is None) != (end is None):
+        raise ValueError("start and end must be supplied together")
 
 
 try:
@@ -150,7 +158,7 @@ def json_or_raise(response: requests.Response):
             "500 Server Error: Unexpected format", response=response
         )
 
-    if 400 <= response.status_code < 500:
+    if 400 <= response.status_code < 500 and isinstance(json, dict):
         response.reason = json.get("error", response.reason)
 
     response.raise_for_status()
@@ -1090,6 +1098,8 @@ class Client:
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
         episode_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
     ):
         """
         List topics.
@@ -1104,6 +1114,8 @@ class Client:
         :param session_key: Key of a session to list topics from
         :param episode_id: ID of an episode to list topics from. Its time range is used when
             start and end are omitted.
+        :param limit: Maximum topics in this page (server default and maximum: 2000).
+        :param offset: Number of topics to skip to retrieve a subsequent page.
         """
         if episode_id is not None and (
             device_id is not None
@@ -1126,6 +1138,8 @@ class Client:
                 "sessionId": session_id,
                 "sessionKey": session_key,
                 "episodeId": episode_id,
+                "limit": limit,
+                "offset": offset,
             },
         )
 
@@ -1190,25 +1204,60 @@ class Client:
         self,
         *,
         project_id: Optional[str] = None,
+        name: Optional[str] = None,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
+        cursor: Optional[str] = None,
     ):
-        """Return a filtered, sorted page of datasets."""
-        response = self.__session.get(
-            self.__url__("/v1/datasets"),
+        """Return a Page of datasets; name is a case-insensitive substring filter.
+
+        ``limit`` is the page size. Use ``cursor`` for continuation; ``offset`` is
+        deprecated. Use ``page.auto_paging_iter()`` to traverse all matching items.
+        """
+        return self._get_page(
+            "/v1/datasets",
+            _dataset_dict,
             params=without_nulls(
                 {
                     "projectId": project_id,
+                    "name": name,
                     "sortBy": camelize(sort_by),
                     "sortOrder": sort_order,
                     "limit": limit,
                     "offset": offset,
+                    "cursor": cursor,
                 }
             ),
         )
-        return [_dataset_dict(dataset) for dataset in json_or_raise(response)]
+
+    def _get_page(
+        self,
+        path: str,
+        mapper: Callable[[Any], T],
+        *,
+        params: Dict[str, Any],
+        collection: Optional[str] = None,
+    ) -> Page[T]:
+        if params.get("cursor") is not None and params.get("offset", 0) != 0:
+            raise ValueError("cursor cannot be combined with a nonzero offset")
+        response = self.__session.get(self.__url__(path), params=params)
+        result = json_or_raise(response)
+        items = result[collection] if collection else result
+
+        def fetch_page(cursor: str) -> Page[T]:
+            return self._get_page(
+                path, mapper, params={**params, "cursor": cursor}, collection=collection
+            )
+
+        return Page(
+            [mapper(item) for item in items],
+            next_cursor=response.headers.get("fg-pagination-next-cursor"),
+            previous_cursor=response.headers.get("fg-pagination-previous-cursor"),
+            fetch_page=fetch_page,
+            legacy_offset=params.get("offset", 0) != 0,
+        )
 
     def get_dataset(self, *, dataset_id: str):
         """Return dataset metadata and its current episode count."""
@@ -1246,16 +1295,18 @@ class Client:
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
+        cursor: Optional[str] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
     ):
-        """Return the latest committed membership, or the initial editable membership.
+        """Return a Page of the latest committed or initial editable membership.
 
-        Supply ``start`` and ``end`` together to filter episodes whose time windows
-        overlap the specified range.
+        Supply ``start`` and ``end`` together to filter overlapping episode windows.
+        ``limit`` is page size; ``cursor`` continues a page and ``offset`` is deprecated.
+        Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
         return self._get_dataset_episodes(
             dataset_id=dataset_id,
@@ -1264,6 +1315,7 @@ class Client:
             sort_order=sort_order,
             limit=limit,
             offset=offset,
+            cursor=cursor,
             start=start,
             end=end,
             has_missing_recordings=has_missing_recordings,
@@ -1291,17 +1343,32 @@ class Client:
         }
 
     def get_dataset_versions(
-        self, *, dataset_id: str, sort_order: Optional[str] = None
+        self,
+        *,
+        dataset_id: str,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        cursor: Optional[str] = None,
+        offset: Optional[int] = None,
     ):
-        """Return committed versions and the current editable version."""
-        response = self.__session.get(
-            self.__url__(f"/v1/datasets/{dataset_id}/versions"),
-            params=without_nulls({"sortOrder": sort_order}),
+        """Return a Page of committed versions and the current editable version.
+
+        ``limit`` is page size; ``cursor`` continues a page and ``offset`` is deprecated.
+        Use ``page.auto_paging_iter()`` to traverse all versions.
+        """
+        return self._get_page(
+            f"/v1/datasets/{dataset_id}/versions",
+            _dataset_version_dict,
+            collection="versions",
+            params=without_nulls(
+                {
+                    "sortOrder": sort_order,
+                    "limit": limit,
+                    "cursor": cursor,
+                    "offset": offset,
+                }
+            ),
         )
-        return [
-            _dataset_version_dict(version)
-            for version in json_or_raise(response)["versions"]
-        ]
 
     def get_dataset_version(self, *, dataset_id: str, version_number: int):
         """Return one version, including its recording availability."""
@@ -1319,16 +1386,18 @@ class Client:
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
+        cursor: Optional[str] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
     ):
-        """Return episode membership as it appeared in a specific version.
+        """Return a Page of episode membership in a specific version.
 
-        Supply ``start`` and ``end`` together to filter episodes whose time windows
-        overlap the specified range.
+        Supply ``start`` and ``end`` together to filter overlapping episode windows.
+        ``limit`` is page size; ``cursor`` continues a page and ``offset`` is deprecated.
+        Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
         return self._get_dataset_episodes(
             dataset_id=dataset_id,
@@ -1337,6 +1406,7 @@ class Client:
             sort_order=sort_order,
             limit=limit,
             offset=offset,
+            cursor=cursor,
             start=start,
             end=end,
             has_missing_recordings=has_missing_recordings,
@@ -1353,24 +1423,29 @@ class Client:
         sort_order: Optional[str],
         limit: Optional[int],
         offset: Optional[int],
+        cursor: Optional[str],
         start: Optional[datetime.datetime],
         end: Optional[datetime.datetime],
         has_missing_recordings: Optional[bool],
         recording_id: Optional[str],
         include_recordings: bool,
     ):
+        _validate_episode_range(start, end)
         path = f"/v1/datasets/{dataset_id}"
         if version_number is not None:
             path += f"/versions/{version_number}"
         path += "/episodes"
-        response = self.__session.get(
-            self.__url__(path),
+        return self._get_page(
+            path,
+            _dataset_episode_dict,
+            collection="episodes",
             params=without_nulls(
                 {
                     "sortBy": camelize(sort_by),
                     "sortOrder": sort_order,
                     "limit": limit,
                     "offset": offset,
+                    "cursor": cursor,
                     "start": start.astimezone().isoformat() if start else None,
                     "end": end.astimezone().isoformat() if end else None,
                     "hasMissingRecordings": (
@@ -1383,10 +1458,6 @@ class Client:
                 }
             ),
         )
-        return [
-            _dataset_episode_dict(episode)
-            for episode in json_or_raise(response)["episodes"]
-        ]
 
     def compare_dataset_versions(
         self,
@@ -1504,15 +1575,20 @@ class Client:
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
+        cursor: Optional[str] = None,
         include_recordings: bool = False,
     ):
-        """Return a filtered page of episodes, optionally with recording details.
+        """Return a Page of episodes, optionally with recording details.
 
-        Supply ``start`` and ``end`` together to filter episodes whose time windows
-        overlap the specified range.
+        Supply ``start`` and ``end`` together to filter overlapping episode windows.
+        ``limit`` is page size; ``cursor`` continues a page and ``offset`` is deprecated.
+        Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
-        response = self.__session.get(
-            self.__url__("/v1/episodes"),
+        _validate_episode_range(start, end)
+        return self._get_page(
+            "/v1/episodes",
+            _episode_dict,
+            collection="episodes",
             params=without_nulls(
                 {
                     "projectId": project_id,
@@ -1528,13 +1604,11 @@ class Client:
                     "sortOrder": sort_order,
                     "limit": limit,
                     "offset": offset,
+                    "cursor": cursor,
                     "include": "recordings" if include_recordings else None,
                 }
             ),
         )
-        return [
-            _episode_dict(episode) for episode in json_or_raise(response)["episodes"]
-        ]
 
     def get_episode(self, *, episode_id: str, include_recordings: bool = False):
         """Return an episode, optionally with recording details."""
@@ -1555,83 +1629,65 @@ class Client:
         dataset_id: str,
         version_number: int,
         output_directory: Union[str, os.PathLike],
+        topics: Optional[List[str]] = None,
     ) -> Path:
-        """Download every episode in a committed dataset version as an MCAP file.
+        """Export a committed version to MCAP files and an app-format manifest.json.
 
-        If a download fails, completed ``.mcap`` files and the failed episode's
-        ``.part`` file remain in ``output_directory``.
+        ``topics`` selects topics; None or [] downloads all topics. Episodes with
+        some missing recordings are downloaded partially and flagged in the manifest.
+        Episodes with no streamable recordings are skipped. Other request failures
+        before streaming are recorded and the export continues; if all attempts fail,
+        this raises after writing the manifest. An all-skipped export succeeds.
+
+        Interrupted transfers or filesystem failures stop the export and preserve
+        completed MCAPs and the failed episode's .part file. The manifest is written
+        if possible before re-raising. Its entries may then be incomplete, while
+        selection.episodeCount still describes the selected version. Retrying requires
+        a new or empty directory. .part files must not be treated as complete MCAPs.
         """
         version = self.get_dataset_version(
             dataset_id=dataset_id, version_number=version_number
         )
         if version["committed_at"] is None:
             raise RuntimeError("Cannot download an editable dataset version")
-        if version["has_missing_recordings"]:
-            raise RuntimeError(
-                "Cannot download a dataset version with missing recordings"
-            )
-
         destination = Path(output_directory)
         if destination.exists():
             if not destination.is_dir():
                 raise RuntimeError("output_directory must be a directory")
             if any(destination.iterdir()):
                 raise RuntimeError("output_directory must be empty")
-        else:
-            destination.mkdir(parents=True)
-
-        page_size = 2000
-        offset = 0
-        completed_episode_count = 0
-        while True:
-            episodes = self.get_dataset_version_episodes(
+        dataset = self.get_dataset(dataset_id=dataset_id)
+        # Capture the complete selection before transfers, so even an interrupted
+        # export has the same selection digest as the app. MCAP bytes stay streamed.
+        episodes = list(
+            self.get_dataset_version_episodes(
                 dataset_id=dataset_id,
                 version_number=version_number,
                 sort_by="start_time",
                 sort_order="asc",
-                limit=page_size,
-                offset=offset,
-            )
-            for dataset_episode in episodes:
-                if dataset_episode["has_missing_recordings"]:
-                    raise RuntimeError(
-                        "Cannot download episode "
-                        f"{dataset_episode['episode']['id']} with missing recordings"
-                    )
-            for dataset_episode in episodes:
-                episode_id = dataset_episode["episode"]["id"]
-                try:
-                    self._download_episode_to_file(
-                        episode_id=episode_id,
-                        output_path=destination / f"{episode_id}.mcap",
-                    )
-                except Exception as error:
-                    raise RuntimeError(
-                        f"Failed to download dataset episode {episode_id} to "
-                        f"{destination} after downloading "
-                        f"{completed_episode_count} episode(s)"
-                    ) from error
-                completed_episode_count += 1
-            if len(episodes) < page_size:
-                break
-            offset += page_size
-
-        return destination
-
-    def _download_episode_to_file(self, *, episode_id: str, output_path: Path):
-        temporary_path = output_path.with_name(f".{output_path.name}.part")
-        temporary_path.touch()
-        response = requests.get(
-            self._make_stream_link(episode_id=episode_id), stream=True
+                limit=2000,
+            ).auto_paging_iter()
         )
-        try:
-            response.raise_for_status()
-            with temporary_path.open("wb") as output:
-                for chunk in response.iter_content(chunk_size=32 * 1024):
-                    output.write(chunk)
-            temporary_path.replace(output_path)
-        finally:
-            response.close()
+        destination.mkdir(parents=True, exist_ok=True)
+        selected_topics = list(topics) if topics else None
+        return export_dataset(
+            dataset=dataset,
+            version=version,
+            episodes=episodes,
+            destination=destination,
+            topics=selected_topics,
+            download=lambda episode_id, output_path: self._download_episode_to_file(
+                episode_id=episode_id, output_path=output_path, topics=selected_topics
+            ),
+        )
+
+    def _download_episode_to_file(
+        self, *, episode_id: str, output_path: Path, topics: Optional[List[str]] = None
+    ) -> int:
+        return download_episode(
+            output_path,
+            lambda: self._make_stream_link(episode_id=episode_id, topics=topics),
+        )
 
     def upload_data(
         self,
@@ -2099,6 +2155,7 @@ def _episode_recording_dict(recording):
         "end": arrow.get(recording["end"]).datetime,
         "device_id": recording.get("deviceId"),
         "available": recording["available"],
+        "resolvable": recording["resolvable"],
     }
 
 

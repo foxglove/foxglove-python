@@ -29,6 +29,7 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
                 "start": NOW.isoformat(),
                 "end": NOW.replace(minute=1).isoformat(),
                 "available": True,
+                "resolvable": True,
             }
         ]
     return episode
@@ -104,8 +105,8 @@ def test_dataset_metadata_methods():
     assert created["project_id"] == "prj_1"
     assert created["created_at"] == NOW
     assert created["already_present"] == 0
-    assert datasets[0]["episode_count"] == 1
-    assert "added" not in datasets[0]
+    assert datasets.items[0]["episode_count"] == 1
+    assert "added" not in datasets.items[0]
     assert fetched["name"] == "Successful runs"
     assert updated["description"] == "Training candidates"
     assert "episode_count" not in updated
@@ -129,8 +130,8 @@ def test_dataset_episode_methods():
     episodes = client.get_dataset_episodes(dataset_id="ds_1", include_recordings=True)
     result = client.update_dataset_episodes(dataset_id="ds_1", add=["ep_1"])
 
-    assert episodes[0]["episode"]["id"] == "ep_1"
-    assert episodes[0]["added_at"] == NOW
+    assert episodes.items[0]["episode"]["id"] == "ep_1"
+    assert episodes.items[0]["added_at"] == NOW
     assert result == {"added": 1, "removed": 0, "already_present": 0}
 
 
@@ -178,11 +179,11 @@ def test_dataset_version_methods():
         cursor="cursor",
     )
 
-    assert versions[0]["committed_at"] == NOW
-    assert "has_missing_recordings" not in versions[0]
+    assert versions.items[0]["committed_at"] == NOW
+    assert "has_missing_recordings" not in versions.items[0]
     assert version["version_number"] == 1
     assert version["has_missing_recordings"] is False
-    assert episodes[0]["episode"]["id"] == "ep_1"
+    assert episodes.items[0]["episode"]["id"] == "ep_1"
     assert comparison["changes"][0]["change"] == "added"
     assert "has_missing_recordings" not in comparison["changes"][0]
     assert comparison["next_cursor"] == "next"
@@ -222,6 +223,7 @@ def test_dataset_version_actions():
 @responses.activate
 def test_download_dataset(tmp_path):
     output = tmp_path / "dataset"
+    responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
     responses.add(
         responses.GET,
         api_url("/v1/datasets/ds_1/versions/1"),
@@ -246,15 +248,34 @@ def test_download_dataset(tmp_path):
     )
 
     assert result == output
-    assert (output / "ep_1.mcap").read_bytes() == b"episode data"
-    assert not (output / ".ep_1.mcap.part").exists()
-    assert responses.calls[1].request.params == {
+    assert (output / "episode_0000_ep_1.mcap").read_bytes() == b"episode data"
+    assert not (output / ".episode_0000_ep_1.mcap.part").exists()
+    assert responses.calls[2].request.params == {
         "sortBy": "startTime",
         "sortOrder": "asc",
         "limit": "2000",
-        "offset": "0",
     }
-    assert "Authorization" not in responses.calls[3].request.headers
+    assert "Authorization" not in responses.calls[4].request.headers
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["formatVersion"] == 1
+    assert manifest["dataset"] == {
+        "id": "ds_1",
+        "name": "Successful runs",
+        "projectId": "prj_1",
+    }
+    assert manifest["episodes"] == [
+        {
+            "index": 0,
+            "id": "ep_1",
+            "file": "episode_0000_ep_1.mcap",
+            "startTime": NOW.isoformat(),
+            "endTime": NOW.replace(minute=1).isoformat(),
+            "metadata": {},
+            "byteSize": 12,
+            "status": "downloaded",
+            "episodeHasMissingRecordings": False,
+        }
+    ]
 
 
 @responses.activate
@@ -276,8 +297,9 @@ def test_download_dataset_rejects_editable_version(tmp_path):
 
 
 @responses.activate
-def test_download_dataset_keeps_partial_file_and_completed_files(tmp_path):
+def test_download_dataset_continues_after_request_failure(tmp_path):
     output = tmp_path / "dataset"
+    responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
     responses.add(
         responses.GET,
         api_url("/v1/datasets/ds_1/versions/1"),
@@ -310,20 +332,16 @@ def test_download_dataset_keeps_partial_file_and_completed_files(tmp_path):
         body=requests.ConnectionError("interrupted"),
     )
 
-    with pytest.raises(RuntimeError) as raised:
-        Client("test").download_dataset(
-            dataset_id="ds_1", version_number=1, output_directory=output
-        )
-
-    assert str(raised.value) == (
-        f"Failed to download dataset episode ep_2 to {output} "
-        "after downloading 1 episode(s)"
+    Client("test").download_dataset(
+        dataset_id="ds_1", version_number=1, output_directory=output
     )
-    assert isinstance(raised.value.__cause__, requests.ConnectionError)
-
-    assert (output / "ep_1.mcap").read_bytes() == b"complete"
-    assert not (output / "ep_2.mcap").exists()
-    assert (output / ".ep_2.mcap.part").exists()
+    assert (output / "episode_0000_ep_1.mcap").read_bytes() == b"complete"
+    assert not (output / "episode_0001_ep_2.mcap").exists()
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert [entry["status"] for entry in manifest["episodes"]] == [
+        "downloaded",
+        "failed",
+    ]
 
 
 def test_download_episode_keeps_partial_bytes(tmp_path, monkeypatch):
@@ -351,30 +369,32 @@ def test_download_episode_keeps_partial_bytes(tmp_path, monkeypatch):
     response.close.assert_called_once()
 
 
+@responses.activate
 def test_download_dataset_paginates(tmp_path):
     client = Client("test")
-    client.get_dataset_version = MagicMock(
-        return_value={"committed_at": NOW, "has_missing_recordings": False}
+    responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
+    responses.add(
+        responses.GET,
+        api_url("/v1/datasets/ds_1/versions/1"),
+        json={**_version_json(), "episodeCount": 2001},
     )
-    first_page = [
-        {
-            "episode": {"id": f"ep_{index}"},
-            "has_missing_recordings": False,
-        }
-        for index in range(2000)
-    ]
-    client.get_dataset_version_episodes = MagicMock(side_effect=[first_page, []])
-    client._download_episode_to_file = MagicMock()
-
+    url = api_url("/v1/datasets/ds_1/versions/1/episodes")
+    responses.add(
+        responses.GET,
+        url,
+        json={"episodes": [_dataset_episode_json(f"ep_{i}") for i in range(2000)]},
+        headers={"fg-pagination-next-cursor": "next"},
+    )
+    responses.add(
+        responses.GET, url, json={"episodes": [_dataset_episode_json("ep_last")]}
+    )
+    client._download_episode_to_file = MagicMock(return_value=0)
     client.download_dataset(
         dataset_id="ds_1",
         version_number=1,
         output_directory=tmp_path / "dataset",
     )
 
-    assert client.get_dataset_version_episodes.call_count == 2
-    assert client.get_dataset_version_episodes.call_args_list[0].kwargs["offset"] == 0
-    assert (
-        client.get_dataset_version_episodes.call_args_list[1].kwargs["offset"] == 2000
-    )
-    assert client._download_episode_to_file.call_count == 2000
+    assert "offset" not in responses.calls[2].request.params
+    assert responses.calls[3].request.params["cursor"] == "next"
+    assert client._download_episode_to_file.call_count == 2001

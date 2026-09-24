@@ -29,6 +29,7 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
                 "end": NOW.replace(minute=1).isoformat(),
                 "deviceId": "dev_1",
                 "available": True,
+                "resolvable": True,
             }
         ]
         episode["hasMissingRecordings"] = False
@@ -90,10 +91,11 @@ def test_get_episodes_maps_response_and_filters():
         include_recordings=True,
     )
 
-    assert episodes[0]["start_time"] == NOW
-    assert episodes[0]["metadata"]["nestedValue"] == {"keepMe": True}
-    assert episodes[0]["recordings"][0]["device_id"] == "dev_1"
-    assert episodes[0]["has_missing_recordings"] is False
+    assert episodes.items[0]["start_time"] == NOW
+    assert episodes.items[0]["metadata"]["nestedValue"] == {"keepMe": True}
+    assert episodes.items[0]["recordings"][0]["device_id"] == "dev_1"
+    assert episodes.items[0]["recordings"][0]["resolvable"] is True
+    assert episodes.items[0]["has_missing_recordings"] is False
     assert responses.calls[0].request.params == {
         "projectId": "prj_1",
         "start": (NOW - timedelta(minutes=1)).astimezone().isoformat(),

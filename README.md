@@ -80,6 +80,13 @@ an all-skipped export succeeds with only the manifest. Other request failures be
 recorded as `failed` and the export continues. If no download succeeds and any fail, the exporter
 raises after writing the manifest.
 
+Incomplete exports emit `DatasetDownloadWarning` (from `foxglove.client`) with counts of
+failed, skipped, and downloaded-but-partial episodes and the manifest location. The return
+value is still a `Path`. You can suppress this category or promote it to an error with
+`warnings.filterwarnings("error", category=DatasetDownloadWarning)`; the files and manifest
+have already been written when the warning is emitted. Manifest timestamps use UTC with
+millisecond precision and a `Z` suffix, matching the app.
+
 An interrupted transfer or filesystem failure stops the export and re-raises the original error.
 Completed MCAPs and the failed episode's `.part` file remain; a manifest is written atomically if
 possible. Its episode entries may be incomplete, while `selection.episodeCount` and the selection

@@ -1639,6 +1639,10 @@ class Client:
         before streaming are recorded and the export continues; if all attempts fail,
         this raises after writing the manifest. An all-skipped export succeeds.
 
+        Incomplete exports emit ``DatasetDownloadWarning`` with failed, skipped, and
+        partially available episode counts after writing the manifest. The return
+        value remains a Path. Promoting this warning to an error does not undo files.
+
         Interrupted transfers or filesystem failures stop the export and preserve
         completed MCAPs and the failed episode's .part file. The manifest is written
         if possible before re-raising. Its entries may then be incomplete, while

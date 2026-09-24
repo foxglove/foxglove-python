@@ -1,4 +1,6 @@
 import json
+import datetime
+import warnings
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -6,8 +8,8 @@ import pytest
 import requests
 import responses
 
-from foxglove.client import Client
-from foxglove.client.dataset_download import selection_digest
+from foxglove.client import Client, DatasetDownloadWarning
+from foxglove.client.dataset_download import selection_digest, export_dataset
 from .api_url import api_url
 from .test_datasets import _dataset_json, _version_json, _dataset_episode_json
 
@@ -58,7 +60,8 @@ def test_partial_and_skipped_episodes(tmp_path, topics):
     mock_selection()
     sign_error("NoStreamableRecordings")
     stream_success()
-    assert run_download(tmp_path, topics=topics) == tmp_path
+    with pytest.warns(DatasetDownloadWarning):
+        assert run_download(tmp_path, topics=topics) == tmp_path
     manifest = json.loads((tmp_path / "manifest.json").read_text())
     skipped, downloaded = manifest["episodes"]
     assert skipped["status"] == "skipped"
@@ -81,7 +84,8 @@ def test_partial_and_skipped_episodes(tmp_path, topics):
 def test_all_skipped_is_success(tmp_path):
     mock_selection()
     sign_error("NoStreamableRecordings")
-    run_download(tmp_path)
+    with pytest.warns(DatasetDownloadWarning):
+        run_download(tmp_path)
     assert [path.name for path in tmp_path.iterdir()] == ["manifest.json"]
     assert all(
         entry["status"] == "skipped"
@@ -127,7 +131,8 @@ def test_non_object_error_response_does_not_stop_download(tmp_path):
     mock_selection()
     responses.add(responses.POST, api_url("/v1/data/stream"), json=[], status=404)
     stream_success()
-    run_download(tmp_path)
+    with pytest.warns(DatasetDownloadWarning):
+        run_download(tmp_path)
     entries = json.loads((tmp_path / "manifest.json").read_text())["episodes"]
     assert [entry["status"] for entry in entries] == ["failed", "downloaded"]
 
@@ -137,7 +142,8 @@ def test_failed_request_does_not_prevent_later_success(tmp_path):
     mock_selection()
     sign_error(status=503)
     stream_success()
-    run_download(tmp_path)
+    with pytest.warns(DatasetDownloadWarning):
+        run_download(tmp_path)
     entries = json.loads((tmp_path / "manifest.json").read_text())["episodes"]
     assert [entry["status"] for entry in entries] == ["failed", "downloaded"]
 
@@ -217,3 +223,106 @@ def test_existing_output_is_never_overwritten(tmp_path):
 def test_selection_digest_matches_app_javascript(topics, digest):
     # Expected values generated with the app's JSON.stringify + UTF-16 sort + SHA-256.
     assert selection_digest("ds_1", 1, ["ep_b", "ep_a"], topics) == digest
+
+
+@pytest.mark.parametrize("outcome", ["complete", "partial", "skipped", "failed"])
+@responses.activate
+def test_export_warning_counts(tmp_path, outcome):
+    mock_selection(missing=outcome == "partial")
+    if outcome == "skipped":
+        sign_error("NoStreamableRecordings")
+    elif outcome == "failed":
+        sign_error(status=503)
+    stream_success()
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always", DatasetDownloadWarning)
+        assert run_download(tmp_path) == tmp_path
+    if outcome == "complete":
+        assert not captured
+        return
+    assert len(captured) == 1
+    assert captured[0].category is DatasetDownloadWarning
+    expected = {
+        "partial": "0 failed, 0 skipped, 2 downloaded with missing recordings",
+        "skipped": "0 failed, 1 skipped, 0 downloaded with missing recordings",
+        "failed": "1 failed, 0 skipped, 0 downloaded with missing recordings",
+    }
+    assert expected[outcome] in str(captured[0].message)
+    assert str(tmp_path / "manifest.json") in str(captured[0].message)
+
+
+@responses.activate
+def test_warning_as_error_preserves_written_export(tmp_path):
+    mock_selection(count=1)
+    stream_success()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DatasetDownloadWarning)
+        with pytest.raises(DatasetDownloadWarning):
+            run_download(tmp_path)
+    entry = json.loads((tmp_path / "manifest.json").read_text())["episodes"][0]
+    assert entry["status"] == "downloaded"
+    assert (tmp_path / entry["file"]).read_bytes() == b"mcap"
+
+
+@responses.activate
+def test_all_skipped_warns_once(tmp_path):
+    mock_selection()
+    sign_error("NoStreamableRecordings")
+    with pytest.warns(DatasetDownloadWarning, match="0 failed, 2 skipped") as captured:
+        assert run_download(tmp_path) == tmp_path
+    assert len(captured) == 1
+
+
+@responses.activate
+def test_fatal_request_error_not_replaced_by_warning(tmp_path):
+    mock_selection()
+    sign_error(status=503)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DatasetDownloadWarning)
+        with pytest.raises(RuntimeError, match="No episodes could be downloaded"):
+            run_download(tmp_path)
+
+
+def test_manifest_timestamps_match_app(tmp_path, monkeypatch):
+    instant = datetime.datetime(
+        2024,
+        1,
+        1,
+        5,
+        30,
+        0,
+        123456,
+        tzinfo=datetime.timezone(datetime.timedelta(hours=5, minutes=30)),
+    )
+
+    class FixedDatetime(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return instant.astimezone(tz)
+
+    monkeypatch.setattr(
+        "foxglove.client.dataset_download.datetime.datetime", FixedDatetime
+    )
+    export_dataset(
+        dataset={"id": "ds_1", "name": "test", "project_id": "prj_1"},
+        version={"version_number": 1, "episode_count": 1, "committed_at": instant},
+        episodes=[
+            {
+                "episode": {
+                    "id": "ep_1",
+                    "start_time": instant,
+                    "end_time": instant.replace(microsecond=0),
+                    "metadata": {},
+                },
+                "has_missing_recordings": False,
+            }
+        ],
+        destination=tmp_path,
+        topics=None,
+        download=lambda *_: 0,
+    )
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["generatedAt"] == "2024-01-01T00:00:00.123Z"
+    assert manifest["version"]["committedAt"] == "2024-01-01T00:00:00.123Z"
+    assert manifest["episodes"][0]["startTime"] == "2024-01-01T00:00:00.123Z"
+    assert manifest["episodes"][0]["endTime"] == "2024-01-01T00:00:00.000Z"

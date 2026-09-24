@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 import responses
-from foxglove.client import Client
+from foxglove.client import Client, DatasetDownloadWarning
 
 from .api_url import api_url
 
@@ -268,8 +268,8 @@ def test_download_dataset(tmp_path):
             "index": 0,
             "id": "ep_1",
             "file": "episode_0000_ep_1.mcap",
-            "startTime": NOW.isoformat(),
-            "endTime": NOW.replace(minute=1).isoformat(),
+            "startTime": "2026-09-15T00:00:00.000Z",
+            "endTime": "2026-09-15T00:01:00.000Z",
             "metadata": {},
             "byteSize": 12,
             "status": "downloaded",
@@ -332,9 +332,10 @@ def test_download_dataset_continues_after_request_failure(tmp_path):
         body=requests.ConnectionError("interrupted"),
     )
 
-    Client("test").download_dataset(
-        dataset_id="ds_1", version_number=1, output_directory=output
-    )
+    with pytest.warns(DatasetDownloadWarning):
+        Client("test").download_dataset(
+            dataset_id="ds_1", version_number=1, output_directory=output
+        )
     assert (output / "episode_0000_ep_1.mcap").read_bytes() == b"complete"
     assert not (output / "episode_0001_ep_2.mcap").exists()
     manifest = json.loads((output / "manifest.json").read_text())

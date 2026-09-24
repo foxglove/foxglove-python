@@ -4,10 +4,23 @@ import datetime
 import hashlib
 import json
 import re
+import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import requests
+
+
+class DatasetDownloadWarning(UserWarning):
+    """An export completed with failed, skipped, or partially available episodes."""
+
+
+def _iso(value: datetime.datetime) -> str:
+    return (
+        value.astimezone(datetime.timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 class EpisodeRequestError(Exception):
@@ -120,9 +133,7 @@ def export_dataset(
         selection["topics"] = topics
     manifest = {
         "formatVersion": 1,
-        "generatedAt": datetime.datetime.now(datetime.timezone.utc)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z"),
+        "generatedAt": _iso(datetime.datetime.now(datetime.timezone.utc)),
         "dataset": {
             "id": dataset["id"],
             "name": dataset["name"],
@@ -130,7 +141,7 @@ def export_dataset(
         },
         "version": {
             "versionNumber": version["version_number"],
-            "committedAt": version["committed_at"].isoformat(),
+            "committedAt": _iso(version["committed_at"]),
         },
         "selection": selection,
         "episodes": entries,
@@ -143,8 +154,8 @@ def export_dataset(
             entry = {
                 "index": index,
                 "id": episode["id"],
-                "startTime": episode["start_time"].isoformat(),
-                "endTime": episode["end_time"].isoformat(),
+                "startTime": _iso(episode["start_time"]),
+                "endTime": _iso(episode["end_time"]),
                 "metadata": episode["metadata"],
             }
             safe_id = re.sub(r"[^A-Za-z0-9._-]+", "-", episode["id"])
@@ -183,4 +194,14 @@ def export_dataset(
     _write_manifest(destination, manifest)
     if downloaded == 0 and failed:
         raise RuntimeError("No episodes could be downloaded; see manifest.json")
+    skipped = sum(entry["status"] == "skipped" for entry in entries)
+    partial = sum(entry.get("episodeHasMissingRecordings", False) for entry in entries)
+    if failed or skipped or partial:
+        warnings.warn(
+            f"Incomplete dataset export: {failed} failed, {skipped} skipped, "
+            f"{partial} downloaded with missing recordings; "
+            f"see {destination / 'manifest.json'}",
+            DatasetDownloadWarning,
+            stacklevel=3,
+        )
     return destination

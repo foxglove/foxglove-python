@@ -66,5 +66,6 @@ include-package-data = true
 include = ["foxglove*"]
 
 [tool.setuptools.package-data]
-# The SDK owns files at the shared foxglove package root.
+# foxglove-sdk (https://github.com/foxglove/foxglove-sdk) owns root foxglove files.
+# Keep the marker here so uninstalling this client cannot remove the SDK marker.
 "foxglove.client" = ["py.typed"]

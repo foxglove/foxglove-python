@@ -66,4 +66,5 @@ include-package-data = true
 include = ["foxglove*"]
 
 [tool.setuptools.package-data]
-foxglove = ["py.typed"]
+# The SDK owns files at the shared foxglove package root.
+"foxglove.client" = ["py.typed"]

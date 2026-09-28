@@ -27,6 +27,23 @@ jobs:
       - run: uv run python -m flake8 examples
       - run: uv run python -m pytest
       - run: uv run python -m build --installer uv
+      - name: Check shared namespace ownership
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheel = next(Path("dist").glob("*.whl"))
+          with ZipFile(wheel) as archive:
+              files = archive.namelist()
+              assert "foxglove/client/py.typed" in files
+              # The SDK owns root files, including __init__.py and py.typed.
+              assert not any(
+                  name.startswith("foxglove/") and name.count("/") == 1
+                  and not name.endswith("/")
+                  for name in files
+              ), files
+          PY
 
       - name: Publish to TestPyPI
         if: |

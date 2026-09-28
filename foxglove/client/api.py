@@ -1214,8 +1214,8 @@ class Client:
     ):
         """Return a Page of datasets; name is a case-insensitive substring filter.
 
-        ``limit`` is the page size. Use ``cursor`` for continuation or
-        ``page.auto_paging_iter()`` to traverse all matching items.
+        Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
+        Use ``page.auto_paging_iter()`` to traverse all matching items.
         """
         return self._get_page(
             "/v1/datasets",

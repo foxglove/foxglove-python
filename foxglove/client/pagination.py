@@ -18,25 +18,17 @@ class Page(Generic[T]):
         next_cursor: Optional[str] = None,
         previous_cursor: Optional[str] = None,
         fetch_page: Callable[[str], "Page[T]"],
-        legacy_offset: bool = False,
     ):
         self.items = items
         self.next_cursor = next_cursor
         self.previous_cursor = previous_cursor
         self._fetch_page = fetch_page
-        self._legacy_offset = legacy_offset
 
     def auto_paging_iter(self) -> Iterator[T]:
         """Yield this page, then fetch further pages on demand in display order.
 
-        Starting from a nonzero deprecated offset is unsupported: those responses
-        do not contain continuation cursors. Request the first page or a cursor
-        page instead. Errors fetching subsequent pages propagate to the caller.
+        Errors fetching subsequent pages propagate to the caller.
         """
-        if self._legacy_offset:
-            raise ValueError(
-                "Automatic pagination requires cursor pagination, not a nonzero offset"
-            )
         page = self
         while True:
             yield from page.items

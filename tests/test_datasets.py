@@ -96,7 +96,7 @@ def test_dataset_metadata_methods():
         episode_ids=["ep_1"],
     )
     datasets = client.get_datasets(
-        project_id="prj_1", sort_by="updated_at", limit=10, offset=2
+        project_id="prj_1", sort_by="updated_at", limit=10, cursor="next"
     )
     fetched = client.get_dataset(dataset_id="ds_1")
     updated = client.update_dataset(dataset_id="ds_1", description=None)

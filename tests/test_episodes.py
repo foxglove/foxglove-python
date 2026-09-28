@@ -87,7 +87,7 @@ def test_get_episodes_maps_response_and_filters():
         sort_by="start_time",
         sort_order="asc",
         limit=10,
-        offset=20,
+        cursor="next",
         include_recordings=True,
     )
 
@@ -105,7 +105,7 @@ def test_get_episodes_maps_response_and_filters():
         "sortBy": "startTime",
         "sortOrder": "asc",
         "limit": "10",
-        "offset": "20",
+        "cursor": "next",
         "include": "recordings",
     }
 

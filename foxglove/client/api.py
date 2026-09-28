@@ -1210,13 +1210,12 @@ class Client:
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
-        offset: Optional[int] = None,
         cursor: Optional[str] = None,
     ):
         """Return a Page of datasets; name is a case-insensitive substring filter.
 
-        ``limit`` is the page size. Use ``cursor`` for continuation; ``offset`` is
-        deprecated. Use ``page.auto_paging_iter()`` to traverse all matching items.
+        ``limit`` is the page size. Use ``cursor`` for continuation or
+        ``page.auto_paging_iter()`` to traverse all matching items.
         """
         return self._get_page(
             "/v1/datasets",
@@ -1228,7 +1227,6 @@ class Client:
                     "sortBy": camelize(sort_by),
                     "sortOrder": sort_order,
                     "limit": limit,
-                    "offset": offset,
                     "cursor": cursor,
                 }
             ),
@@ -1242,8 +1240,6 @@ class Client:
         params: Dict[str, Any],
         collection: Optional[str] = None,
     ) -> Page[T]:
-        if params.get("cursor") is not None and params.get("offset", 0) != 0:
-            raise ValueError("cursor cannot be combined with a nonzero offset")
         response = self.__session.get(self.__url__(path), params=params)
         result = json_or_raise(response)
         items = result[collection] if collection else result
@@ -1258,7 +1254,6 @@ class Client:
             next_cursor=response.headers.get("fg-pagination-next-cursor"),
             previous_cursor=response.headers.get("fg-pagination-previous-cursor"),
             fetch_page=fetch_page,
-            legacy_offset=params.get("offset", 0) != 0,
         )
 
     def get_dataset(self, *, dataset_id: str):
@@ -1296,7 +1291,6 @@ class Client:
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
-        offset: Optional[int] = None,
         cursor: Optional[str] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
@@ -1307,7 +1301,7 @@ class Client:
         """Return a Page of the latest committed or initial editable membership.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
-        ``limit`` is page size; ``cursor`` continues a page and ``offset`` is deprecated.
+        ``limit`` is page size and ``cursor`` continues a page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
         return self._get_dataset_episodes(
@@ -1316,7 +1310,6 @@ class Client:
             sort_by=sort_by,
             sort_order=sort_order,
             limit=limit,
-            offset=offset,
             cursor=cursor,
             start=start,
             end=end,
@@ -1351,11 +1344,10 @@ class Client:
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-        offset: Optional[int] = None,
     ):
         """Return a Page of committed versions and the current editable version.
 
-        ``limit`` is page size; ``cursor`` continues a page and ``offset`` is deprecated.
+        ``limit`` is page size and ``cursor`` continues a page.
         Use ``page.auto_paging_iter()`` to traverse all versions.
         """
         return self._get_page(
@@ -1367,7 +1359,6 @@ class Client:
                     "sortOrder": sort_order,
                     "limit": limit,
                     "cursor": cursor,
-                    "offset": offset,
                 }
             ),
         )
@@ -1387,7 +1378,6 @@ class Client:
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
-        offset: Optional[int] = None,
         cursor: Optional[str] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
@@ -1398,7 +1388,7 @@ class Client:
         """Return a Page of episode membership in a specific version.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
-        ``limit`` is page size; ``cursor`` continues a page and ``offset`` is deprecated.
+        ``limit`` is page size and ``cursor`` continues a page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
         return self._get_dataset_episodes(
@@ -1407,7 +1397,6 @@ class Client:
             sort_by=sort_by,
             sort_order=sort_order,
             limit=limit,
-            offset=offset,
             cursor=cursor,
             start=start,
             end=end,
@@ -1424,7 +1413,6 @@ class Client:
         sort_by: Optional[str],
         sort_order: Optional[str],
         limit: Optional[int],
-        offset: Optional[int],
         cursor: Optional[str],
         start: Optional[datetime.datetime],
         end: Optional[datetime.datetime],
@@ -1446,7 +1434,6 @@ class Client:
                     "sortBy": camelize(sort_by),
                     "sortOrder": sort_order,
                     "limit": limit,
-                    "offset": offset,
                     "cursor": cursor,
                     "start": start.astimezone().isoformat() if start else None,
                     "end": end.astimezone().isoformat() if end else None,
@@ -1576,14 +1563,13 @@ class Client:
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
-        offset: Optional[int] = None,
         cursor: Optional[str] = None,
         include_recordings: bool = False,
     ):
         """Return a Page of episodes, optionally with recording details.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
-        ``limit`` is page size; ``cursor`` continues a page and ``offset`` is deprecated.
+        ``limit`` is page size and ``cursor`` continues a page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
         _validate_episode_range(start, end)
@@ -1605,7 +1591,6 @@ class Client:
                     "sortBy": camelize(sort_by),
                     "sortOrder": sort_order,
                     "limit": limit,
-                    "offset": offset,
                     "cursor": cursor,
                     "include": "recordings" if include_recordings else None,
                 }

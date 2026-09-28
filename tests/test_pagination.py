@@ -117,21 +117,10 @@ def test_pages_are_lazy_and_preserve_query(
 
 
 @pytest.mark.parametrize("method,kwargs,path,collection,factory,filters", LIST_CASES)
-@responses.activate
-def test_offset_rules(method, kwargs, path, collection, factory, filters):
+def test_offset_is_not_accepted(method, kwargs, path, collection, factory, filters):
     get_page = getattr(Client("test"), method)
-    with pytest.raises(ValueError, match="nonzero offset"):
-        get_page(**kwargs, cursor="cursor", offset=1)
-    assert not responses.calls
-    responses.add(
-        responses.GET, api_url(path), json={collection: []} if collection else []
-    )
-    page = get_page(**kwargs, offset=1)
-    with pytest.raises(ValueError, match="nonzero offset"):
-        list(page.auto_paging_iter())
-    page = get_page(**kwargs, offset=0, cursor="cursor", limit=0)
-    assert list(page.auto_paging_iter()) == []
-    assert page.next_cursor is None
+    with pytest.raises(TypeError, match="unexpected keyword argument 'offset'"):
+        get_page(**kwargs, offset=1)
 
 
 @responses.activate

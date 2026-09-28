@@ -1301,7 +1301,7 @@ class Client:
         """Return a Page of the latest committed or initial editable membership.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
-        ``limit`` is page size and ``cursor`` continues a page.
+        Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
         return self._get_dataset_episodes(
@@ -1347,7 +1347,7 @@ class Client:
     ):
         """Return a Page of committed versions and the current editable version.
 
-        ``limit`` is page size and ``cursor`` continues a page.
+        Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all versions.
         """
         return self._get_page(
@@ -1388,7 +1388,7 @@ class Client:
         """Return a Page of episode membership in a specific version.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
-        ``limit`` is page size and ``cursor`` continues a page.
+        Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
         return self._get_dataset_episodes(
@@ -1569,7 +1569,7 @@ class Client:
         """Return a Page of episodes, optionally with recording details.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
-        ``limit`` is page size and ``cursor`` continues a page.
+        Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
         _validate_episode_range(start, end)

@@ -2148,6 +2148,7 @@ def _episode_recording_dict(recording):
     return {
         "id": recording["id"],
         "path": recording["path"],
+        "location": recording.get("location"),
         "start": arrow.get(recording["start"]).datetime,
         "end": arrow.get(recording["end"]).datetime,
         "device_id": recording.get("deviceId"),

@@ -25,6 +25,7 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
             {
                 "id": "rec_1",
                 "path": "run.mcap",
+                "location": {"bucket": "robot-logs", "path": "fleet/run.mcap"},
                 "start": NOW.isoformat(),
                 "end": NOW.replace(minute=1).isoformat(),
                 "deviceId": "dev_1",
@@ -94,6 +95,10 @@ def test_get_episodes_maps_response_and_filters():
     assert episodes.items[0]["start_time"] == NOW
     assert episodes.items[0]["metadata"]["nestedValue"] == {"keepMe": True}
     assert episodes.items[0]["recordings"][0]["device_id"] == "dev_1"
+    assert episodes.items[0]["recordings"][0]["location"] == {
+        "bucket": "robot-logs",
+        "path": "fleet/run.mcap",
+    }
     assert episodes.items[0]["recordings"][0]["resolvable"] is True
     assert episodes.items[0]["has_missing_recordings"] is False
     assert responses.calls[0].request.params == {

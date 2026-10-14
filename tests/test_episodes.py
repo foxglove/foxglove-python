@@ -330,11 +330,16 @@ def test_update_episode_serializes_labels_and_preserves_conflict():
 
 
 @responses.activate
-def test_bulk_episode_updates_preserve_order_and_atomic_error():
+def test_bulk_episode_updates_preserve_order_and_conflict_details():
     responses.add(
         responses.PATCH,
         api_url("/v1/episodes"),
-        json={"episodes": [{"id": "ep_2", "version": 4}, {"id": "ep_1", "version": 2}]},
+        json={
+            "episodes": [
+                {"id": "ep_2", "version": 4, "latestVersion": 4},
+                {"id": "ep_1", "version": 2},
+            ]
+        },
     )
     responses.add(
         responses.PATCH,

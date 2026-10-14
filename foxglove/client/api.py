@@ -1405,8 +1405,14 @@ class Client:
     ):
         """Stage membership and pin changes in the draft; commit separately.
 
-        A string addition keeps its existing pin if already present. An object
-        reference selects a version and has stricter conflict behavior.
+        :param add: Episode IDs or dictionaries with ``id`` and optional ``version``.
+            A string ID keeps the existing pin when already present. A dictionary
+            addition fails with HTTP 409 if that episode is already in the draft.
+            New members use the latest version unless a version is specified.
+        :param update: References to episodes already in the draft; missing members
+            cause HTTP 409. A string ID or dictionary without ``version`` selects
+            the latest version. A dictionary with ``version`` selects that version.
+        :param remove: Episode IDs to remove from the draft.
         """
 
         def references(items: Optional[Sequence[DatasetEpisodeReference]]):
@@ -1774,6 +1780,19 @@ class Client:
 
         To select this version in a dataset, update the dataset draft in a separate
         call using the returned version. A failed pin update does not undo this edit.
+
+        :param episode_id: ID of the episode to update.
+        :param applies_to_version: Require this latest version; a mismatch raises
+            ``requests.HTTPError`` with status 409. Omit to update the latest version
+            without this check. Conflict details are available in the error's response.
+        :param start_time: New start time; omit to keep the current start time.
+        :param end_time: New end time; omit to keep the current end time.
+        :param recordings: Recording IDs to ``add`` or ``remove``. Other recording
+            memberships remain unchanged.
+        :param labels: Labels to set by key. A value of ``None`` removes that key;
+            omitted keys remain unchanged.
+        :return: The resulting episode snapshot. If nothing changes, return the
+            current version without creating a new one.
         """
         body = _episode_patch_dict(
             {
@@ -1790,7 +1809,11 @@ class Client:
         return _episode_dict(json_or_raise(response))
 
     def update_episodes(self, *, episodes: Sequence[BulkEpisodeUpdate]):
-        """Update up to 2000 episodes atomically; return IDs and versions in request order."""
+        """Update up to 2000 episodes atomically; return IDs and versions in request order.
+
+        Each dictionary contains ``id`` and the update fields from :meth:`update_episode`.
+        If any update fails, none are applied.
+        """
         if not 1 <= len(episodes) <= 2000:
             raise ValueError("episodes must contain 1 to 2000 updates")
         serialized = []
@@ -1799,7 +1822,10 @@ class Client:
         response = self.__session.patch(
             self.__url__("/v1/episodes"), json={"episodes": serialized}
         )
-        return json_or_raise(response)["episodes"]
+        return [
+            {"id": episode["id"], "version": episode["version"]}
+            for episode in json_or_raise(response)["episodes"]
+        ]
 
     def delete_episode(self, *, episode_id: str):
         """Delete an episode if it does not belong to a dataset."""
@@ -1863,7 +1889,10 @@ class Client:
         for member in episodes:
             pin = member["episode"].get("version")
             if pin is None:
-                raise ValueError("dataset episode has no version pin")
+                raise ValueError(
+                    f"dataset episode {member['episode']['id']} has no version pin; "
+                    "verify that the server supports episode versions"
+                )
             _validate_episode_version(pin)
         destination.mkdir(parents=True, exist_ok=True)
         selected_topics = list(topics) if topics else None

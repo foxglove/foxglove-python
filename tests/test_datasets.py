@@ -140,9 +140,18 @@ def test_dataset_episode_methods():
 @responses.activate
 def test_dataset_version_methods():
     listed_version = _version_json()
+    listed_version["changedEpisodeCount"] = 1
     del listed_version["hasMissingRecordings"]
     dataset_episode_change = _dataset_episode_json()
     del dataset_episode_change["hasMissingRecordings"]
+    previous_episode = _episode_json("ep_2")
+    previous_episode["labels"] = {"note": {"type": "TEXT", "content": "mike"}}
+    changed_episode = _dataset_episode_json("ep_2")
+    changed_episode["episode"].update(
+        version=2,
+        latestVersion=2,
+        labels={"note": {"type": "TEXT", "content": "brook"}},
+    )
     responses.add(
         responses.GET,
         api_url("/v1/datasets/ds_1/versions"),
@@ -162,9 +171,18 @@ def test_dataset_version_methods():
         responses.GET,
         api_url("/v1/datasets/ds_1/versions/2/compare"),
         json={
-            "changes": [{**dataset_episode_change, "change": "added"}],
+            "changes": [
+                {**dataset_episode_change, "change": "added"},
+                {
+                    **changed_episode,
+                    "change": "changed",
+                    "previousVersion": 1,
+                    "previousEpisode": previous_episode,
+                },
+            ],
             "addedCount": 1,
             "removedCount": 0,
+            "changedCount": 1,
             "nextCursor": "next",
         },
     )
@@ -179,9 +197,11 @@ def test_dataset_version_methods():
         base_version=1,
         limit=5,
         cursor="cursor",
+        include_labels=True,
     )
 
     assert versions.items[0]["committed_at"] == NOW
+    assert versions.items[0]["changed_episode_count"] == 1
     assert "has_missing_recordings" not in versions.items[0]
     assert version["version_number"] == 1
     assert version["has_missing_recordings"] is False
@@ -190,6 +210,14 @@ def test_dataset_version_methods():
     assert comparison["changes"][0]["change"] == "added"
     assert "has_missing_recordings" not in comparison["changes"][0]
     assert comparison["next_cursor"] == "next"
+    assert comparison["changed_count"] == 1
+    changed = comparison["changes"][1]
+    assert changed["previous_version"] == 1
+    assert changed["previous_episode"]["start_time"] == NOW
+    assert changed["previous_episode"]["labels"]["note"]["content"] == "mike"
+    assert changed["episode"]["version"] == 2
+    assert changed["episode"]["labels"]["note"]["content"] == "brook"
+    assert responses.calls[3].request.params["include"] == "labels"
 
 
 @responses.activate
@@ -502,7 +530,7 @@ def test_dataset_export_rejects_missing_pin_before_transfer(tmp_path):
         json={"episodes": [member]},
     )
 
-    with pytest.raises(ValueError, match="no version pin"):
+    with pytest.raises(ValueError, match="episode ep_1 has no version pin"):
         Client("test").download_dataset(
             dataset_id="ds_1", version_number=1, output_directory=output
         )

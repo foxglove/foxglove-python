@@ -1525,17 +1525,32 @@ class Client:
         """Create episodes, reusing any with identical membership and bounds.
 
         :param project_id: Project in which to create the episodes.
-        :param episodes: Episode definitions. Each dictionary requires ``recordings`` and
-            may include ``start_time``, ``end_time``, and ``metadata``.
+        :param episodes: Episode definitions. Each dictionary requires exactly one of
+            ``recordings`` or ``event_id``, and may include ``metadata``. Recording inputs may
+            also include ``start_time`` and ``end_time``. An ``event_id`` input snapshots the
+            event's current time range and the completed recordings from its device that
+            overlap it; later edits to the event or new imports do not change the episode.
+            Event inputs in one request can resolve at most 10,000 recordings.
         """
         serialized = []
         for episode in episodes:
+            event_id = episode.get("event_id")
+            recordings = episode.get("recordings")
             start_time = episode.get("start_time")
             end_time = episode.get("end_time")
+            if (event_id is None) == (recordings is None):
+                raise ValueError("Provide exactly one of recordings or event_id")
+            if event_id is not None and (
+                start_time is not None or end_time is not None
+            ):
+                raise ValueError(
+                    "event_id cannot be combined with start_time or end_time"
+                )
             serialized.append(
                 without_nulls(
                     {
-                        "recordings": episode["recordings"],
+                        "eventId": event_id,
+                        "recordings": recordings,
                         "startTime": (
                             start_time.astimezone().isoformat() if start_time else None
                         ),

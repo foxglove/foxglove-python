@@ -5,17 +5,22 @@ from foxglove.client import Client
 token = "<YOUR API TOKEN HERE>"
 project_id = "<YOUR PROJECT ID HERE>"
 recording_id = "<YOUR RECORDING ID HERE>"
+event_id = "<YOUR EVENT ID HERE>"
 
 client = Client(token=token)
 
+# An event episode uses the event's time range and its device's overlapping recordings.
 episodes = client.create_episodes(
     project_id=project_id,
-    episodes=[{"recordings": [recording_id]}],
+    episodes=[
+        {"recordings": [recording_id]},
+        {"event_id": event_id, "metadata": {"label": "example"}},
+    ],
 )
 dataset = client.create_dataset(
     project_id=project_id,
     name="Training candidates",
-    episode_ids=[episodes[0]["id"]],
+    episode_ids=[episode["id"] for episode in episodes],
 )
 commit = client.commit_dataset(dataset_id=dataset["id"])
 

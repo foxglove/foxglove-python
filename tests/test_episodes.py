@@ -72,6 +72,51 @@ def test_create_episodes_serializes_inputs():
 
 
 @responses.activate
+def test_create_episodes_serializes_event_inputs():
+    responses.add(
+        responses.POST,
+        api_url("/v1/episodes"),
+        json={"episodes": [{"id": "ep_1", "created": False}]},
+    )
+
+    result = Client("test").create_episodes(
+        project_id="prj_1",
+        episodes=[{"event_id": "evt_1", "metadata": {"label": "merge"}}],
+    )
+
+    assert result == [{"id": "ep_1", "created": False}]
+    assert json.loads(responses.calls[0].request.body) == {
+        "projectId": "prj_1",
+        "episodes": [{"eventId": "evt_1", "metadata": {"label": "merge"}}],
+    }
+
+
+@pytest.mark.parametrize(
+    "episode,message",
+    [
+        ({}, "Provide exactly one of recordings or event_id"),
+        (
+            {"event_id": "evt_1", "recordings": ["rec_1"]},
+            "Provide exactly one of recordings or event_id",
+        ),
+        (
+            {"event_id": "evt_1", "start_time": NOW},
+            "event_id cannot be combined with start_time or end_time",
+        ),
+        (
+            {"event_id": "evt_1", "end_time": NOW},
+            "event_id cannot be combined with start_time or end_time",
+        ),
+    ],
+)
+def test_create_episodes_rejects_incompatible_inputs(episode, message):
+    with pytest.raises(ValueError) as raised:
+        Client("test").create_episodes(project_id="prj_1", episodes=[episode])
+
+    assert str(raised.value) == message
+
+
+@responses.activate
 def test_get_episodes_maps_response_and_filters():
     responses.add(
         responses.GET,

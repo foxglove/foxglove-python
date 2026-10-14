@@ -8,7 +8,19 @@ import warnings
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-from typing import IO, Any, Callable, Dict, List, Optional, TypeVar, Union, cast
+from typing import (
+    IO,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+    cast,
+)
 
 import arrow
 import requests
@@ -20,6 +32,13 @@ from typing_extensions import Protocol
 
 from .pagination import Page
 from .dataset_download import download_episode, export_dataset
+from .episode_labels import labels_from_api, labels_to_api
+from .types import (
+    BulkEpisodeUpdate,
+    DatasetEpisodeReference,
+    EpisodeLabelValue,
+    RecordingChanges,
+)
 
 
 class _JsonDecoderFactory(DecoderFactory):
@@ -43,6 +62,42 @@ _UNSET = object()
 def _validate_episode_range(start, end):
     if (start is None) != (end is None):
         raise ValueError("start and end must be supplied together")
+
+
+def _validate_episode_version(version: int) -> int:
+    if type(version) is not int or not 1 <= version <= 2_147_483_647:
+        raise ValueError("episode version must be an integer from 1 to 2147483647")
+    return version
+
+
+def _episode_includes(include_recordings: bool, include_labels: bool) -> Optional[str]:
+    fields = []
+    if include_recordings:
+        fields.append("recordings")
+    if include_labels:
+        fields.append("labels")
+    return ",".join(fields) if fields else None
+
+
+def _episode_patch_dict(patch: Mapping[str, Any]) -> Dict[str, Any]:
+    fields = {"applies_to_version", "start_time", "end_time", "recordings", "labels"}
+    unknown = patch.keys() - fields - {"id"}
+    if unknown:
+        raise ValueError("unknown episode update fields: " + ", ".join(sorted(unknown)))
+    result: Dict[str, Any] = {}
+    if "applies_to_version" in patch and patch["applies_to_version"] is not None:
+        result["appliesToVersion"] = _validate_episode_version(
+            patch["applies_to_version"]
+        )
+    for python_name, api_name in (("start_time", "startTime"), ("end_time", "endTime")):
+        value = patch.get(python_name)
+        if value is not None:
+            result[api_name] = value.astimezone().isoformat()
+    if patch.get("recordings") is not None:
+        result["recordings"] = patch["recordings"]
+    if patch.get("labels") is not None:
+        result["labels"] = labels_to_api(patch["labels"])
+    return result
 
 
 try:
@@ -441,6 +496,7 @@ class Client:
         decoder_factories: Optional[List[DecoderFactory]] = None,
         project_id: Optional[str] = None,
         episode_id: Optional[str] = None,
+        episode_version: Optional[int] = None,
     ):
         """
         yields a stream of (schema, channel, message, decoded message) values.
@@ -459,6 +515,7 @@ class Client:
             device_name as an identifier in multi-project organizations.
         episode_id: ID of an episode to download. Its time range is used when start and end
             are omitted.
+        episode_version: Episode version to read; requires episode_id. Omit for latest.
         """
         if topics is None:
             topics = []
@@ -472,6 +529,7 @@ class Client:
             topics=topics,
             project_id=project_id,
             episode_id=episode_id,
+            episode_version=episode_version,
         )
         response = requests.get(stream_link, stream=True)
         try:
@@ -534,10 +592,15 @@ class Client:
         compression_format: Optional[CompressionFormat] = None,
         project_id: Optional[str] = None,
         episode_id: Optional[str] = None,
+        episode_version: Optional[int] = None,
         include_attachments: Optional[bool] = None,
     ) -> str:
         if topics is None:
             topics = []
+        if episode_version is not None:
+            if episode_id is None:
+                raise ValueError("episode_version requires episode_id")
+            _validate_episode_version(episode_version)
         if (
             device_id is None
             and device_name is None
@@ -558,13 +621,13 @@ class Client:
             raise RuntimeError("episode_id cannot be combined with another identifier")
         if episode_id is None and (start is None or end is None):
             raise RuntimeError("start and end must be provided unless using episode_id")
-
         params = {
             "deviceId": device_id,
             "deviceName": device_name,
             "sessionId": session_id,
             "sessionKey": session_key,
             "episodeId": episode_id,
+            "episodeVersion": episode_version,
             "includeAttachments": include_attachments,
             "end": end.astimezone().isoformat() if end else None,
             "outputFormat": output_format.value,
@@ -598,6 +661,7 @@ class Client:
         callback: Optional[ProgressCallback] = None,
         project_id: Optional[str] = None,
         episode_id: Optional[str] = None,
+        episode_version: Optional[int] = None,
     ) -> bytes:
         """
         Returns raw data bytes for a device and time range.
@@ -618,6 +682,7 @@ class Client:
             device_name as an identifier in multi-project organizations.
         episode_id: ID of an episode to download. Its time range is used when start and end
             are omitted.
+        episode_version: Episode version to download; requires episode_id. Omit for latest.
         """
         if topics is None:
             topics = []
@@ -634,6 +699,7 @@ class Client:
                 compression_format=compression_format,
                 project_id=project_id,
                 episode_id=episode_id,
+                episode_version=episode_version,
             ),
             callback=callback,
         )
@@ -1100,6 +1166,7 @@ class Client:
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
         episode_id: Optional[str] = None,
+        episode_version: Optional[int] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
     ):
@@ -1116,9 +1183,14 @@ class Client:
         :param session_key: Key of a session to list topics from
         :param episode_id: ID of an episode to list topics from. Its time range is used when
             start and end are omitted.
+        :param episode_version: Episode version to list topics from; requires episode_id.
         :param limit: Maximum topics in this page (server default and maximum: 2000).
         :param offset: Number of topics to skip to retrieve a subsequent page.
         """
+        if episode_version is not None:
+            if episode_id is None:
+                raise ValueError("episode_version requires episode_id")
+            _validate_episode_version(episode_version)
         if episode_id is not None and (
             device_id is not None
             or device_name is not None
@@ -1140,6 +1212,7 @@ class Client:
                 "sessionId": session_id,
                 "sessionKey": session_key,
                 "episodeId": episode_id,
+                "episodeVersion": episode_version,
                 "limit": limit,
                 "offset": offset,
             },
@@ -1297,6 +1370,8 @@ class Client:
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
+        include_labels: bool = False,
+        label_query: Optional[str] = None,
     ):
         """Return a Page of the latest committed or initial editable membership.
 
@@ -1316,26 +1391,55 @@ class Client:
             has_missing_recordings=has_missing_recordings,
             recording_id=recording_id,
             include_recordings=include_recordings,
+            include_labels=include_labels,
+            label_query=label_query,
         )
 
     def update_dataset_episodes(
         self,
         *,
         dataset_id: str,
-        add: Optional[List[str]] = None,
-        remove: Optional[List[str]] = None,
+        add: Optional[Sequence[DatasetEpisodeReference]] = None,
+        update: Optional[Sequence[DatasetEpisodeReference]] = None,
+        remove: Optional[Sequence[str]] = None,
     ):
-        """Stage episode additions and removals in the editable version."""
+        """Stage membership and pin changes in the draft; commit separately.
+
+        A string addition keeps its existing pin if already present. An object
+        reference selects a version and has stricter conflict behavior.
+        """
+
+        def references(items: Optional[Sequence[DatasetEpisodeReference]]):
+            if items is None:
+                return None
+            result = []
+            for item in items:
+                if isinstance(item, str):
+                    result.append(item)
+                else:
+                    reference: Dict[str, Any] = {"id": item["id"]}
+                    if "version" in item:
+                        reference["version"] = _validate_episode_version(
+                            item["version"]
+                        )
+                    result.append(reference)
+            return result
+
         response = self.__session.patch(
             self.__url__(f"/v1/datasets/{dataset_id}/episodes"),
-            json=without_nulls({"add": add, "remove": remove}),
+            json=without_nulls(
+                {"add": references(add), "update": references(update), "remove": remove}
+            ),
         )
         result = json_or_raise(response)
-        return {
+        mapped = {
             "added": result["added"],
             "removed": result["removed"],
             "already_present": result["alreadyPresent"],
         }
+        if "updated" in result:
+            mapped["updated"] = result["updated"]
+        return mapped
 
     def get_dataset_versions(
         self,
@@ -1384,6 +1488,8 @@ class Client:
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
+        include_labels: bool = False,
+        label_query: Optional[str] = None,
     ):
         """Return a Page of episode membership in a specific version.
 
@@ -1403,6 +1509,8 @@ class Client:
             has_missing_recordings=has_missing_recordings,
             recording_id=recording_id,
             include_recordings=include_recordings,
+            include_labels=include_labels,
+            label_query=label_query,
         )
 
     def _get_dataset_episodes(
@@ -1419,6 +1527,8 @@ class Client:
         has_missing_recordings: Optional[bool],
         recording_id: Optional[str],
         include_recordings: bool,
+        include_labels: bool,
+        label_query: Optional[str],
     ):
         _validate_episode_range(start, end)
         path = f"/v1/datasets/{dataset_id}"
@@ -1443,7 +1553,8 @@ class Client:
                         else None
                     ),
                     "recordingId": recording_id,
-                    "include": "recordings" if include_recordings else None,
+                    "labelQuery": label_query,
+                    "include": _episode_includes(include_recordings, include_labels),
                 }
             ),
         )
@@ -1457,6 +1568,7 @@ class Client:
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
         include_recordings: bool = False,
+        include_labels: bool = False,
     ):
         """Return membership changes from ``base_version`` to ``version_number``."""
         response = self.__session.get(
@@ -1468,17 +1580,20 @@ class Client:
                     "version": base_version,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": "recordings" if include_recordings else None,
+                    "include": _episode_includes(include_recordings, include_labels),
                 }
             ),
         )
         result = json_or_raise(response)
-        return {
+        mapped = {
             "changes": [_dataset_episode_dict(change) for change in result["changes"]],
             "added_count": result["addedCount"],
             "removed_count": result["removedCount"],
             "next_cursor": result["nextCursor"],
         }
+        if "changedCount" in result:
+            mapped["changed_count"] = result["changedCount"]
+        return mapped
 
     def commit_dataset(self, *, dataset_id: str):
         """Commit staged changes and open the next editable version."""
@@ -1497,10 +1612,13 @@ class Client:
             self.__url__(f"/v1/datasets/{dataset_id}/discard"), json={}
         )
         result = json_or_raise(response)
-        return {
+        mapped = {
             "discarded_adds": result["discardedAdds"],
             "discarded_removes": result["discardedRemoves"],
         }
+        if "discardedUpdates" in result:
+            mapped["discarded_updates"] = result["discardedUpdates"]
+        return mapped
 
     def restore_dataset_version(
         self, *, dataset_id: str, version_number: int, force: bool = False
@@ -1514,12 +1632,17 @@ class Client:
             json={},
         )
         result = json_or_raise(response)
-        return {
+        mapped = {
             "added": result["added"],
             "removed": result["removed"],
             "discarded_adds": result["discardedAdds"],
             "discarded_removes": result["discardedRemoves"],
         }
+        if "updated" in result:
+            mapped["updated"] = result["updated"]
+        if "discardedUpdates" in result:
+            mapped["discarded_updates"] = result["discardedUpdates"]
+        return mapped
 
     def create_episodes(self, *, project_id: str, episodes: List[Dict[str, Any]]):
         """Create episodes, reusing any with identical membership and bounds.
@@ -1565,6 +1688,8 @@ class Client:
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
         include_recordings: bool = False,
+        include_labels: bool = False,
+        label_query: Optional[str] = None,
     ):
         """Return a Page of episodes, optionally with recording details.
 
@@ -1588,22 +1713,93 @@ class Client:
                         else None
                     ),
                     "recordingId": recording_id,
+                    "labelQuery": label_query,
                     "sortBy": camelize(sort_by),
                     "sortOrder": sort_order,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": "recordings" if include_recordings else None,
+                    "include": _episode_includes(include_recordings, include_labels),
                 }
             ),
         )
 
-    def get_episode(self, *, episode_id: str, include_recordings: bool = False):
-        """Return an episode, optionally with recording details."""
+    def get_episode(
+        self,
+        *,
+        episode_id: str,
+        version: Optional[int] = None,
+        include_recordings: bool = False,
+        include_labels: bool = False,
+    ):
+        """Return one episode version, or the latest when version is omitted."""
+        if version is not None:
+            _validate_episode_version(version)
         response = self.__session.get(
             self.__url__(f"/v1/episodes/{episode_id}"),
-            params={"include": "recordings"} if include_recordings else None,
+            params=without_nulls(
+                {
+                    "version": version,
+                    "include": _episode_includes(include_recordings, include_labels),
+                }
+            ),
         )
         return _episode_dict(json_or_raise(response))
+
+    def get_episode_versions(
+        self,
+        *,
+        episode_id: str,
+        limit: Optional[int] = None,
+        cursor: Optional[str] = None,
+    ):
+        """Return a Page of episode versions from newest to oldest."""
+        return self._get_page(
+            f"/v1/episodes/{episode_id}/versions",
+            _episode_version_dict,
+            collection="versions",
+            params=without_nulls({"limit": limit, "cursor": cursor}),
+        )
+
+    def update_episode(
+        self,
+        *,
+        episode_id: str,
+        applies_to_version: Optional[int] = None,
+        start_time: Optional[datetime.datetime] = None,
+        end_time: Optional[datetime.datetime] = None,
+        recordings: Optional[RecordingChanges] = None,
+        labels: Optional[Dict[str, Optional[EpisodeLabelValue]]] = None,
+    ):
+        """Create an episode version for effective changes and return its snapshot.
+
+        To select this version in a dataset, update the dataset draft in a separate
+        call using the returned version. A failed pin update does not undo this edit.
+        """
+        body = _episode_patch_dict(
+            {
+                "applies_to_version": applies_to_version,
+                "start_time": start_time,
+                "end_time": end_time,
+                "recordings": recordings,
+                "labels": labels,
+            }
+        )
+        response = self.__session.patch(
+            self.__url__(f"/v1/episodes/{episode_id}"), json=body
+        )
+        return _episode_dict(json_or_raise(response))
+
+    def update_episodes(self, *, episodes: Sequence[BulkEpisodeUpdate]):
+        """Update up to 2000 episodes atomically; return IDs and versions in request order."""
+        if not 1 <= len(episodes) <= 2000:
+            raise ValueError("episodes must contain 1 to 2000 updates")
+        serialized = []
+        for episode in episodes:
+            serialized.append({"id": episode["id"], **_episode_patch_dict(episode)})
+        response = self.__session.patch(
+            self.__url__("/v1/episodes"), json={"episodes": serialized}
+        )
+        return json_or_raise(response)["episodes"]
 
     def delete_episode(self, *, episode_id: str):
         """Delete an episode if it does not belong to a dataset."""
@@ -1620,8 +1816,9 @@ class Client:
     ) -> Path:
         """Export a committed version to MCAP files (including attachments) and a manifest.
 
-        The manifest uses the app's schema and selection digest, but ``file`` paths
-        are relative to the returned output directory, which contains manifest.json.
+        The manifest uses the app's episode entry fields and the Python client's
+        selection digest. ``file`` paths are relative to the returned output
+        directory, which contains manifest.json.
         App ZIP exports instead use paths relative to the ZIP root.
 
         ``topics`` selects topics; None or [] downloads all topics. Episodes with
@@ -1652,8 +1849,7 @@ class Client:
             if any(destination.iterdir()):
                 raise RuntimeError("output_directory must be empty")
         dataset = self.get_dataset(dataset_id=dataset_id)
-        # Capture the complete selection before transfers, so even an interrupted
-        # export has the same selection digest as the app. MCAP bytes stay streamed.
+        # Capture the complete pinned selection before transfers. MCAP bytes stay streamed.
         episodes = list(
             self.get_dataset_version_episodes(
                 dataset_id=dataset_id,
@@ -1661,28 +1857,51 @@ class Client:
                 sort_by="start_time",
                 sort_order="asc",
                 limit=2000,
+                include_labels=True,
             ).auto_paging_iter()
         )
+        for member in episodes:
+            pin = member["episode"].get("version")
+            if pin is None:
+                raise ValueError("dataset episode has no version pin")
+            _validate_episode_version(pin)
         destination.mkdir(parents=True, exist_ok=True)
         selected_topics = list(topics) if topics else None
+
+        def download_member(
+            episode_id: str, episode_version: int, output_path: Path
+        ) -> int:
+            return self._download_episode_to_file(
+                episode_id=episode_id,
+                episode_version=episode_version,
+                output_path=output_path,
+                topics=selected_topics,
+            )
+
         return export_dataset(
             dataset=dataset,
             version=version,
             episodes=episodes,
             destination=destination,
             topics=selected_topics,
-            download=lambda episode_id, output_path: self._download_episode_to_file(
-                episode_id=episode_id, output_path=output_path, topics=selected_topics
-            ),
+            download=download_member,
         )
 
     def _download_episode_to_file(
-        self, *, episode_id: str, output_path: Path, topics: Optional[List[str]] = None
+        self,
+        *,
+        episode_id: str,
+        episode_version: int,
+        output_path: Path,
+        topics: Optional[List[str]] = None,
     ) -> int:
         return download_episode(
             output_path,
             lambda: self._make_stream_link(
-                episode_id=episode_id, topics=topics, include_attachments=True
+                episode_id=episode_id,
+                episode_version=episode_version,
+                topics=topics,
+                include_attachments=True,
             ),
         )
 
@@ -2141,6 +2360,8 @@ def _dataset_dict(dataset):
         result["removed"] = dataset["removed"]
     if "alreadyPresent" in dataset:
         result["already_present"] = dataset["alreadyPresent"]
+    if "updated" in dataset:
+        result["updated"] = dataset["updated"]
     return result
 
 
@@ -2175,7 +2396,23 @@ def _episode_dict(episode):
         ]
     if "hasMissingRecordings" in episode:
         result["has_missing_recordings"] = episode["hasMissingRecordings"]
+    if "version" in episode:
+        result["version"] = episode["version"]
+    if "latestVersion" in episode:
+        result["latest_version"] = episode["latestVersion"]
+    if "labels" in episode:
+        result["labels"] = labels_from_api(episode["labels"])
     return result
+
+
+def _episode_version_dict(version):
+    return {
+        "version": version["version"],
+        "created_at": arrow.get(version["createdAt"]).datetime,
+        "creator_org_member_id": version.get("creatorOrgMemberId"),
+        "creator_api_key_id": version.get("creatorApiKeyId"),
+        "changed_fields": version["changedFields"],
+    }
 
 
 def _dataset_episode_dict(dataset_episode):
@@ -2188,6 +2425,10 @@ def _dataset_episode_dict(dataset_episode):
         result["has_missing_recordings"] = dataset_episode["hasMissingRecordings"]
     if "change" in dataset_episode:
         result["change"] = dataset_episode["change"]
+    if "previousVersion" in dataset_episode:
+        result["previous_version"] = dataset_episode["previousVersion"]
+    if "previousEpisode" in dataset_episode:
+        result["previous_episode"] = _episode_dict(dataset_episode["previousEpisode"])
     return result
 
 
@@ -2205,6 +2446,8 @@ def _dataset_version_dict(version):
     }
     if "hasMissingRecordings" in version:
         result["has_missing_recordings"] = version["hasMissingRecordings"]
+    if "changedEpisodeCount" in version:
+        result["changed_episode_count"] = version["changedEpisodeCount"]
     return result
 
 

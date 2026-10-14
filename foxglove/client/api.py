@@ -1530,7 +1530,6 @@ class Client:
             also include ``start_time`` and ``end_time``. An ``event_id`` input snapshots the
             event's current time range and the completed recordings from its device that
             overlap it; later edits to the event or new imports do not change the episode.
-            Event inputs in one request can resolve at most 10,000 recordings.
         """
         serialized = []
         for index, episode in enumerate(episodes):

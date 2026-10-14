@@ -1533,18 +1533,21 @@ class Client:
             Event inputs in one request can resolve at most 10,000 recordings.
         """
         serialized = []
-        for episode in episodes:
+        for index, episode in enumerate(episodes):
             event_id = episode.get("event_id")
             recordings = episode.get("recordings")
             start_time = episode.get("start_time")
             end_time = episode.get("end_time")
             if (event_id is None) == (recordings is None):
-                raise ValueError("Provide exactly one of recordings or event_id")
+                raise ValueError(
+                    f"episodes[{index}]: provide exactly one of recordings or event_id"
+                )
             if event_id is not None and (
                 start_time is not None or end_time is not None
             ):
                 raise ValueError(
-                    "event_id cannot be combined with start_time or end_time"
+                    f"episodes[{index}]: event_id cannot be combined with "
+                    "start_time or end_time"
                 )
             serialized.append(
                 without_nulls(

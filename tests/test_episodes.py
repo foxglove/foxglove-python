@@ -94,24 +94,26 @@ def test_create_episodes_serializes_event_inputs():
 @pytest.mark.parametrize(
     "episode,message",
     [
-        ({}, "Provide exactly one of recordings or event_id"),
+        ({}, "episodes[1]: provide exactly one of recordings or event_id"),
         (
             {"event_id": "evt_1", "recordings": ["rec_1"]},
-            "Provide exactly one of recordings or event_id",
+            "episodes[1]: provide exactly one of recordings or event_id",
         ),
         (
             {"event_id": "evt_1", "start_time": NOW},
-            "event_id cannot be combined with start_time or end_time",
+            "episodes[1]: event_id cannot be combined with start_time or end_time",
         ),
         (
             {"event_id": "evt_1", "end_time": NOW},
-            "event_id cannot be combined with start_time or end_time",
+            "episodes[1]: event_id cannot be combined with start_time or end_time",
         ),
     ],
 )
 def test_create_episodes_rejects_incompatible_inputs(episode, message):
     with pytest.raises(ValueError) as raised:
-        Client("test").create_episodes(project_id="prj_1", episodes=[episode])
+        Client("test").create_episodes(
+            project_id="prj_1", episodes=[{"event_id": "evt_0"}, episode]
+        )
 
     assert str(raised.value) == message
 

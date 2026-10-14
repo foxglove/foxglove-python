@@ -15,6 +15,8 @@ NOW = datetime(2026, 9, 15, tzinfo=timezone.utc)
 def _episode_json(episode_id="ep_1", *, include_recordings=False):
     episode = {
         "id": episode_id,
+        "version": 1,
+        "latestVersion": 1,
         "projectId": "prj_1",
         "startTime": NOW.isoformat(),
         "endTime": NOW.replace(minute=1).isoformat(),
@@ -138,9 +140,18 @@ def test_dataset_episode_methods():
 @responses.activate
 def test_dataset_version_methods():
     listed_version = _version_json()
+    listed_version["changedEpisodeCount"] = 1
     del listed_version["hasMissingRecordings"]
     dataset_episode_change = _dataset_episode_json()
     del dataset_episode_change["hasMissingRecordings"]
+    previous_episode = _episode_json("ep_2")
+    previous_episode["labels"] = {"note": {"type": "TEXT", "content": "mike"}}
+    changed_episode = _dataset_episode_json("ep_2")
+    changed_episode["episode"].update(
+        version=2,
+        latestVersion=2,
+        labels={"note": {"type": "TEXT", "content": "brook"}},
+    )
     responses.add(
         responses.GET,
         api_url("/v1/datasets/ds_1/versions"),
@@ -160,9 +171,18 @@ def test_dataset_version_methods():
         responses.GET,
         api_url("/v1/datasets/ds_1/versions/2/compare"),
         json={
-            "changes": [{**dataset_episode_change, "change": "added"}],
+            "changes": [
+                {**dataset_episode_change, "change": "added"},
+                {
+                    **changed_episode,
+                    "change": "changed",
+                    "previousVersion": 1,
+                    "previousEpisode": previous_episode,
+                },
+            ],
             "addedCount": 1,
             "removedCount": 0,
+            "changedCount": 1,
             "nextCursor": "next",
         },
     )
@@ -177,9 +197,11 @@ def test_dataset_version_methods():
         base_version=1,
         limit=5,
         cursor="cursor",
+        include_labels=True,
     )
 
     assert versions.items[0]["committed_at"] == NOW
+    assert versions.items[0]["changed_episode_count"] == 1
     assert "has_missing_recordings" not in versions.items[0]
     assert version["version_number"] == 1
     assert version["has_missing_recordings"] is False
@@ -188,6 +210,14 @@ def test_dataset_version_methods():
     assert comparison["changes"][0]["change"] == "added"
     assert "has_missing_recordings" not in comparison["changes"][0]
     assert comparison["next_cursor"] == "next"
+    assert comparison["changed_count"] == 1
+    changed = comparison["changes"][1]
+    assert changed["previous_version"] == 1
+    assert changed["previous_episode"]["start_time"] == NOW
+    assert changed["previous_episode"]["labels"]["note"]["content"] == "mike"
+    assert changed["episode"]["version"] == 2
+    assert changed["episode"]["labels"]["note"]["content"] == "brook"
+    assert responses.calls[3].request.params["include"] == "labels"
 
 
 @responses.activate
@@ -255,6 +285,7 @@ def test_download_dataset(tmp_path):
         "sortBy": "startTime",
         "sortOrder": "asc",
         "limit": "2000",
+        "include": "labels",
     }
     assert "Authorization" not in responses.calls[4].request.headers
     manifest = json.loads((output / "manifest.json").read_text())
@@ -268,6 +299,7 @@ def test_download_dataset(tmp_path):
         {
             "index": 0,
             "id": "ep_1",
+            "version": 1,
             "file": "episode_0000_ep_1.mcap",
             "startTime": "2026-09-15T00:00:00.000Z",
             "endTime": "2026-09-15T00:01:00.000Z",
@@ -364,7 +396,9 @@ def test_download_episode_keeps_partial_bytes(tmp_path, monkeypatch):
     output = tmp_path / "ep_1.mcap"
 
     with pytest.raises(requests.ConnectionError):
-        client._download_episode_to_file(episode_id="ep_1", output_path=output)
+        client._download_episode_to_file(
+            episode_id="ep_1", episode_version=1, output_path=output
+        )
 
     assert not output.exists()
     assert (tmp_path / ".ep_1.mcap.part").read_bytes() == b"partial data"
@@ -400,3 +434,105 @@ def test_download_dataset_paginates(tmp_path):
     assert "offset" not in responses.calls[2].request.params
     assert responses.calls[3].request.params["cursor"] == "next"
     assert client._download_episode_to_file.call_count == 2001
+
+
+@responses.activate
+def test_dataset_membership_keeps_string_adds_and_explicit_pins():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/datasets/ds_1/episodes"),
+        json={"added": 1, "updated": 1, "removed": 0, "alreadyPresent": 1},
+    )
+    responses.add(
+        responses.GET,
+        api_url("/v1/datasets/ds_1/versions/1/episodes"),
+        json={"episodes": [_dataset_episode_json()]},
+    )
+    client = Client("test")
+
+    result = client.update_dataset_episodes(
+        dataset_id="ds_1",
+        add=["ep_1", {"id": "ep_2", "version": 3}],
+        update=[{"id": "ep_1", "version": 2}],
+    )
+    listed = client.get_dataset_version_episodes(
+        dataset_id="ds_1",
+        version_number=1,
+        include_labels=True,
+        label_query="note:mike",
+    )
+
+    assert result == {"added": 1, "updated": 1, "removed": 0, "already_present": 1}
+    assert json.loads(responses.calls[0].request.body) == {
+        "add": ["ep_1", {"id": "ep_2", "version": 3}],
+        "update": [{"id": "ep_1", "version": 2}],
+    }
+    assert listed.items[0]["episode"]["version"] == 1
+    assert responses.calls[1].request.params["include"] == "labels"
+    assert responses.calls[1].request.params["labelQuery"] == "note:mike"
+
+
+@responses.activate
+def test_dataset_export_keeps_committed_pin_after_episode_changes(tmp_path):
+    output = tmp_path / "dataset"
+    member = _dataset_episode_json("ep_1")
+    member["episode"]["latestVersion"] = 2
+    member["episode"]["labels"] = {
+        "note": {"type": "TEXT", "content": "mike"},
+        "asset": {
+            "type": "URI",
+            "content": {
+                "uri": "s3://bucket/item",
+                "checksum": "sha256:abc",
+                "contentType": "image/png",
+            },
+        },
+    }
+    responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
+    responses.add(
+        responses.GET, api_url("/v1/datasets/ds_1/versions/1"), json=_version_json()
+    )
+    responses.add(
+        responses.GET,
+        api_url("/v1/datasets/ds_1/versions/1/episodes"),
+        json={"episodes": [member]},
+    )
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        json={"link": "https://storage.example/ep_1.mcap"},
+    )
+    responses.add(responses.GET, "https://storage.example/ep_1.mcap", body=b"E@1")
+
+    Client("test").download_dataset(
+        dataset_id="ds_1", version_number=1, output_directory=output
+    )
+
+    assert json.loads(responses.calls[3].request.body)["episodeVersion"] == 1
+    assert (output / "episode_0000_ep_1.mcap").read_bytes() == b"E@1"
+    entry = json.loads((output / "manifest.json").read_text())["episodes"][0]
+    assert entry["version"] == 1
+    assert entry["labels"] == member["episode"]["labels"]
+
+
+@responses.activate
+def test_dataset_export_rejects_missing_pin_before_transfer(tmp_path):
+    output = tmp_path / "dataset"
+    member = _dataset_episode_json("ep_1")
+    del member["episode"]["version"]
+    responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
+    responses.add(
+        responses.GET, api_url("/v1/datasets/ds_1/versions/1"), json=_version_json()
+    )
+    responses.add(
+        responses.GET,
+        api_url("/v1/datasets/ds_1/versions/1/episodes"),
+        json={"episodes": [member]},
+    )
+
+    with pytest.raises(ValueError, match="episode ep_1 has no version pin"):
+        Client("test").download_dataset(
+            dataset_id="ds_1", version_number=1, output_directory=output
+        )
+    assert not output.exists()
+    assert len(responses.calls) == 3

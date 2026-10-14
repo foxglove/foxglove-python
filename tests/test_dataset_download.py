@@ -361,6 +361,7 @@ def test_manifest_timestamps_match_app(tmp_path, monkeypatch):
             {
                 "episode": {
                     "id": "ep_1",
+                    "version": 1,
                     "start_time": instant,
                     "end_time": instant.replace(microsecond=0),
                     "metadata": {},

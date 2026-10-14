@@ -12,12 +12,28 @@ episodes = client.create_episodes(
     project_id=project_id,
     episodes=[{"recordings": [recording_id]}],
 )
+episode = client.get_episode(episode_id=episodes[0]["id"])
+edited = client.update_episode(
+    episode_id=episode["id"],
+    applies_to_version=episode["version"],
+    labels={"review": {"type": "TEXT", "content": "ready"}},
+)
 dataset = client.create_dataset(
     project_id=project_id,
     name="Training candidates",
-    episode_ids=[episodes[0]["id"]],
+)
+client.update_dataset_episodes(
+    dataset_id=dataset["id"],
+    add=[{"id": edited["id"], "version": edited["version"]}],
 )
 commit = client.commit_dataset(dataset_id=dataset["id"])
+
+# A later episode edit does not change the committed dataset's pinned version.
+client.update_episode(
+    episode_id=edited["id"],
+    applies_to_version=edited["version"],
+    labels={"review": {"type": "TEXT", "content": "recheck"}},
+)
 
 output_directory = client.download_dataset(
     dataset_id=dataset["id"],

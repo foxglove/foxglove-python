@@ -10,6 +10,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
+from .episode_labels import labels_to_api
+
 
 class DatasetDownloadWarning(UserWarning):
     """An export completed with failed, skipped, or partially available episodes."""
@@ -117,7 +119,7 @@ def export_dataset(
     episodes: List[Dict[str, Any]],
     destination: Path,
     topics: Optional[List[str]],
-    download: Callable[[str, Path], int],
+    download: Callable[[str, int, Path], int],
 ) -> Path:
     entries: List[Dict[str, Any]] = []
     selection: Dict[str, Any] = {
@@ -154,14 +156,19 @@ def export_dataset(
             entry = {
                 "index": index,
                 "id": episode["id"],
+                "version": episode["version"],
                 "startTime": _iso(episode["start_time"]),
                 "endTime": _iso(episode["end_time"]),
                 "metadata": episode["metadata"],
             }
+            if "labels" in episode:
+                entry["labels"] = labels_to_api(episode["labels"])
             safe_id = re.sub(r"[^A-Za-z0-9._-]+", "-", episode["id"])
             filename = f"episode_{index:04d}_{safe_id}.mcap"
             try:
-                size = download(episode["id"], destination / filename)
+                size = download(
+                    episode["id"], episode["version"], destination / filename
+                )
             except EpisodeRequestError as error:
                 entry.update(
                     status="skipped" if error.unavailable else "failed",

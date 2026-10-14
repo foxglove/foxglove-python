@@ -47,7 +47,7 @@ def test_iter_messages_by_episode(_get):
     client = Client("test")
     client._make_stream_link = MagicMock(return_value="the_link")
 
-    messages = list(client.iter_messages(episode_id="ep_1"))
+    messages = list(client.iter_messages(episode_id="ep_1", episode_version=1))
 
     assert len(messages) == 10
     client._make_stream_link.assert_called_once_with(
@@ -60,4 +60,5 @@ def test_iter_messages_by_episode(_get):
         topics=[],
         project_id=None,
         episode_id="ep_1",
+        episode_version=1,
     )

@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import requests
 import responses
 from foxglove.client import Client
 
@@ -13,6 +14,8 @@ NOW = datetime(2026, 9, 15, tzinfo=timezone.utc)
 def _episode_json(episode_id="ep_1", *, include_recordings=False):
     episode = {
         "id": episode_id,
+        "version": 1,
+        "latestVersion": 1,
         "projectId": "prj_1",
         "startTime": NOW.isoformat(),
         "endTime": NOW.replace(minute=1).isoformat(),
@@ -195,3 +198,192 @@ def test_get_topics_without_episode_requires_time_range():
         client.get_topics(session_id="ses_1")
 
     assert str(raised.value) == "start and end must be provided unless using episode_id"
+
+
+@responses.activate
+def test_episode_version_reads_and_label_filters():
+    historical = {
+        **_episode_json(),
+        "version": 1,
+        "latestVersion": 2,
+        "labels": {
+            "note": {"type": "TEXT", "content": "mike"},
+            "asset": {
+                "type": "URI",
+                "content": {
+                    "uri": "s3://bucket/item",
+                    "checksum": "sha256:abc",
+                    "contentType": "image/png",
+                },
+            },
+        },
+    }
+    responses.add(responses.GET, api_url("/v1/episodes/ep_1"), json=historical)
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes"),
+        json={"episodes": [historical]},
+    )
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes/ep_1/versions"),
+        json={
+            "versions": [
+                {
+                    "version": 2,
+                    "createdAt": NOW.isoformat(),
+                    "changedFields": ["labels"],
+                }
+            ]
+        },
+        headers={"fg-pagination-next-cursor": "next"},
+    )
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes/ep_1/versions"),
+        json={
+            "versions": [
+                {"version": 1, "createdAt": NOW.isoformat(), "changedFields": []}
+            ]
+        },
+    )
+    client = Client("test")
+
+    episode = client.get_episode(episode_id="ep_1", version=1, include_labels=True)
+    listed = client.get_episodes(include_labels=True, label_query="note:mike")
+    versions = list(
+        client.get_episode_versions(episode_id="ep_1", limit=1).auto_paging_iter()
+    )
+
+    assert episode["version"] == 1
+    assert episode["latest_version"] == 2
+    assert episode["labels"]["asset"]["content"]["content_type"] == "image/png"
+    assert listed.items[0]["labels"]["note"]["content"] == "mike"
+    assert responses.calls[0].request.params == {"version": "1", "include": "labels"}
+    assert responses.calls[1].request.params["labelQuery"] == "note:mike"
+    assert [version["version"] for version in versions] == [2, 1]
+    assert responses.calls[3].request.params == {"limit": "1", "cursor": "next"}
+
+
+@responses.activate
+def test_update_episode_serializes_labels_and_preserves_conflict():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes/ep_1"),
+        json={**_episode_json(), "version": 2, "latestVersion": 2},
+    )
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes/ep_1"),
+        json={
+            "error": "Version conflict",
+            "conflicts": [{"id": "ep_1", "currentVersion": 2}],
+        },
+        status=409,
+    )
+    client = Client("test")
+    labels = {
+        "note": {"type": "TEXT", "content": "brook"},
+        "old": None,
+        "asset": {
+            "type": "URI",
+            "content": {
+                "uri": "s3://bucket/item",
+                "checksum": "sha256:abc",
+                "content_type": "image/png",
+            },
+        },
+    }
+
+    result = client.update_episode(
+        episode_id="ep_1",
+        applies_to_version=1,
+        start_time=NOW,
+        recordings={"add": ["rec_2"], "remove": ["rec_1"]},
+        labels=labels,
+    )
+    assert result["version"] == 2
+    assert json.loads(responses.calls[0].request.body) == {
+        "appliesToVersion": 1,
+        "startTime": NOW.astimezone().isoformat(),
+        "recordings": {"add": ["rec_2"], "remove": ["rec_1"]},
+        "labels": {
+            "note": labels["note"],
+            "old": None,
+            "asset": {
+                "type": "URI",
+                "content": {
+                    "uri": "s3://bucket/item",
+                    "checksum": "sha256:abc",
+                    "contentType": "image/png",
+                },
+            },
+        },
+    }
+
+    with pytest.raises(requests.HTTPError) as raised:
+        client.update_episode(
+            episode_id="ep_1", applies_to_version=1, labels={"old": None}
+        )
+    assert raised.value.response.status_code == 409
+    assert raised.value.response.json()["conflicts"][0]["currentVersion"] == 2
+
+
+@responses.activate
+def test_bulk_episode_updates_preserve_order_and_conflict_details():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes"),
+        json={
+            "episodes": [
+                {"id": "ep_2", "version": 4, "latestVersion": 4},
+                {"id": "ep_1", "version": 2},
+            ]
+        },
+    )
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes"),
+        json={
+            "error": "Version conflict",
+            "conflicts": [{"id": "ep_1", "currentVersion": 2}],
+        },
+        status=409,
+    )
+    client = Client("test")
+    updates = [
+        {"id": "ep_2", "labels": {"note": {"type": "TEXT", "content": "ready"}}},
+        {"id": "ep_1", "applies_to_version": 1, "end_time": NOW.replace(minute=2)},
+    ]
+
+    assert client.update_episodes(episodes=updates) == [
+        {"id": "ep_2", "version": 4},
+        {"id": "ep_1", "version": 2},
+    ]
+    body = json.loads(responses.calls[0].request.body)
+    assert body["episodes"][0]["id"] == "ep_2"
+    assert body["episodes"][1]["appliesToVersion"] == 1
+    with pytest.raises(requests.HTTPError) as raised:
+        client.update_episodes(episodes=updates)
+    assert raised.value.response.json()["conflicts"][0]["id"] == "ep_1"
+
+
+@responses.activate
+def test_episode_stream_and_topics_use_explicit_version():
+    download_link = "https://storage.example/episode.mcap"
+    responses.add(
+        responses.POST, api_url("/v1/data/stream"), json={"link": download_link}
+    )
+    responses.add(responses.GET, download_link, body=b"version one")
+    responses.add(responses.GET, api_url("/v1/data/topics"), json=[])
+    client = Client("test")
+
+    assert client.download_data(episode_id="ep_1", episode_version=1) == b"version one"
+    assert client.get_topics(episode_id="ep_1", episode_version=1) == []
+    assert json.loads(responses.calls[0].request.body)["episodeVersion"] == 1
+    assert responses.calls[2].request.params["episodeVersion"] == "1"
+
+    with pytest.raises(ValueError, match="requires episode_id"):
+        client.download_data(episode_version=1)
+    with pytest.raises(ValueError, match="episode version"):
+        client.get_topics(episode_id="ep_1", episode_version=0)

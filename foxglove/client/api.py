@@ -1586,21 +1586,28 @@ class Client:
     ):
         """Return a Page of episodes, optionally with recording details.
 
-        ``exact_recording_ids`` selects an exact set of 1–50 recording IDs.
-        Duplicate IDs count once. Omit to leave the recording set unrestricted.
+        ``exact_recording_ids`` selects an exact set of 1-50 recording IDs.
+        Duplicate IDs match as one recording but count toward the 50-ID input limit.
+        IDs must be nonempty strings without commas. Omit the argument to leave
+        the recording set unrestricted.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
         _validate_episode_range(start, end)
+        if isinstance(exact_recording_ids, str):
+            raise TypeError("exact_recording_ids must be a list of IDs, not a str")
         if exact_recording_ids is not None and (
             not 1 <= len(exact_recording_ids) <= 50
             or any(
-                not isinstance(item, str) or not item for item in exact_recording_ids
+                not isinstance(item, str) or not item or "," in item
+                for item in exact_recording_ids
             )
         ):
-            raise ValueError("exact_recording_ids must contain 1–50 nonempty IDs")
+            raise ValueError(
+                "exact_recording_ids must contain 1-50 nonempty IDs without commas"
+            )
         return self._get_page(
             "/v1/episodes",
             _episode_dict,

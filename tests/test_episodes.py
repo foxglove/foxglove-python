@@ -244,7 +244,12 @@ def test_get_topics_without_episode_requires_time_range():
     assert str(raised.value) == "start and end must be provided unless using episode_id"
 
 
-@pytest.mark.parametrize("ids", [[], [""], ["rec"] * 51])
+@pytest.mark.parametrize("ids", [[], [""], ["rec"] * 51, ["rec_one,rec_two"]])
 def test_exact_recording_set_rejects_invalid_inputs(ids):
     with pytest.raises(ValueError, match="exact_recording_ids"):
         Client("test").get_episodes(exact_recording_ids=ids)
+
+
+def test_exact_recording_set_rejects_a_single_string():
+    with pytest.raises(TypeError, match="exact_recording_ids"):
+        Client("test").get_episodes(exact_recording_ids="rec_one")  # type: ignore

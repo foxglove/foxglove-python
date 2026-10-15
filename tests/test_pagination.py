@@ -35,6 +35,7 @@ LIST_CASES = [
             "include_recordings": True,
             "has_missing_recordings": False,
             "recording_id": "rec_1",
+            "metadata_query": 'task:"fold towel" attempts:3',
             "start": NOW,
             "end": NOW + timedelta(minutes=1),
         },
@@ -51,6 +52,7 @@ LIST_CASES = [
             "end": NOW + timedelta(minutes=1),
             "has_missing_recordings": False,
             "recording_id": "rec_1",
+            "metadata_query": 'task:"fold towel" attempts:3',
             "sort_by": "start_time",
         },
     ),
@@ -60,7 +62,7 @@ LIST_CASES = [
         "/v1/datasets/ds_1/versions/1/episodes",
         "episodes",
         _dataset_episode_json,
-        {"sort_by": "added_at"},
+        {"sort_by": "added_at", "metadata_query": "task:fold"},
     ),
     (
         "get_dataset_versions",
@@ -103,6 +105,8 @@ def test_pages_are_lazy_and_preserve_query(
     assert len(responses.calls) == 2
     first_params = responses.calls[0].request.params
     assert responses.calls[1].request.params == {**first_params, "cursor": "forward"}
+    if "metadata_query" in filters:
+        assert first_params["metadataQuery"] == filters["metadata_query"]
     if method == "get_datasets":
         assert first_params["name"] == "runs"
         assert first_params["sortBy"] == "episodeCount"

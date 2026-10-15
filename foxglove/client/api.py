@@ -84,6 +84,15 @@ def bool_query_param(val: bool) -> Optional[str]:
     return str(val).lower() if val is not None else None
 
 
+def _episode_includes(recordings: bool, creation_context: bool) -> Optional[str]:
+    fields = []
+    if recordings:
+        fields.append("recordings")
+    if creation_context:
+        fields.append("creationContext")
+    return ",".join(fields) or None
+
+
 def without_nulls(params: Dict[str, Union[T, None]]) -> Dict[str, T]:
     """
     Filter out `None` values from params
@@ -1297,6 +1306,7 @@ class Client:
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return a Page of the latest committed or initial editable membership.
 
@@ -1316,6 +1326,7 @@ class Client:
             has_missing_recordings=has_missing_recordings,
             recording_id=recording_id,
             include_recordings=include_recordings,
+            include_creation_context=include_creation_context,
         )
 
     def update_dataset_episodes(
@@ -1384,6 +1395,7 @@ class Client:
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return a Page of episode membership in a specific version.
 
@@ -1403,6 +1415,7 @@ class Client:
             has_missing_recordings=has_missing_recordings,
             recording_id=recording_id,
             include_recordings=include_recordings,
+            include_creation_context=include_creation_context,
         )
 
     def _get_dataset_episodes(
@@ -1419,6 +1432,7 @@ class Client:
         has_missing_recordings: Optional[bool],
         recording_id: Optional[str],
         include_recordings: bool,
+        include_creation_context: bool,
     ):
         _validate_episode_range(start, end)
         path = f"/v1/datasets/{dataset_id}"
@@ -1443,7 +1457,9 @@ class Client:
                         else None
                     ),
                     "recordingId": recording_id,
-                    "include": "recordings" if include_recordings else None,
+                    "include": _episode_includes(
+                        include_recordings, include_creation_context
+                    ),
                 }
             ),
         )
@@ -1457,6 +1473,7 @@ class Client:
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
         include_recordings: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return membership changes from ``base_version`` to ``version_number``."""
         response = self.__session.get(
@@ -1468,7 +1485,9 @@ class Client:
                     "version": base_version,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": "recordings" if include_recordings else None,
+                    "include": _episode_includes(
+                        include_recordings, include_creation_context
+                    ),
                 }
             ),
         )
@@ -1527,8 +1546,11 @@ class Client:
         :param project_id: Project in which to create the episodes.
         :param episodes: Episode definitions. Each dictionary requires exactly one of
             ``recordings`` or ``event_id``, and may include ``metadata``. Recording inputs may
-            also include ``start_time`` and ``end_time``. An ``event_id`` input snapshots the
-            event's current time range and the completed recordings from its device that
+            also include ``start_time`` and ``end_time``. ``creation_context`` is an
+            optional provenance object using the public API field names (including its
+            required ``version``). It is stored only for newly created episodes.
+            An ``event_id`` input snapshots the event's current time range and the
+            completed recordings from its device that
             overlap it; later edits to the event or new imports do not change the episode.
         """
         serialized = []
@@ -1560,6 +1582,7 @@ class Client:
                             end_time.astimezone().isoformat() if end_time else None
                         ),
                         "metadata": episode.get("metadata"),
+                        "creationContext": episode.get("creation_context"),
                     }
                 )
             )
@@ -1582,6 +1605,7 @@ class Client:
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
         include_recordings: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return a Page of episodes, optionally with recording details.
 
@@ -1609,7 +1633,9 @@ class Client:
                     "sortOrder": sort_order,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": "recordings" if include_recordings else None,
+                    "include": _episode_includes(
+                        include_recordings, include_creation_context
+                    ),
                 }
             ),
         )
@@ -2192,6 +2218,8 @@ def _episode_dict(episode):
         ]
     if "hasMissingRecordings" in episode:
         result["has_missing_recordings"] = episode["hasMissingRecordings"]
+    if "creationContext" in episode:
+        result["creation_context"] = episode["creationContext"]
     return result
 
 

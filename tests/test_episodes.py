@@ -18,6 +18,7 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
         "endTime": NOW.replace(minute=1).isoformat(),
         "metadata": {"result": "success", "nestedValue": {"keepMe": True}},
         "creatorApiKeyId": "key_1",
+        "creationContext": {"version": 1, "derivedFromEpisodeId": "ep_parent"},
         "createdAt": NOW.isoformat(),
     }
     if include_recordings:
@@ -53,6 +54,7 @@ def test_create_episodes_serializes_inputs():
                 "start_time": NOW,
                 "end_time": NOW.replace(minute=1),
                 "metadata": {"result": "success"},
+                "creation_context": {"version": 1, "derivedFromEpisodeId": "ep_parent"},
             }
         ],
     )
@@ -66,6 +68,7 @@ def test_create_episodes_serializes_inputs():
                 "startTime": NOW.astimezone().isoformat(),
                 "endTime": NOW.replace(minute=1).astimezone().isoformat(),
                 "metadata": {"result": "success"},
+                "creationContext": {"version": 1, "derivedFromEpisodeId": "ep_parent"},
             }
         ],
     }
@@ -139,6 +142,10 @@ def test_get_episodes_maps_response_and_filters():
         include_recordings=True,
     )
 
+    assert episodes.items[0]["creation_context"] == {
+        "version": 1,
+        "derivedFromEpisodeId": "ep_parent",
+    }
     assert episodes.items[0]["start_time"] == NOW
     assert episodes.items[0]["metadata"]["nestedValue"] == {"keepMe": True}
     assert episodes.items[0]["recordings"][0]["device_id"] == "dev_1"

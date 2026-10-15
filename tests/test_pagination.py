@@ -33,6 +33,7 @@ LIST_CASES = [
         {
             "project_id": "prj_1",
             "include_recordings": True,
+            "include_creation_context": True,
             "has_missing_recordings": False,
             "recording_id": "rec_1",
             "start": NOW,
@@ -47,6 +48,7 @@ LIST_CASES = [
         _dataset_episode_json,
         {
             "include_recordings": True,
+            "include_creation_context": True,
             "start": NOW,
             "end": NOW + timedelta(minutes=1),
             "has_missing_recordings": False,
@@ -60,7 +62,7 @@ LIST_CASES = [
         "/v1/datasets/ds_1/versions/1/episodes",
         "episodes",
         _dataset_episode_json,
-        {"sort_by": "added_at"},
+        {"sort_by": "added_at", "include_creation_context": True},
     ),
     (
         "get_dataset_versions",
@@ -103,6 +105,13 @@ def test_pages_are_lazy_and_preserve_query(
     assert len(responses.calls) == 2
     first_params = responses.calls[0].request.params
     assert responses.calls[1].request.params == {**first_params, "cursor": "forward"}
+    if "include_creation_context" in filters:
+        expected = (
+            "recordings,creationContext"
+            if filters.get("include_recordings")
+            else "creationContext"
+        )
+        assert first_params["include"] == expected
     if method == "get_datasets":
         assert first_params["name"] == "runs"
         assert first_params["sortBy"] == "episodeCount"

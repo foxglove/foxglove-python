@@ -1301,7 +1301,10 @@ class Client:
     ):
         """Return a Page of the latest committed or initial editable membership.
 
-        ``metadata_query`` filters top-level metadata using the API query syntax.
+        ``metadata_query`` filters top-level metadata; nested keys are not traversed.
+        Numeric, boolean and null values also match their JSON representations,
+        so ``attempts:3`` matches both the number 3 and the string "3".
+        See https://docs.foxglove.dev/api#tag/Episodes for the query syntax.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -1392,7 +1395,10 @@ class Client:
     ):
         """Return a Page of episode membership in a specific version.
 
-        ``metadata_query`` filters top-level metadata using the API query syntax.
+        ``metadata_query`` filters top-level metadata; nested keys are not traversed.
+        Numeric, boolean and null values also match their JSON representations,
+        so ``attempts:3`` matches both the number 3 and the string "3".
+        See https://docs.foxglove.dev/api#tag/Episodes for the query syntax.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -1596,7 +1602,10 @@ class Client:
     ):
         """Return a Page of episodes, optionally with recording details.
 
-        ``metadata_query`` filters top-level metadata using the API query syntax.
+        ``metadata_query`` filters top-level metadata; nested keys are not traversed.
+        Numeric, boolean and null values also match their JSON representations,
+        so ``attempts:3`` matches both the number 3 and the string "3".
+        See https://docs.foxglove.dev/api#tag/Episodes for the query syntax.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.

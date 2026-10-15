@@ -22,7 +22,11 @@ LIST_CASES = [
         "/v1/datasets",
         None,
         _dataset_json,
-        {"name": "runs", "project_id": "prj_1", "sort_by": "episode_count"},
+        {
+            "name": "runs",
+            "project_id": "prj_1",
+            "sort_by": "episode_count",
+        },
     ),
     (
         "get_episodes",
@@ -35,6 +39,7 @@ LIST_CASES = [
             "include_recordings": True,
             "has_missing_recordings": False,
             "recording_id": "rec_1",
+            "exact_recording_ids": ["rec_1", "rec_2"],
             "start": NOW,
             "end": NOW + timedelta(minutes=1),
         },
@@ -103,6 +108,8 @@ def test_pages_are_lazy_and_preserve_query(
     assert len(responses.calls) == 2
     first_params = responses.calls[0].request.params
     assert responses.calls[1].request.params == {**first_params, "cursor": "forward"}
+    if method == "get_episodes":
+        assert first_params["exactRecordingIds"] == "rec_1,rec_2"
     if method == "get_datasets":
         assert first_params["name"] == "runs"
         assert first_params["sortBy"] == "episodeCount"

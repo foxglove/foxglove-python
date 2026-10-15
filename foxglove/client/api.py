@@ -1310,6 +1310,9 @@ class Client:
     ):
         """Return a Page of the latest committed or initial editable membership.
 
+        Set ``include_creation_context`` to include each episode's creation context.
+        Its nested keys use the public API field names, preserved without conversion.
+
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
@@ -1399,6 +1402,9 @@ class Client:
     ):
         """Return a Page of episode membership in a specific version.
 
+        Set ``include_creation_context`` to include each episode's creation context.
+        Its nested keys use the public API field names, preserved without conversion.
+
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
@@ -1475,7 +1481,11 @@ class Client:
         include_recordings: bool = False,
         include_creation_context: bool = False,
     ):
-        """Return membership changes from ``base_version`` to ``version_number``."""
+        """Return membership changes from ``base_version`` to ``version_number``.
+
+        Set ``include_creation_context`` to include each episode's creation context.
+        Its nested keys use the public API field names, preserved without conversion.
+        """
         response = self.__session.get(
             self.__url__(
                 f"/v1/datasets/{dataset_id}/versions/{version_number}/compare"
@@ -1548,10 +1558,12 @@ class Client:
             ``recordings`` or ``event_id``, and may include ``metadata``. Recording inputs may
             also include ``start_time`` and ``end_time``. ``creation_context`` is an
             optional provenance object using the public API field names (including its
-            required ``version``). It is stored only for newly created episodes.
+            required ``version``), e.g. ``{"version": 1, "derivedFromEpisodeId": "ep_1"}``.
+            It is stored only for newly created episodes. If an existing episode is
+            reused, its context is unchanged and can differ from the supplied context.
             An ``event_id`` input snapshots the event's current time range and the
-            completed recordings from its device that
-            overlap it; later edits to the event or new imports do not change the episode.
+            completed recordings from its device that overlap it; later edits to the
+            event or new imports do not change the episode.
         """
         serialized = []
         for index, episode in enumerate(episodes):
@@ -1609,6 +1621,9 @@ class Client:
     ):
         """Return a Page of episodes, optionally with recording details.
 
+        Set ``include_creation_context`` to include each episode's creation context.
+        Its nested keys use the public API field names, preserved without conversion.
+
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
@@ -1641,7 +1656,11 @@ class Client:
         )
 
     def get_episode(self, *, episode_id: str, include_recordings: bool = False):
-        """Return an episode, optionally with recording details."""
+        """Return an episode, optionally with recording details.
+
+        Creation context is included when supplied by the API; nested keys use
+        public API field names and an explicit null context is preserved as None.
+        """
         response = self.__session.get(
             self.__url__(f"/v1/episodes/{episode_id}"),
             params={"include": "recordings"} if include_recordings else None,
@@ -2218,6 +2237,8 @@ def _episode_dict(episode):
         ]
     if "hasMissingRecordings" in episode:
         result["has_missing_recordings"] = episode["hasMissingRecordings"]
+    # This versioned provenance document is round-tripped without renaming nested
+    # fields, including the opaque search predicate, so it can be reused as input.
     if "creationContext" in episode:
         result["creation_context"] = episode["creationContext"]
     return result

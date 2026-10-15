@@ -1297,8 +1297,11 @@ class Client:
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
+        metadata_query: Optional[str] = None,
     ):
         """Return a Page of the latest committed or initial editable membership.
+
+        ``metadata_query`` filters top-level metadata using the API query syntax.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -1316,6 +1319,7 @@ class Client:
             has_missing_recordings=has_missing_recordings,
             recording_id=recording_id,
             include_recordings=include_recordings,
+            metadata_query=metadata_query,
         )
 
     def update_dataset_episodes(
@@ -1384,8 +1388,11 @@ class Client:
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
+        metadata_query: Optional[str] = None,
     ):
         """Return a Page of episode membership in a specific version.
+
+        ``metadata_query`` filters top-level metadata using the API query syntax.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -1403,6 +1410,7 @@ class Client:
             has_missing_recordings=has_missing_recordings,
             recording_id=recording_id,
             include_recordings=include_recordings,
+            metadata_query=metadata_query,
         )
 
     def _get_dataset_episodes(
@@ -1419,6 +1427,7 @@ class Client:
         has_missing_recordings: Optional[bool],
         recording_id: Optional[str],
         include_recordings: bool,
+        metadata_query: Optional[str],
     ):
         _validate_episode_range(start, end)
         path = f"/v1/datasets/{dataset_id}"
@@ -1443,6 +1452,7 @@ class Client:
                         else None
                     ),
                     "recordingId": recording_id,
+                    "metadataQuery": metadata_query,
                     "include": "recordings" if include_recordings else None,
                 }
             ),
@@ -1582,8 +1592,11 @@ class Client:
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
         include_recordings: bool = False,
+        metadata_query: Optional[str] = None,
     ):
         """Return a Page of episodes, optionally with recording details.
+
+        ``metadata_query`` filters top-level metadata using the API query syntax.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -1605,6 +1618,7 @@ class Client:
                         else None
                     ),
                     "recordingId": recording_id,
+                    "metadataQuery": metadata_query,
                     "sortBy": camelize(sort_by),
                     "sortOrder": sort_order,
                     "limit": limit,

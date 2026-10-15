@@ -177,6 +177,7 @@ def test_dataset_version_methods():
         base_version=1,
         limit=5,
         cursor="cursor",
+        include_creation_context=True,
     )
 
     assert versions.items[0]["committed_at"] == NOW
@@ -185,6 +186,7 @@ def test_dataset_version_methods():
     assert version["has_missing_recordings"] is False
     assert episodes.items[0]["episode"]["id"] == "ep_1"
     assert episodes.items[0]["episode"]["recordings"][0]["location"] is None
+    assert responses.calls[3].request.params["include"] == "creationContext"
     assert comparison["changes"][0]["change"] == "added"
     assert "has_missing_recordings" not in comparison["changes"][0]
     assert comparison["next_cursor"] == "next"

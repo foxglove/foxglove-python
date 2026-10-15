@@ -84,6 +84,15 @@ def bool_query_param(val: bool) -> Optional[str]:
     return str(val).lower() if val is not None else None
 
 
+def _episode_include_param(recordings: bool, creation_context: bool) -> Optional[str]:
+    fields = []
+    if recordings:
+        fields.append("recordings")
+    if creation_context:
+        fields.append("creationContext")
+    return ",".join(fields) or None
+
+
 def without_nulls(params: Dict[str, Union[T, None]]) -> Dict[str, T]:
     """
     Filter out `None` values from params
@@ -1297,8 +1306,12 @@ class Client:
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return a Page of the latest committed or initial editable membership.
+
+        Set ``include_creation_context`` to include each episode's creation context.
+        Its nested keys use the public API field names, preserved without conversion.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -1316,6 +1329,7 @@ class Client:
             has_missing_recordings=has_missing_recordings,
             recording_id=recording_id,
             include_recordings=include_recordings,
+            include_creation_context=include_creation_context,
         )
 
     def update_dataset_episodes(
@@ -1384,8 +1398,12 @@ class Client:
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         include_recordings: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return a Page of episode membership in a specific version.
+
+        Set ``include_creation_context`` to include each episode's creation context.
+        Its nested keys use the public API field names, preserved without conversion.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -1403,6 +1421,7 @@ class Client:
             has_missing_recordings=has_missing_recordings,
             recording_id=recording_id,
             include_recordings=include_recordings,
+            include_creation_context=include_creation_context,
         )
 
     def _get_dataset_episodes(
@@ -1419,6 +1438,7 @@ class Client:
         has_missing_recordings: Optional[bool],
         recording_id: Optional[str],
         include_recordings: bool,
+        include_creation_context: bool,
     ):
         _validate_episode_range(start, end)
         path = f"/v1/datasets/{dataset_id}"
@@ -1443,7 +1463,9 @@ class Client:
                         else None
                     ),
                     "recordingId": recording_id,
-                    "include": "recordings" if include_recordings else None,
+                    "include": _episode_include_param(
+                        include_recordings, include_creation_context
+                    ),
                 }
             ),
         )
@@ -1457,8 +1479,13 @@ class Client:
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
         include_recordings: bool = False,
+        include_creation_context: bool = False,
     ):
-        """Return membership changes from ``base_version`` to ``version_number``."""
+        """Return membership changes from ``base_version`` to ``version_number``.
+
+        Set ``include_creation_context`` to include each episode's creation context.
+        Its nested keys use the public API field names, preserved without conversion.
+        """
         response = self.__session.get(
             self.__url__(
                 f"/v1/datasets/{dataset_id}/versions/{version_number}/compare"
@@ -1468,7 +1495,9 @@ class Client:
                     "version": base_version,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": "recordings" if include_recordings else None,
+                    "include": _episode_include_param(
+                        include_recordings, include_creation_context
+                    ),
                 }
             ),
         )
@@ -1527,9 +1556,14 @@ class Client:
         :param project_id: Project in which to create the episodes.
         :param episodes: Episode definitions. Each dictionary requires exactly one of
             ``recordings`` or ``event_id``, and may include ``metadata``. Recording inputs may
-            also include ``start_time`` and ``end_time``. An ``event_id`` input snapshots the
-            event's current time range and the completed recordings from its device that
-            overlap it; later edits to the event or new imports do not change the episode.
+            also include ``start_time`` and ``end_time``. ``creation_context`` is an
+            optional provenance object using the public API field names (including its
+            required ``version``), e.g. ``{"version": 1, "derivedFromEpisodeId": "ep_1"}``.
+            It is stored only for newly created episodes. If an existing episode is
+            reused, its context is unchanged and can differ from the supplied context.
+            An ``event_id`` input snapshots the event's current time range and the
+            completed recordings from its device that overlap it; later edits to the
+            event or new imports do not change the episode.
         """
         serialized = []
         for index, episode in enumerate(episodes):
@@ -1560,6 +1594,7 @@ class Client:
                             end_time.astimezone().isoformat() if end_time else None
                         ),
                         "metadata": episode.get("metadata"),
+                        "creationContext": episode.get("creation_context"),
                     }
                 )
             )
@@ -1582,8 +1617,12 @@ class Client:
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
         include_recordings: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return a Page of episodes, optionally with recording details.
+
+        Set ``include_creation_context`` to include each episode's creation context.
+        Its nested keys use the public API field names, preserved without conversion.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -1609,13 +1648,19 @@ class Client:
                     "sortOrder": sort_order,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": "recordings" if include_recordings else None,
+                    "include": _episode_include_param(
+                        include_recordings, include_creation_context
+                    ),
                 }
             ),
         )
 
     def get_episode(self, *, episode_id: str, include_recordings: bool = False):
-        """Return an episode, optionally with recording details."""
+        """Return an episode, optionally with recording details.
+
+        Creation context is included when supplied by the API; nested keys use
+        public API field names and an explicit null context is preserved as None.
+        """
         response = self.__session.get(
             self.__url__(f"/v1/episodes/{episode_id}"),
             params={"include": "recordings"} if include_recordings else None,
@@ -2192,6 +2237,10 @@ def _episode_dict(episode):
         ]
     if "hasMissingRecordings" in episode:
         result["has_missing_recordings"] = episode["hasMissingRecordings"]
+    # This versioned provenance document is round-tripped without renaming nested
+    # fields, including the opaque search predicate, so it can be reused as input.
+    if "creationContext" in episode:
+        result["creation_context"] = episode["creationContext"]
     return result
 
 

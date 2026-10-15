@@ -84,7 +84,9 @@ def bool_query_param(val: bool) -> Optional[str]:
     return str(val).lower() if val is not None else None
 
 
-def _episode_includes(recordings: bool, creation_context: bool) -> Optional[str]:
+def _episode_context_includes(
+    recordings: bool, creation_context: bool
+) -> Optional[str]:
     fields = []
     if recordings:
         fields.append("recordings")
@@ -1463,7 +1465,7 @@ class Client:
                         else None
                     ),
                     "recordingId": recording_id,
-                    "include": _episode_includes(
+                    "include": _episode_context_includes(
                         include_recordings, include_creation_context
                     ),
                 }
@@ -1495,7 +1497,7 @@ class Client:
                     "version": base_version,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": _episode_includes(
+                    "include": _episode_context_includes(
                         include_recordings, include_creation_context
                     ),
                 }
@@ -1648,7 +1650,7 @@ class Client:
                     "sortOrder": sort_order,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": _episode_includes(
+                    "include": _episode_context_includes(
                         include_recordings, include_creation_context
                     ),
                 }

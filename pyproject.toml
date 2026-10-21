@@ -13,6 +13,7 @@ readme = "README.md"
 requires-python = ">=3.7"
 dependencies = [
     "arrow",
+    "certifi>=2026.10.19",
     "mcap>=1.1.0",
     "requests",
     "typing_extensions",

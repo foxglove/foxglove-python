@@ -45,6 +45,15 @@ def _validate_episode_range(start, end):
         raise ValueError("start and end must be supplied together")
 
 
+def _episode_include(include_recordings: bool, include_properties: bool):
+    include = []
+    if include_recordings:
+        include.append("recordings")
+    if include_properties:
+        include.append("properties")
+    return ",".join(include) or None
+
+
 try:
     from mcap_ros1.decoder import DecoderFactory as Ros1DecoderFactory
 
@@ -1296,7 +1305,9 @@ class Client:
         end: Optional[datetime.datetime] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
+        properties_query: Optional[str] = None,
         include_recordings: bool = False,
+        include_properties: bool = False,
     ):
         """Return a Page of the latest committed or initial editable membership.
 
@@ -1315,7 +1326,9 @@ class Client:
             end=end,
             has_missing_recordings=has_missing_recordings,
             recording_id=recording_id,
+            properties_query=properties_query,
             include_recordings=include_recordings,
+            include_properties=include_properties,
         )
 
     def update_dataset_episodes(
@@ -1383,7 +1396,9 @@ class Client:
         end: Optional[datetime.datetime] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
+        properties_query: Optional[str] = None,
         include_recordings: bool = False,
+        include_properties: bool = False,
     ):
         """Return a Page of episode membership in a specific version.
 
@@ -1402,7 +1417,9 @@ class Client:
             end=end,
             has_missing_recordings=has_missing_recordings,
             recording_id=recording_id,
+            properties_query=properties_query,
             include_recordings=include_recordings,
+            include_properties=include_properties,
         )
 
     def _get_dataset_episodes(
@@ -1418,7 +1435,9 @@ class Client:
         end: Optional[datetime.datetime],
         has_missing_recordings: Optional[bool],
         recording_id: Optional[str],
+        properties_query: Optional[str],
         include_recordings: bool,
+        include_properties: bool,
     ):
         _validate_episode_range(start, end)
         path = f"/v1/datasets/{dataset_id}"
@@ -1443,7 +1462,8 @@ class Client:
                         else None
                     ),
                     "recordingId": recording_id,
-                    "include": "recordings" if include_recordings else None,
+                    "propertiesQuery": properties_query,
+                    "include": _episode_include(include_recordings, include_properties),
                 }
             ),
         )
@@ -1457,6 +1477,7 @@ class Client:
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
         include_recordings: bool = False,
+        include_properties: bool = False,
     ):
         """Return membership changes from ``base_version`` to ``version_number``."""
         response = self.__session.get(
@@ -1468,7 +1489,7 @@ class Client:
                     "version": base_version,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": "recordings" if include_recordings else None,
+                    "include": _episode_include(include_recordings, include_properties),
                 }
             ),
         )
@@ -1522,14 +1543,17 @@ class Client:
         }
 
     def create_episodes(self, *, project_id: str, episodes: List[Dict[str, Any]]):
-        """Create episodes, reusing any with identical membership and bounds.
+        """Create episodes, reusing any whose latest version has identical membership, bounds,
+        and custom properties.
 
         :param project_id: Project in which to create the episodes.
         :param episodes: Episode definitions. Each dictionary requires exactly one of
-            ``recordings`` or ``event_id``, and may include ``metadata``. Recording inputs may
-            also include ``start_time`` and ``end_time``. An ``event_id`` input snapshots the
-            event's current time range and the completed recordings from its device that
-            overlap it; later edits to the event or new imports do not change the episode.
+            ``recordings`` or ``event_id``, and may include ``metadata`` and ``properties``.
+            Recording inputs may also include ``start_time`` and ``end_time``. An ``event_id``
+            input snapshots the event's current time range and the completed recordings from
+            its device that overlap it; later edits to the event or new imports do not change
+            the episode. ``properties`` keys must be episode custom properties defined for your
+            organization, with values of the matching type; multi-enum values are lists.
         """
         serialized = []
         for index, episode in enumerate(episodes):
@@ -1560,12 +1584,52 @@ class Client:
                             end_time.astimezone().isoformat() if end_time else None
                         ),
                         "metadata": episode.get("metadata"),
+                        "properties": episode.get("properties"),
                     }
                 )
             )
         response = self.__session.post(
             self.__url__("/v1/episodes"),
             json={"projectId": project_id, "episodes": serialized},
+        )
+        return json_or_raise(response)["episodes"]
+
+    def update_episodes(self, *, episodes: List[Dict[str, Any]]):
+        """Update episodes in one transaction and return each episode's resulting version.
+
+        If any update fails, no updates are applied. An unchanged episode keeps its version.
+
+        :param episodes: Episode updates. Each dictionary requires ``id`` and may include
+            ``applies_to_version``, ``start_time``, ``end_time``, ``recordings``, and
+            ``properties``. ``applies_to_version`` rejects the update if the episode's latest
+            version differs. ``recordings`` is a dictionary with optional ``add`` and
+            ``remove`` lists of recording IDs. ``properties`` keys not included in the
+            update keep their values; to unset a property, pass None as the value.
+        """
+        serialized = [
+            without_nulls(
+                {
+                    "id": episode["id"],
+                    "appliesToVersion": episode.get("applies_to_version"),
+                    "startTime": (
+                        episode["start_time"].astimezone().isoformat()
+                        if episode.get("start_time")
+                        else None
+                    ),
+                    "endTime": (
+                        episode["end_time"].astimezone().isoformat()
+                        if episode.get("end_time")
+                        else None
+                    ),
+                    "recordings": episode.get("recordings"),
+                    "properties": episode.get("properties"),
+                }
+            )
+            for episode in episodes
+        ]
+        response = self.__session.patch(
+            self.__url__("/v1/episodes"),
+            json={"episodes": serialized},
         )
         return json_or_raise(response)["episodes"]
 
@@ -1577,15 +1641,18 @@ class Client:
         end: Optional[datetime.datetime] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
+        properties_query: Optional[str] = None,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
         include_recordings: bool = False,
+        include_properties: bool = False,
     ):
-        """Return a Page of episodes, optionally with recording details.
+        """Return a Page of episodes, optionally with recording details and custom properties.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
+        Use ``properties_query`` to filter by custom property values.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
@@ -1605,20 +1672,29 @@ class Client:
                         else None
                     ),
                     "recordingId": recording_id,
+                    "propertiesQuery": properties_query,
                     "sortBy": camelize(sort_by),
                     "sortOrder": sort_order,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": "recordings" if include_recordings else None,
+                    "include": _episode_include(include_recordings, include_properties),
                 }
             ),
         )
 
-    def get_episode(self, *, episode_id: str, include_recordings: bool = False):
-        """Return an episode, optionally with recording details."""
+    def get_episode(
+        self,
+        *,
+        episode_id: str,
+        include_recordings: bool = False,
+        include_properties: bool = False,
+    ):
+        """Return an episode, optionally with recording details and custom properties."""
         response = self.__session.get(
             self.__url__(f"/v1/episodes/{episode_id}"),
-            params={"include": "recordings"} if include_recordings else None,
+            params=without_nulls(
+                {"include": _episode_include(include_recordings, include_properties)}
+            ),
         )
         return _episode_dict(json_or_raise(response))
 
@@ -1678,6 +1754,7 @@ class Client:
                 sort_by="start_time",
                 sort_order="asc",
                 limit=2000,
+                include_properties=True,
             ).auto_paging_iter()
         )
         destination.mkdir(parents=True, exist_ok=True)
@@ -2182,10 +2259,14 @@ def _episode_dict(episode):
         "start_time": arrow.get(episode["startTime"]).datetime,
         "end_time": arrow.get(episode["endTime"]).datetime,
         "metadata": episode["metadata"],
+        "version": episode["version"],
+        "latest_version": episode["latestVersion"],
         "creator_org_member_id": episode.get("creatorOrgMemberId"),
         "creator_api_key_id": episode.get("creatorApiKeyId"),
         "created_at": arrow.get(episode["createdAt"]).datetime,
     }
+    if "properties" in episode:
+        result["properties"] = episode["properties"]
     if recordings is not None:
         result["recordings"] = [
             _episode_recording_dict(recording) for recording in recordings

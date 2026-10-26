@@ -6,6 +6,7 @@ token = "<YOUR API TOKEN HERE>"
 project_id = "<YOUR PROJECT ID HERE>"
 recording_id = "<YOUR RECORDING ID HERE>"
 event_id = "<YOUR EVENT ID HERE>"
+property_key = "<YOUR EPISODE CUSTOM PROPERTY KEY HERE>"
 
 client = Client(token=token)
 
@@ -16,6 +17,10 @@ episodes = client.create_episodes(
         {"recordings": [recording_id]},
         {"event_id": event_id, "metadata": {"label": "example"}},
     ],
+)
+# Each change creates a new episode version. None unsets a property.
+client.update_episodes(
+    episodes=[{"id": episodes[0]["id"], "properties": {property_key: "reviewed"}}]
 )
 dataset = client.create_dataset(
     project_id=project_id,

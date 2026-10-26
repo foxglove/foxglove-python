@@ -19,6 +19,8 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
         "startTime": NOW.isoformat(),
         "endTime": NOW.replace(minute=1).isoformat(),
         "metadata": {},
+        "version": 1,
+        "latestVersion": 1,
         "createdAt": NOW.isoformat(),
     }
     if include_recordings:
@@ -62,11 +64,13 @@ def _version_json(version_number=1, *, committed=True, missing=False):
 
 
 def _dataset_episode_json(episode_id="ep_1", *, missing=False):
+    episode = _episode_json(episode_id, include_recordings=True)
+    episode["properties"] = {"stage": "review"}
     return {
         "addedAt": NOW.isoformat(),
         "addedInVersion": 1,
         "hasMissingRecordings": missing,
-        "episode": _episode_json(episode_id, include_recordings=True),
+        "episode": episode,
     }
 
 
@@ -255,6 +259,7 @@ def test_download_dataset(tmp_path):
         "sortBy": "startTime",
         "sortOrder": "asc",
         "limit": "2000",
+        "include": "properties",
     }
     assert "Authorization" not in responses.calls[4].request.headers
     manifest = json.loads((output / "manifest.json").read_text())
@@ -268,6 +273,7 @@ def test_download_dataset(tmp_path):
         {
             "index": 0,
             "id": "ep_1",
+            "properties": {"stage": "review"},
             "file": "episode_0000_ep_1.mcap",
             "startTime": "2026-09-15T00:00:00.000Z",
             "endTime": "2026-09-15T00:01:00.000Z",

@@ -154,6 +154,7 @@ def export_dataset(
             entry = {
                 "index": index,
                 "id": episode["id"],
+                "properties": episode["properties"],
                 "startTime": _iso(episode["start_time"]),
                 "endTime": _iso(episode["end_time"]),
                 "metadata": episode["metadata"],

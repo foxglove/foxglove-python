@@ -154,11 +154,12 @@ def export_dataset(
             entry = {
                 "index": index,
                 "id": episode["id"],
-                "properties": episode["properties"],
                 "startTime": _iso(episode["start_time"]),
                 "endTime": _iso(episode["end_time"]),
                 "metadata": episode["metadata"],
             }
+            if "properties" in episode:
+                entry["properties"] = episode["properties"]
             safe_id = re.sub(r"[^A-Za-z0-9._-]+", "-", episode["id"])
             filename = f"episode_{index:04d}_{safe_id}.mcap"
             try:

@@ -33,6 +33,7 @@ output_directory = client.download_dataset(
     dataset_id=dataset["id"],
     version_number=commit["committed"]["version_number"],
     output_directory=Path("training-candidates"),
+    # include_properties=True,  # Include custom properties in manifest.json.
     # topics=["/camera", "/joint_states"],  # Omit to download all topics.
 )
 print(f"Exported dataset to {output_directory}")

@@ -1710,12 +1710,16 @@ class Client:
         version_number: int,
         output_directory: Union[str, os.PathLike],
         topics: Optional[List[str]] = None,
+        include_properties: bool = False,
     ) -> Path:
         """Export a committed version to MCAP files (including attachments) and a manifest.
 
         The manifest uses the app's schema and selection digest, but ``file`` paths
         are relative to the returned output directory, which contains manifest.json.
         App ZIP exports instead use paths relative to the ZIP root.
+
+        ``include_properties=True`` adds episode custom properties to the manifest
+        and requires access to episode properties. Properties are omitted by default.
 
         ``topics`` selects topics; None or [] downloads all topics. Episodes with
         some missing recordings are downloaded partially and flagged in the manifest.
@@ -1754,7 +1758,7 @@ class Client:
                 sort_by="start_time",
                 sort_order="asc",
                 limit=2000,
-                include_properties=True,
+                include_properties=include_properties,
             ).auto_paging_iter()
         )
         destination.mkdir(parents=True, exist_ok=True)

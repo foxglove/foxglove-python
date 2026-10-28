@@ -543,6 +543,7 @@ class Client:
         compression_format: Optional[CompressionFormat] = None,
         project_id: Optional[str] = None,
         episode_id: Optional[str] = None,
+        episode_version: Optional[int] = None,
         include_attachments: Optional[bool] = None,
     ) -> str:
         if topics is None:
@@ -574,6 +575,7 @@ class Client:
             "sessionId": session_id,
             "sessionKey": session_key,
             "episodeId": episode_id,
+            "episodeVersion": episode_version,
             "includeAttachments": include_attachments,
             "end": end.astimezone().isoformat() if end else None,
             "outputFormat": output_format.value,
@@ -1769,18 +1771,31 @@ class Client:
             episodes=episodes,
             destination=destination,
             topics=selected_topics,
-            download=lambda episode_id, output_path: self._download_episode_to_file(
-                episode_id=episode_id, output_path=output_path, topics=selected_topics
+            download=lambda episode_id, episode_version, output_path: (
+                self._download_episode_to_file(
+                    episode_id=episode_id,
+                    episode_version=episode_version,
+                    output_path=output_path,
+                    topics=selected_topics,
+                )
             ),
         )
 
     def _download_episode_to_file(
-        self, *, episode_id: str, output_path: Path, topics: Optional[List[str]] = None
+        self,
+        *,
+        episode_id: str,
+        output_path: Path,
+        episode_version: Optional[int] = None,
+        topics: Optional[List[str]] = None,
     ) -> int:
         return download_episode(
             output_path,
             lambda: self._make_stream_link(
-                episode_id=episode_id, topics=topics, include_attachments=True
+                episode_id=episode_id,
+                episode_version=episode_version,
+                topics=topics,
+                include_attachments=True,
             ),
         )
 

@@ -47,9 +47,7 @@ output_directory = client.download_dataset(
     version_number=version_number,
     output_directory=Path("training-candidates"),
     # Uncomment to include episode properties in manifest.json.
-    # This requires API access to episode properties.
     # include_properties=True,
-    # topics=["/camera", "/joint_states"],  # Omit to download all topics.
 )
 print(f"Exported dataset to {output_directory}")
 print("Check manifest.json for partial, skipped, or failed episodes")

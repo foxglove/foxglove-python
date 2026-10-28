@@ -87,6 +87,28 @@ def test_dataset_download_preserves_attachments_and_manifest_paths(tmp_path):
     assert attachments[0].data == b'{"scale": 1}'
 
 
+@responses.activate
+def test_dataset_download_streams_committed_episode_version(tmp_path):
+    member = _dataset_episode_json()
+    member["episode"].update(version=2, latestVersion=3)
+    responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
+    responses.add(
+        responses.GET,
+        api_url("/v1/datasets/ds_1/versions/1"),
+        json={**_version_json(), "episodeCount": 1},
+    )
+    responses.add(
+        responses.GET,
+        api_url("/v1/datasets/ds_1/versions/1/episodes"),
+        json={"episodes": [member]},
+    )
+    stream_success()
+    run_download(tmp_path)
+    request = json.loads(responses.calls[3].request.body)
+    assert request["episodeId"] == "ep_1"
+    assert request["episodeVersion"] == 2
+
+
 @pytest.mark.parametrize("include", [None, False, True])
 @responses.activate
 def test_stream_attachment_option_preserves_default(include):
@@ -361,6 +383,8 @@ def test_manifest_timestamps_match_app(tmp_path, monkeypatch):
             {
                 "episode": {
                     "id": "ep_1",
+                    "version": 1,
+                    "properties": {},
                     "start_time": instant,
                     "end_time": instant.replace(microsecond=0),
                     "metadata": {},

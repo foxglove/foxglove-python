@@ -17,6 +17,8 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
         "startTime": NOW.isoformat(),
         "endTime": NOW.replace(minute=1).isoformat(),
         "metadata": {"result": "success", "nestedValue": {"keepMe": True}},
+        "version": 2,
+        "latestVersion": 3,
         "creatorApiKeyId": "key_1",
         "createdAt": NOW.isoformat(),
     }
@@ -53,6 +55,7 @@ def test_create_episodes_serializes_inputs():
                 "start_time": NOW,
                 "end_time": NOW.replace(minute=1),
                 "metadata": {"result": "success"},
+                "properties": {"stage": "review", "tags": []},
             }
         ],
     )
@@ -66,8 +69,47 @@ def test_create_episodes_serializes_inputs():
                 "startTime": NOW.astimezone().isoformat(),
                 "endTime": NOW.replace(minute=1).astimezone().isoformat(),
                 "metadata": {"result": "success"},
+                "properties": {"stage": "review", "tags": []},
             }
         ],
+    }
+
+
+@responses.activate
+def test_update_episodes_serializes_inputs():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes"),
+        json={"episodes": [{"id": "ep_1", "version": 3}, {"id": "ep_2", "version": 1}]},
+    )
+
+    result = Client("test").update_episodes(
+        episodes=[
+            {
+                "id": "ep_1",
+                "applies_to_version": 2,
+                "start_time": NOW,
+                "end_time": NOW.replace(minute=1),
+                "recordings": {"add": ["rec_2"], "remove": ["rec_1"]},
+                "properties": {"stage": "done", "reviewer": None},
+            },
+            {"id": "ep_2"},
+        ]
+    )
+
+    assert result == [{"id": "ep_1", "version": 3}, {"id": "ep_2", "version": 1}]
+    assert json.loads(responses.calls[0].request.body) == {
+        "episodes": [
+            {
+                "id": "ep_1",
+                "appliesToVersion": 2,
+                "startTime": NOW.astimezone().isoformat(),
+                "endTime": NOW.replace(minute=1).astimezone().isoformat(),
+                "recordings": {"add": ["rec_2"], "remove": ["rec_1"]},
+                "properties": {"stage": "done", "reviewer": None},
+            },
+            {"id": "ep_2"},
+        ]
     }
 
 
@@ -120,10 +162,12 @@ def test_create_episodes_rejects_incompatible_inputs(episode, message):
 
 @responses.activate
 def test_get_episodes_maps_response_and_filters():
+    episode_json = _episode_json(include_recordings=True)
+    episode_json["properties"] = {"stage": "review", "tags": ["night"]}
     responses.add(
         responses.GET,
         api_url("/v1/episodes"),
-        json={"episodes": [_episode_json(include_recordings=True)]},
+        json={"episodes": [episode_json]},
     )
 
     episodes = Client("test").get_episodes(
@@ -132,14 +176,19 @@ def test_get_episodes_maps_response_and_filters():
         end=NOW,
         has_missing_recordings=False,
         recording_id="rec_1",
+        properties_query="stage:review",
         sort_by="start_time",
         sort_order="asc",
         limit=10,
         cursor="next",
         include_recordings=True,
+        include_properties=True,
     )
 
     assert episodes.items[0]["start_time"] == NOW
+    assert episodes.items[0]["version"] == 2
+    assert episodes.items[0]["latest_version"] == 3
+    assert episodes.items[0]["properties"] == {"stage": "review", "tags": ["night"]}
     assert episodes.items[0]["metadata"]["nestedValue"] == {"keepMe": True}
     assert episodes.items[0]["recordings"][0]["device_id"] == "dev_1"
     assert episodes.items[0]["recordings"][0]["location"] == {
@@ -154,11 +203,12 @@ def test_get_episodes_maps_response_and_filters():
         "end": NOW.astimezone().isoformat(),
         "hasMissingRecordings": "false",
         "recordingId": "rec_1",
+        "propertiesQuery": "stage:review",
         "sortBy": "startTime",
         "sortOrder": "asc",
         "limit": "10",
         "cursor": "next",
-        "include": "recordings",
+        "include": "recordings,properties",
     }
 
 

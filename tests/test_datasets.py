@@ -19,6 +19,8 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
         "startTime": NOW.isoformat(),
         "endTime": NOW.replace(minute=1).isoformat(),
         "metadata": {},
+        "version": 1,
+        "latestVersion": 1,
         "createdAt": NOW.isoformat(),
     }
     if include_recordings:
@@ -62,11 +64,12 @@ def _version_json(version_number=1, *, committed=True, missing=False):
 
 
 def _dataset_episode_json(episode_id="ep_1", *, missing=False):
+    episode = _episode_json(episode_id, include_recordings=True)
     return {
         "addedAt": NOW.isoformat(),
         "addedInVersion": 1,
         "hasMissingRecordings": missing,
-        "episode": _episode_json(episode_id, include_recordings=True),
+        "episode": episode,
     }
 
 
@@ -222,8 +225,20 @@ def test_dataset_version_actions():
 
 
 @responses.activate
-def test_download_dataset(tmp_path):
+@pytest.mark.parametrize(
+    "download_options,properties",
+    [
+        ({}, None),
+        ({"include_properties": False}, None),
+        ({"include_properties": True}, {"stage": "review"}),
+        ({"include_properties": True}, {}),
+    ],
+)
+def test_download_dataset(tmp_path, download_options, properties):
     output = tmp_path / "dataset"
+    episode = _dataset_episode_json("ep_1")
+    if properties is not None:
+        episode["episode"]["properties"] = properties
     responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
     responses.add(
         responses.GET,
@@ -233,7 +248,7 @@ def test_download_dataset(tmp_path):
     responses.add(
         responses.GET,
         api_url("/v1/datasets/ds_1/versions/1/episodes"),
-        json={"episodes": [_dataset_episode_json("ep_1")]},
+        json={"episodes": [episode]},
     )
     responses.add(
         responses.POST,
@@ -245,17 +260,20 @@ def test_download_dataset(tmp_path):
     )
 
     result = Client("test").download_dataset(
-        dataset_id="ds_1", version_number=1, output_directory=output
+        dataset_id="ds_1", version_number=1, output_directory=output, **download_options
     )
 
     assert result == output
     assert (output / "episode_0000_ep_1.mcap").read_bytes() == b"episode data"
     assert not (output / ".episode_0000_ep_1.mcap.part").exists()
-    assert responses.calls[2].request.params == {
+    expected_params = {
         "sortBy": "startTime",
         "sortOrder": "asc",
         "limit": "2000",
     }
+    if download_options.get("include_properties"):
+        expected_params["include"] = "properties"
+    assert responses.calls[2].request.params == expected_params
     assert "Authorization" not in responses.calls[4].request.headers
     manifest = json.loads((output / "manifest.json").read_text())
     assert manifest["formatVersion"] == 1
@@ -264,19 +282,20 @@ def test_download_dataset(tmp_path):
         "name": "Successful runs",
         "projectId": "prj_1",
     }
-    assert manifest["episodes"] == [
-        {
-            "index": 0,
-            "id": "ep_1",
-            "file": "episode_0000_ep_1.mcap",
-            "startTime": "2026-09-15T00:00:00.000Z",
-            "endTime": "2026-09-15T00:01:00.000Z",
-            "metadata": {},
-            "byteSize": 12,
-            "status": "downloaded",
-            "episodeHasMissingRecordings": False,
-        }
-    ]
+    expected_episode = {
+        "index": 0,
+        "id": "ep_1",
+        "file": "episode_0000_ep_1.mcap",
+        "startTime": "2026-09-15T00:00:00.000Z",
+        "endTime": "2026-09-15T00:01:00.000Z",
+        "metadata": {},
+        "byteSize": 12,
+        "status": "downloaded",
+        "episodeHasMissingRecordings": False,
+    }
+    if properties is not None:
+        expected_episode["properties"] = properties
+    assert manifest["episodes"] == [expected_episode]
 
 
 @responses.activate

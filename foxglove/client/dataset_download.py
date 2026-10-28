@@ -117,7 +117,7 @@ def export_dataset(
     episodes: List[Dict[str, Any]],
     destination: Path,
     topics: Optional[List[str]],
-    download: Callable[[str, Path], int],
+    download: Callable[[str, int, Path], int],
 ) -> Path:
     entries: List[Dict[str, Any]] = []
     selection: Dict[str, Any] = {
@@ -158,10 +158,15 @@ def export_dataset(
                 "endTime": _iso(episode["end_time"]),
                 "metadata": episode["metadata"],
             }
+            if "properties" in episode:
+                entry["properties"] = episode["properties"]
             safe_id = re.sub(r"[^A-Za-z0-9._-]+", "-", episode["id"])
             filename = f"episode_{index:04d}_{safe_id}.mcap"
             try:
-                size = download(episode["id"], destination / filename)
+                # Stream the version the dataset pinned, not the episode's latest.
+                size = download(
+                    episode["id"], episode["version"], destination / filename
+                )
             except EpisodeRequestError as error:
                 entry.update(
                     status="skipped" if error.unavailable else "failed",

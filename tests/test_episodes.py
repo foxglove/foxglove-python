@@ -292,3 +292,44 @@ def test_get_topics_without_episode_requires_time_range():
         client.get_topics(session_id="ses_1")
 
     assert str(raised.value) == "start and end must be provided unless using episode_id"
+
+
+@pytest.mark.parametrize("episode_version", [None, 2])
+@pytest.mark.parametrize("method", ["iter_messages", "download_data", "get_topics"])
+@responses.activate
+def test_episode_version_requests(method, episode_version):
+    from .generate import generate_json_data
+
+    link = "https://storage.example/episode.mcap"
+    if method == "get_topics":
+        responses.add(responses.GET, api_url("/v1/data/topics"), json=[])
+    else:
+        responses.add(responses.POST, api_url("/v1/data/stream"), json={"link": link})
+        responses.add(responses.GET, link, body=generate_json_data())
+    result = getattr(Client("test"), method)(
+        episode_id="ep_1",
+        episode_version=episode_version,
+        start=NOW - timedelta(seconds=5),
+        end=NOW,
+    )
+    if method == "iter_messages":
+        assert len(list(result)) == 10
+    request = responses.calls[0].request
+    params = request.params if method == "get_topics" else json.loads(request.body)
+    assert params["episodeId"] == "ep_1"
+    assert params["start"] == (NOW - timedelta(seconds=5)).astimezone().isoformat()
+    assert params["end"] == NOW.astimezone().isoformat()
+    if episode_version is None:
+        assert "episodeVersion" not in params
+    else:
+        assert params["episodeVersion"] == (
+            str(episode_version) if method == "get_topics" else episode_version
+        )
+
+
+@pytest.mark.parametrize("method", ["iter_messages", "download_data", "get_topics"])
+def test_episode_version_requires_episode_id(method):
+    with pytest.raises(RuntimeError, match="episode_version requires episode_id"):
+        getattr(Client("test"), method)(
+            device_id="device", start=NOW, end=NOW, episode_version=2
+        )

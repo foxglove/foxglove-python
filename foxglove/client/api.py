@@ -450,6 +450,7 @@ class Client:
         decoder_factories: Optional[List[DecoderFactory]] = None,
         project_id: Optional[str] = None,
         episode_id: Optional[str] = None,
+        episode_version: Optional[int] = None,
     ):
         """
         yields a stream of (schema, channel, message, decoded message) values.
@@ -468,6 +469,8 @@ class Client:
             device_name as an identifier in multi-project organizations.
         episode_id: ID of an episode to download. Its time range is used when start and end
             are omitted.
+        episode_version: Episode version to read. Omit to use the latest version.
+            Requires episode_id.
         """
         if topics is None:
             topics = []
@@ -481,6 +484,7 @@ class Client:
             topics=topics,
             project_id=project_id,
             episode_id=episode_id,
+            episode_version=episode_version,
         )
         response = requests.get(stream_link, stream=True)
         try:
@@ -566,6 +570,8 @@ class Client:
             or session_key is not None
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
+        if episode_version is not None and episode_id is None:
+            raise RuntimeError("episode_version requires episode_id")
         if episode_id is None and (start is None or end is None):
             raise RuntimeError("start and end must be provided unless using episode_id")
 
@@ -609,6 +615,7 @@ class Client:
         callback: Optional[ProgressCallback] = None,
         project_id: Optional[str] = None,
         episode_id: Optional[str] = None,
+        episode_version: Optional[int] = None,
     ) -> bytes:
         """
         Returns raw data bytes for a device and time range.
@@ -629,6 +636,8 @@ class Client:
             device_name as an identifier in multi-project organizations.
         episode_id: ID of an episode to download. Its time range is used when start and end
             are omitted.
+        episode_version: Episode version to read. Omit to use the latest version.
+            Requires episode_id.
         """
         if topics is None:
             topics = []
@@ -645,6 +654,7 @@ class Client:
                 compression_format=compression_format,
                 project_id=project_id,
                 episode_id=episode_id,
+                episode_version=episode_version,
             ),
             callback=callback,
         )
@@ -1111,6 +1121,7 @@ class Client:
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
         episode_id: Optional[str] = None,
+        episode_version: Optional[int] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
     ):
@@ -1127,6 +1138,8 @@ class Client:
         :param session_key: Key of a session to list topics from
         :param episode_id: ID of an episode to list topics from. Its time range is used when
             start and end are omitted.
+        :param episode_version: Episode version to read. Omit to use the latest version.
+            Requires episode_id.
         :param limit: Maximum topics in this page (server default and maximum: 2000).
         :param offset: Number of topics to skip to retrieve a subsequent page.
         """
@@ -1137,6 +1150,8 @@ class Client:
             or session_key is not None
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
+        if episode_version is not None and episode_id is None:
+            raise RuntimeError("episode_version requires episode_id")
         if episode_id is None and (start is None or end is None):
             raise RuntimeError("start and end must be provided unless using episode_id")
         response = self.__session.get(
@@ -1151,6 +1166,7 @@ class Client:
                 "sessionId": session_id,
                 "sessionKey": session_key,
                 "episodeId": episode_id,
+                "episodeVersion": episode_version,
                 "limit": limit,
                 "offset": offset,
             },

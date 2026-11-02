@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 import responses
-from responses.matchers import json_params_matcher
+from responses.matchers import json_params_matcher, query_param_matcher
 from foxglove.client import Client, DatasetDownloadWarning
 
 from .api_url import api_url
@@ -487,3 +487,70 @@ def test_download_dataset_paginates(tmp_path):
     assert "offset" not in responses.calls[2].request.params
     assert responses.calls[3].request.params["cursor"] == "next"
     assert client._download_episode_to_file.call_count == 2001
+
+
+CREATION_CONTEXT = {
+    "version": 1,
+    "basis": {"type": "recordings", "recordingIds": ["rec_1"]},
+}
+
+
+@responses.activate
+@pytest.mark.parametrize(
+    "path,method,kwargs",
+    [
+        ("/v1/datasets/ds_1/episodes", "get_dataset_episodes", {}),
+        (
+            "/v1/datasets/ds_1/versions/2/episodes",
+            "get_dataset_version_episodes",
+            {"version_number": 2},
+        ),
+    ],
+)
+def test_dataset_episodes_include_creation_context(path, method, kwargs):
+    member = _dataset_episode_json()
+    member["episode"]["creationContext"] = CREATION_CONTEXT
+    responses.add(
+        responses.GET,
+        api_url(path),
+        match=[query_param_matcher({"include": "creationContext"})],
+        json={"episodes": [member]},
+    )
+
+    page = getattr(Client("test"), method)(
+        dataset_id="ds_1", include_creation_context=True, **kwargs
+    )
+
+    assert page.items[0]["episode"]["creation_context"] == CREATION_CONTEXT
+
+
+@responses.activate
+def test_compare_dataset_versions_includes_creation_context():
+    change = {**_dataset_episode_json(), "change": "added"}
+    change["episode"]["creationContext"] = CREATION_CONTEXT
+    responses.add(
+        responses.GET,
+        api_url("/v1/datasets/ds_1/versions/2/compare"),
+        match=[
+            query_param_matcher(
+                {"version": "1", "include": "recordings,creationContext"}
+            )
+        ],
+        json={
+            "changes": [change],
+            "addedCount": 1,
+            "removedCount": 0,
+            "changedCount": 0,
+            "nextCursor": None,
+        },
+    )
+
+    result = Client("test").compare_dataset_versions(
+        dataset_id="ds_1",
+        version_number=2,
+        base_version=1,
+        include_recordings=True,
+        include_creation_context=True,
+    )
+
+    assert result["changes"][0]["episode"]["creation_context"] == CREATION_CONTEXT

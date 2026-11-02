@@ -45,12 +45,18 @@ def _validate_episode_range(start, end):
         raise ValueError("start and end must be supplied together")
 
 
-def _episode_include(include_recordings: bool, include_properties: bool):
+def _episode_include(
+    include_recordings: bool,
+    include_properties: bool,
+    include_creation_context: bool = False,
+):
     include = []
     if include_recordings:
         include.append("recordings")
     if include_properties:
         include.append("properties")
+    if include_creation_context:
+        include.append("creationContext")
     return ",".join(include) or None
 
 
@@ -1310,8 +1316,12 @@ class Client:
         properties_query: Optional[str] = None,
         include_recordings: bool = False,
         include_properties: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return a Page of the latest committed or initial editable membership.
+
+        Set ``include_creation_context`` to include each episode's ``creation_context``,
+        which keeps the API's field names.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -1331,6 +1341,7 @@ class Client:
             properties_query=properties_query,
             include_recordings=include_recordings,
             include_properties=include_properties,
+            include_creation_context=include_creation_context,
         )
 
     def update_dataset_episodes(
@@ -1428,8 +1439,12 @@ class Client:
         properties_query: Optional[str] = None,
         include_recordings: bool = False,
         include_properties: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return a Page of episode membership in a specific version.
+
+        Set ``include_creation_context`` to include each episode's ``creation_context``,
+        which keeps the API's field names.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -1449,6 +1464,7 @@ class Client:
             properties_query=properties_query,
             include_recordings=include_recordings,
             include_properties=include_properties,
+            include_creation_context=include_creation_context,
         )
 
     def _get_dataset_episodes(
@@ -1467,6 +1483,7 @@ class Client:
         properties_query: Optional[str],
         include_recordings: bool,
         include_properties: bool,
+        include_creation_context: bool,
     ):
         _validate_episode_range(start, end)
         path = f"/v1/datasets/{dataset_id}"
@@ -1492,7 +1509,9 @@ class Client:
                     ),
                     "recordingId": recording_id,
                     "propertiesQuery": properties_query,
-                    "include": _episode_include(include_recordings, include_properties),
+                    "include": _episode_include(
+                        include_recordings, include_properties, include_creation_context
+                    ),
                 }
             ),
         )
@@ -1507,8 +1526,13 @@ class Client:
         cursor: Optional[str] = None,
         include_recordings: bool = False,
         include_properties: bool = False,
+        include_creation_context: bool = False,
     ):
-        """Return membership changes from ``base_version`` to ``version_number``."""
+        """Return membership changes from ``base_version`` to ``version_number``.
+
+        Set ``include_creation_context`` to include each episode's ``creation_context``,
+        which keeps the API's field names.
+        """
         response = self.__session.get(
             self.__url__(
                 f"/v1/datasets/{dataset_id}/versions/{version_number}/compare"
@@ -1518,7 +1542,9 @@ class Client:
                     "version": base_version,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": _episode_include(include_recordings, include_properties),
+                    "include": _episode_include(
+                        include_recordings, include_properties, include_creation_context
+                    ),
                 }
             ),
         )
@@ -2339,6 +2365,9 @@ def _episode_dict(episode):
         ]
     if "hasMissingRecordings" in episode:
         result["has_missing_recordings"] = episode["hasMissingRecordings"]
+    # Creation context is passed through with API field names.
+    if "creationContext" in episode:
+        result["creation_context"] = episode["creationContext"]
     return result
 
 

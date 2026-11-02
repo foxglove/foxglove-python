@@ -722,15 +722,41 @@ class Client:
 
         return _device_dict(json_or_raise(response))
 
-    def get_devices(self, *, project_id: Optional[str] = None):
+    def get_devices(
+        self,
+        *,
+        project_id: Optional[str] = None,
+        query: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
         """
         Returns a list of all devices.
 
         :param project_id: Optional Project to filter devices by.
+        :param query: Optional query string to filter devices by custom properties,
+            e.g. "properties.key:value". See
+            https://foxglove.dev/docs/api#tag/Devices/paths/~1devices/get for the syntax.
+        :param sort_by: Optionally sort devices by "id", "name", or a custom property
+            key prefixed with "properties.".
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param limit: Optionally limit the number of devices returned.
+        :param offset: Optionally offset the results by this many devices.
         """
         response = self.__session.get(
             self.__url__("/v1/devices"),
-            params=without_nulls({"projectId": project_id}),
+            params=without_nulls(
+                {
+                    "projectId": project_id,
+                    "query": query,
+                    "sortBy": sort_by,
+                    "sortOrder": sort_order,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ),
         )
 
         json = json_or_raise(response)
@@ -775,6 +801,10 @@ class Client:
         new_name: Optional[str] = None,
         properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
         project_id: Optional[str] = None,
+        retain_recordings_seconds: Optional[int] = None,
+        enabled: Optional[bool] = None,
+        remote_access_enabled: Optional[bool] = None,
+        auto_delete_after_import: Optional[bool] = None,
     ):
         """
         Updates a device.
@@ -787,13 +817,29 @@ class Client:
             and each value must be of the appropriate type.
         :param project_id: Project to retrieve the device from.
             Required for multi-project organizations.
+        :param retain_recordings_seconds: Optional retention period for recordings
+            created on a device running Foxlet. Zero retains recordings indefinitely.
+        :param enabled: Optionally enable or disable the device. Recordings can't be
+            uploaded for disabled devices.
+        :param remote_access_enabled: Optionally enable or disable remote access.
+        :param auto_delete_after_import: Optionally set whether a device running Foxlet
+            deletes recordings once they are uploaded and accepted for import.
         """
         identifier = _device_identifier_for_path(device_id, device_name)
 
         response = self.__session.patch(
             self.__url__(f"/v1/devices/{identifier}"),
             params={"projectId": project_id} if project_id is not None else None,
-            json=without_nulls({"name": new_name, "properties": properties}),
+            json=without_nulls(
+                {
+                    "name": new_name,
+                    "properties": properties,
+                    "retainRecordingsSeconds": retain_recordings_seconds,
+                    "enabled": enabled,
+                    "remoteAccessEnabled": remote_access_enabled,
+                    "autoDeleteAfterImport": auto_delete_after_import,
+                }
+            ),
         )
 
         return _device_dict(json_or_raise(response))
@@ -2079,7 +2125,7 @@ class Client:
             Use this or device_id.
         project_id: Project associated with the device. Required for multi-project organizations.
         query: optional query string to filter property time intervals by metadata.
-            See https://docs.foxglove.dev/api#tag/Devices/paths/~1devices/get for
+            See https://foxglove.dev/docs/api#tag/Devices/paths/~1devices/get for
             a syntax definition of `query`.
         start: Optionally include intervals active at or after this time.
         end: Optionally include intervals active before this time.
@@ -2217,6 +2263,11 @@ def _device_dict(device):
         "name": device["name"],
         "properties": device.get("properties"),
         "project_id": device.get("projectId"),
+        "org_id": device.get("orgId"),
+        "retain_recordings_seconds": device.get("retainRecordingsSeconds"),
+        "enabled": device.get("enabled"),
+        "remote_access_enabled": device.get("remoteAccessEnabled"),
+        "auto_delete_after_import": device.get("autoDeleteAfterImport"),
         "created_at": arrow.get(created_at).datetime if created_at else None,
         "updated_at": arrow.get(updated_at).datetime if updated_at else None,
     }

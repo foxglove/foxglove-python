@@ -408,3 +408,47 @@ def test_get_topics_without_episode_requires_time_range():
         client.get_topics(session_id="ses_1")
 
     assert str(raised.value) == "start and end must be provided unless using episode_id"
+
+
+CREATION_CONTEXT = {
+    "version": 1,
+    "basis": {"type": "recordings", "recordingIds": ["rec_1"]},
+}
+
+
+@responses.activate
+def test_get_episodes_includes_creation_context():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes"),
+        match=[query_param_matcher({"include": "recordings,creationContext"})],
+        json={
+            "episodes": [
+                {
+                    **_episode_json(include_recordings=True),
+                    "creationContext": CREATION_CONTEXT,
+                },
+                _episode_json("ep_2"),
+            ]
+        },
+    )
+
+    episodes = Client("test").get_episodes(
+        include_recordings=True, include_creation_context=True
+    )
+
+    assert episodes.items[0]["creation_context"] == CREATION_CONTEXT
+    assert "creation_context" not in episodes.items[1]
+
+
+@responses.activate
+def test_get_episode_keeps_null_creation_context():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes/ep_1"),
+        json={**_episode_json(), "creationContext": None},
+    )
+
+    episode = Client("test").get_episode(episode_id="ep_1")
+
+    assert episode["creation_context"] is None

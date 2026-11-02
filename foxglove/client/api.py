@@ -45,12 +45,18 @@ def _validate_episode_range(start, end):
         raise ValueError("start and end must be supplied together")
 
 
-def _episode_include(include_recordings: bool, include_properties: bool):
+def _episode_include(
+    include_recordings: bool,
+    include_properties: bool,
+    include_creation_context: bool = False,
+):
     include = []
     if include_recordings:
         include.append("recordings")
     if include_properties:
         include.append("properties")
+    if include_creation_context:
+        include.append("creationContext")
     return ",".join(include) or None
 
 
@@ -1651,8 +1657,12 @@ class Client:
         cursor: Optional[str] = None,
         include_recordings: bool = False,
         include_properties: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return a Page of episodes, optionally with recording details and custom properties.
+
+        Set ``include_creation_context`` to include each episode's ``creation_context``,
+        which keeps the API's field names.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``exact_recording_ids`` to match episodes whose recordings are exactly
@@ -1685,7 +1695,9 @@ class Client:
                     "sortOrder": sort_order,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": _episode_include(include_recordings, include_properties),
+                    "include": _episode_include(
+                        include_recordings, include_properties, include_creation_context
+                    ),
                 }
             ),
         )
@@ -1701,6 +1713,7 @@ class Client:
         """Return an episode, optionally with recording details and custom properties.
 
         Pass ``version`` to read a specific episode version instead of the latest.
+        The result always includes ``creation_context``, which keeps the API's field names.
         """
         response = self.__session.get(
             self.__url__(f"/v1/episodes/{episode_id}"),
@@ -2365,6 +2378,9 @@ def _episode_dict(episode):
         ]
     if "hasMissingRecordings" in episode:
         result["has_missing_recordings"] = episode["hasMissingRecordings"]
+    # Creation context is passed through with API field names.
+    if "creationContext" in episode:
+        result["creation_context"] = episode["creationContext"]
     return result
 
 

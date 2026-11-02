@@ -1337,17 +1337,29 @@ class Client:
         self,
         *,
         dataset_id: str,
-        add: Optional[List[str]] = None,
+        add: Optional[List[Union[str, Dict[str, Any]]]] = None,
         remove: Optional[List[str]] = None,
+        update: Optional[List[Union[str, Dict[str, Any]]]] = None,
     ):
-        """Stage episode additions and removals in the editable version."""
+        """
+        Stage episode additions, version updates, and removals in the editable version.
+
+        :param dataset_id: The id of the dataset.
+        :param add: Episodes to add. Each item is an episode id, which uses the latest
+            episode version, or a dict ``{"id": ..., "version": ...}`` selecting an
+            episode version (``version`` is optional).
+        :param remove: Episode ids to remove.
+        :param update: Existing members whose episode version should change, in the same
+            forms as ``add``. Omitting ``version`` selects the latest episode version.
+        """
         response = self.__session.patch(
             self.__url__(f"/v1/datasets/{dataset_id}/episodes"),
-            json=without_nulls({"add": add, "remove": remove}),
+            json=without_nulls({"add": add, "update": update, "remove": remove}),
         )
         result = json_or_raise(response)
         return {
             "added": result["added"],
+            "updated": result["updated"],
             "removed": result["removed"],
             "already_present": result["alreadyPresent"],
         }
@@ -1382,6 +1394,21 @@ class Client:
         """Return one version, including its recording availability."""
         response = self.__session.get(
             self.__url__(f"/v1/datasets/{dataset_id}/versions/{version_number}")
+        )
+        return _dataset_version_dict(json_or_raise(response))
+
+    def update_dataset_version(
+        self, *, dataset_id: str, version_number: int, description: Optional[str]
+    ):
+        """
+        Update a dataset version's description. Pass ``description=None`` to clear it.
+
+        Works on both the editable version and committed versions; episodes and commit
+        attribution are unchanged.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/datasets/{dataset_id}/versions/{version_number}"),
+            json={"description": description},
         )
         return _dataset_version_dict(json_or_raise(response))
 
@@ -1496,17 +1523,31 @@ class Client:
             ),
         )
         result = json_or_raise(response)
+        changes = []
+        for change in result["changes"]:
+            converted = _dataset_episode_dict(change)
+            if "previousEpisode" in change:
+                converted["previous_episode"] = _episode_dict(change["previousEpisode"])
+            if "previousVersion" in change:
+                converted["previous_version"] = change["previousVersion"]
+            changes.append(converted)
         return {
-            "changes": [_dataset_episode_dict(change) for change in result["changes"]],
+            "changes": changes,
             "added_count": result["addedCount"],
             "removed_count": result["removedCount"],
+            "changed_count": result["changedCount"],
             "next_cursor": result["nextCursor"],
         }
 
-    def commit_dataset(self, *, dataset_id: str):
-        """Commit staged changes and open the next editable version."""
+    def commit_dataset(self, *, dataset_id: str, description: Optional[str] = None):
+        """Commit staged changes and open the next editable version.
+
+        ``description`` sets the committed version's description; if omitted, the
+        editable version's description is kept.
+        """
         response = self.__session.post(
-            self.__url__(f"/v1/datasets/{dataset_id}/commit"), json={}
+            self.__url__(f"/v1/datasets/{dataset_id}/commit"),
+            json=without_nulls({"description": description}),
         )
         result = json_or_raise(response)
         return {
@@ -1523,6 +1564,7 @@ class Client:
         return {
             "discarded_adds": result["discardedAdds"],
             "discarded_removes": result["discardedRemoves"],
+            "discarded_updates": result["discardedUpdates"],
         }
 
     def restore_dataset_version(
@@ -1539,9 +1581,11 @@ class Client:
         result = json_or_raise(response)
         return {
             "added": result["added"],
+            "updated": result["updated"],
             "removed": result["removed"],
             "discarded_adds": result["discardedAdds"],
             "discarded_removes": result["discardedRemoves"],
+            "discarded_updates": result["discardedUpdates"],
         }
 
     def create_episodes(self, *, project_id: str, episodes: List[Dict[str, Any]]):
@@ -2250,6 +2294,8 @@ def _dataset_dict(dataset):
         result["episode_count"] = dataset["episodeCount"]
     if "added" in dataset:
         result["added"] = dataset["added"]
+    if "updated" in dataset:
+        result["updated"] = dataset["updated"]
     if "removed" in dataset:
         result["removed"] = dataset["removed"]
     if "alreadyPresent" in dataset:
@@ -2319,6 +2365,8 @@ def _dataset_version_dict(version):
         "episode_count": version["episodeCount"],
         "added_episode_count": version["addedEpisodeCount"],
         "removed_episode_count": version["removedEpisodeCount"],
+        "changed_episode_count": version["changedEpisodeCount"],
+        "description": version.get("description"),
     }
     if "hasMissingRecordings" in version:
         result["has_missing_recordings"] = version["hasMissingRecordings"]

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 import responses
+from responses.matchers import json_params_matcher
 from foxglove.client import Client, DatasetDownloadWarning
 
 from .api_url import api_url
@@ -56,6 +57,7 @@ def _version_json(version_number=1, *, committed=True, missing=False):
         "episodeCount": 1,
         "addedEpisodeCount": 1,
         "removedEpisodeCount": 0,
+        "changedEpisodeCount": 0,
         "hasMissingRecordings": missing,
     }
     if committed:
@@ -78,6 +80,7 @@ def test_dataset_metadata_methods():
     created_dataset = {
         **_dataset_json(),
         "added": 1,
+        "updated": 0,
         "removed": 0,
         "alreadyPresent": 0,
     }
@@ -108,6 +111,7 @@ def test_dataset_metadata_methods():
     assert created["project_id"] == "prj_1"
     assert created["created_at"] == NOW
     assert created["already_present"] == 0
+    assert created["updated"] == 0
     assert datasets.items[0]["episode_count"] == 1
     assert "added" not in datasets.items[0]
     assert fetched["name"] == "Successful runs"
@@ -126,16 +130,29 @@ def test_dataset_episode_methods():
     responses.add(
         responses.PATCH,
         api_url("/v1/datasets/ds_1/episodes"),
-        json={"added": 1, "removed": 0, "alreadyPresent": 0},
+        match=[
+            json_params_matcher(
+                {
+                    "add": ["ep_1", {"id": "ep_2", "version": 3}],
+                    "update": [{"id": "ep_3"}],
+                },
+                strict_match=True,
+            )
+        ],
+        json={"added": 2, "updated": 1, "removed": 0, "alreadyPresent": 0},
     )
     client = Client("test")
 
     episodes = client.get_dataset_episodes(dataset_id="ds_1", include_recordings=True)
-    result = client.update_dataset_episodes(dataset_id="ds_1", add=["ep_1"])
+    result = client.update_dataset_episodes(
+        dataset_id="ds_1",
+        add=["ep_1", {"id": "ep_2", "version": 3}],
+        update=[{"id": "ep_3"}],
+    )
 
     assert episodes.items[0]["episode"]["id"] == "ep_1"
     assert episodes.items[0]["added_at"] == NOW
-    assert result == {"added": 1, "removed": 0, "already_present": 0}
+    assert result == {"added": 2, "updated": 1, "removed": 0, "already_present": 0}
 
 
 @responses.activate
@@ -163,9 +180,18 @@ def test_dataset_version_methods():
         responses.GET,
         api_url("/v1/datasets/ds_1/versions/2/compare"),
         json={
-            "changes": [{**dataset_episode_change, "change": "added"}],
+            "changes": [
+                {**dataset_episode_change, "change": "added"},
+                {
+                    **_dataset_episode_json("ep_2"),
+                    "change": "changed",
+                    "previousEpisode": {**_episode_json("ep_2"), "version": 1},
+                    "previousVersion": 1,
+                },
+            ],
             "addedCount": 1,
             "removedCount": 0,
+            "changedCount": 1,
             "nextCursor": "next",
         },
     )
@@ -191,6 +217,13 @@ def test_dataset_version_methods():
     assert comparison["changes"][0]["change"] == "added"
     assert "has_missing_recordings" not in comparison["changes"][0]
     assert comparison["next_cursor"] == "next"
+    assert comparison["changed_count"] == 1
+    assert "previous_episode" not in comparison["changes"][0]
+    assert comparison["changes"][1]["previous_episode"]["id"] == "ep_2"
+    assert comparison["changes"][1]["previous_episode"]["version"] == 1
+    assert comparison["changes"][1]["previous_version"] == 1
+    assert versions.items[0]["changed_episode_count"] == 0
+    assert versions.items[0]["description"] is None
 
 
 @responses.activate
@@ -198,30 +231,65 @@ def test_dataset_version_actions():
     responses.add(
         responses.POST,
         api_url("/v1/datasets/ds_1/commit"),
-        json={"committed": _version_json(), "editableVersionNumber": 2},
+        match=[json_params_matcher({"description": "Release"}, strict_match=True)],
+        json={
+            "committed": {**_version_json(), "description": "Release"},
+            "editableVersionNumber": 2,
+        },
     )
     responses.add(
         responses.POST,
         api_url("/v1/datasets/ds_1/discard"),
-        json={"discardedAdds": 1, "discardedRemoves": 2},
+        json={"discardedAdds": 1, "discardedRemoves": 2, "discardedUpdates": 3},
     )
     responses.add(
         responses.POST,
         api_url("/v1/datasets/ds_1/versions/1/restore"),
-        json={"added": 1, "removed": 2, "discardedAdds": 3, "discardedRemoves": 4},
+        json={
+            "added": 1,
+            "updated": 5,
+            "removed": 2,
+            "discardedAdds": 3,
+            "discardedRemoves": 4,
+            "discardedUpdates": 6,
+        },
     )
     client = Client("test")
 
-    committed = client.commit_dataset(dataset_id="ds_1")
+    committed = client.commit_dataset(dataset_id="ds_1", description="Release")
     discarded = client.discard_dataset(dataset_id="ds_1")
     restored = client.restore_dataset_version(
         dataset_id="ds_1", version_number=1, force=True
     )
 
     assert committed["editable_version_number"] == 2
-    assert discarded == {"discarded_adds": 1, "discarded_removes": 2}
+    assert committed["committed"]["description"] == "Release"
+    assert discarded == {
+        "discarded_adds": 1,
+        "discarded_removes": 2,
+        "discarded_updates": 3,
+    }
     assert restored["discarded_removes"] == 4
+    assert restored["updated"] == 5
+    assert restored["discarded_updates"] == 6
     assert responses.calls[2].request.params == {"force": "true"}
+
+
+@responses.activate
+@pytest.mark.parametrize("description", ["Release candidate", None])
+def test_update_dataset_version(description):
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/datasets/ds_1/versions/2"),
+        match=[json_params_matcher({"description": description}, strict_match=True)],
+        json={**_version_json(2, committed=False), "description": description},
+    )
+    version = Client("test").update_dataset_version(
+        dataset_id="ds_1", version_number=2, description=description
+    )
+    assert version["version_number"] == 2
+    assert version["description"] == description
+    assert version["has_missing_recordings"] is False
 
 
 @responses.activate

@@ -1543,7 +1543,8 @@ class Client:
         """Commit staged changes and open the next editable version.
 
         ``description`` sets the committed version's description; if omitted, the
-        editable version's description is kept.
+        editable version's description is kept. To clear a description, use
+        ``update_dataset_version``.
         """
         response = self.__session.post(
             self.__url__(f"/v1/datasets/{dataset_id}/commit"),

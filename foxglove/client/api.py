@@ -2238,6 +2238,7 @@ def _session_dict(session):
         "updated_at": arrow.get(session["updatedAt"]).datetime,
         "recordings": session["recordings"],
         "properties": session.get("properties"),
+        # Only the list endpoint returns the recording summary; elsewhere these are None.
         "recording_count": session.get("recordingCount"),
         "recording_start": (
             arrow.get(recording_start).datetime if recording_start else None

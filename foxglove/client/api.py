@@ -933,14 +933,8 @@ class Client:
         :param recording_id: The ID of the recording to fetch.
         :param recording_key: The key of the recording to fetch.
         """
-        if recording_id is not None and recording_key is not None:
-            raise RuntimeError("recording_id and recording_key are mutually exclusive")
-        identifier = recording_id if recording_id is not None else recording_key
-        if identifier is None:
-            raise RuntimeError("recording_id or recording_key must be provided")
-        response = self.__session.get(
-            self.__url__(f"/v1/recordings/{urlquote(identifier, safe='')}"),
-        )
+        identifier = _recording_identifier_for_path(recording_id, recording_key)
+        response = self.__session.get(self.__url__(f"/v1/recordings/{identifier}"))
         return _recording_dict(json_or_raise(response))
 
     def import_recording_from_edge(self, *, recording_id: str):
@@ -2301,6 +2295,18 @@ def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -
     identifier = session_id if session_id is not None else session_key
     assert identifier is not None, "one of session_id or session_key must be provided"
     return identifier
+
+
+def _recording_identifier_for_path(
+    recording_id: Optional[str], recording_key: Optional[str]
+) -> str:
+    if recording_id is not None and recording_key is not None:
+        raise RuntimeError("recording_id and recording_key are mutually exclusive")
+    if recording_id is None and recording_key is None:
+        raise RuntimeError("recording_id or recording_key must be provided")
+    identifier = recording_id if recording_id is not None else recording_key
+    assert identifier is not None
+    return urlquote(identifier, safe="")
 
 
 def _recording_dict(recording):

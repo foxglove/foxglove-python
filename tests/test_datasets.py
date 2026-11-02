@@ -31,7 +31,6 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
                 "start": NOW.isoformat(),
                 "end": NOW.replace(minute=1).isoformat(),
                 "available": True,
-                "resolvable": True,
             }
         ]
     return episode

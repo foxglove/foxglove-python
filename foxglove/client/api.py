@@ -1643,6 +1643,7 @@ class Client:
         end: Optional[datetime.datetime] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
+        exact_recording_ids: Optional[List[str]] = None,
         properties_query: Optional[str] = None,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
@@ -1654,6 +1655,8 @@ class Client:
         """Return a Page of episodes, optionally with recording details and custom properties.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
+        Use ``exact_recording_ids`` to match episodes whose recordings are exactly
+        these recording IDs.
         Use ``properties_query`` to filter by custom property values.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
@@ -1674,6 +1677,9 @@ class Client:
                         else None
                     ),
                     "recordingId": recording_id,
+                    "exactRecordingIds": (
+                        ",".join(exact_recording_ids) if exact_recording_ids else None
+                    ),
                     "propertiesQuery": properties_query,
                     "sortBy": camelize(sort_by),
                     "sortOrder": sort_order,
@@ -1690,12 +1696,19 @@ class Client:
         episode_id: str,
         include_recordings: bool = False,
         include_properties: bool = False,
+        version: Optional[int] = None,
     ):
-        """Return an episode, optionally with recording details and custom properties."""
+        """Return an episode, optionally with recording details and custom properties.
+
+        Pass ``version`` to read a specific episode version instead of the latest.
+        """
         response = self.__session.get(
             self.__url__(f"/v1/episodes/{episode_id}"),
             params=without_nulls(
-                {"include": _episode_include(include_recordings, include_properties)}
+                {
+                    "version": version,
+                    "include": _episode_include(include_recordings, include_properties),
+                }
             ),
         )
         return _episode_dict(json_or_raise(response))
@@ -1704,6 +1717,66 @@ class Client:
         """Delete an episode if it does not belong to a dataset."""
         response = self.__session.delete(self.__url__(f"/v1/episodes/{episode_id}"))
         json_or_raise(response)
+
+    def get_episode_versions(
+        self,
+        *,
+        episode_id: str,
+        limit: Optional[int] = None,
+        cursor: Optional[str] = None,
+    ):
+        """Return a Page of an episode's versions, newest first.
+
+        Each version lists its author and the fields it changed.
+        Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
+        Use ``page.auto_paging_iter()`` to traverse all versions.
+        """
+        return self._get_page(
+            f"/v1/episodes/{episode_id}/versions",
+            _episode_version_dict,
+            collection="versions",
+            params=without_nulls({"limit": limit, "cursor": cursor}),
+        )
+
+    def update_episode(
+        self,
+        *,
+        episode_id: str,
+        applies_to_version: Optional[int] = None,
+        start_time: Optional[datetime.datetime] = None,
+        end_time: Optional[datetime.datetime] = None,
+        recordings: Optional[Dict[str, List[str]]] = None,
+        properties: Optional[Dict[str, Any]] = None,
+    ):
+        """Update an episode and return it at the resulting version.
+
+        An unchanged episode keeps its version.
+
+        :param episode_id: The id of the episode.
+        :param applies_to_version: Reject the update if the episode's latest version
+            differs.
+        :param start_time: Optional new start of the episode window.
+        :param end_time: Optional new end of the episode window.
+        :param recordings: Optional dictionary with ``add`` and ``remove`` lists of
+            recording IDs.
+        :param properties: Optional custom properties to merge. Keys not included keep
+            their values; to unset a property, pass None as the value.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/episodes/{episode_id}"),
+            json=without_nulls(
+                {
+                    "appliesToVersion": applies_to_version,
+                    "startTime": (
+                        start_time.astimezone().isoformat() if start_time else None
+                    ),
+                    "endTime": end_time.astimezone().isoformat() if end_time else None,
+                    "recordings": recordings,
+                    "properties": properties,
+                }
+            ),
+        )
+        return _episode_dict(json_or_raise(response))
 
     def download_dataset(
         self,
@@ -2293,6 +2366,16 @@ def _episode_dict(episode):
     if "hasMissingRecordings" in episode:
         result["has_missing_recordings"] = episode["hasMissingRecordings"]
     return result
+
+
+def _episode_version_dict(version):
+    return {
+        "version": version["version"],
+        "created_at": arrow.get(version["createdAt"]).datetime,
+        "creator_org_member_id": version.get("creatorOrgMemberId"),
+        "creator_api_key_id": version.get("creatorApiKeyId"),
+        "changed_fields": version["changedFields"],
+    }
 
 
 def _dataset_episode_dict(dataset_episode):

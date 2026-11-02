@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import responses
+from responses.matchers import json_params_matcher, query_param_matcher
 from foxglove.client import Client
 
 from .api_url import api_url
@@ -231,6 +232,121 @@ def test_get_and_delete_episode():
 
     assert episode["id"] == "ep_1"
     assert responses.calls[0].request.params == {"include": "recordings"}
+
+
+@responses.activate
+def test_get_episodes_filters_exact_recording_ids():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes"),
+        match=[query_param_matcher({"exactRecordingIds": "rec_1,rec_2"})],
+        json={"episodes": [_episode_json()]},
+    )
+
+    episodes = Client("test").get_episodes(exact_recording_ids=["rec_1", "rec_2"])
+
+    assert episodes.items[0]["id"] == "ep_1"
+
+
+@responses.activate
+def test_get_episode_at_version():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes/ep_1"),
+        match=[query_param_matcher({"version": "2", "include": "properties"})],
+        json={**_episode_json(), "properties": {"stage": "review"}},
+    )
+
+    episode = Client("test").get_episode(
+        episode_id="ep_1", version=2, include_properties=True
+    )
+
+    assert episode["version"] == 2
+    assert episode["latest_version"] == 3
+    assert episode["properties"] == {"stage": "review"}
+
+
+@responses.activate
+def test_get_episode_versions():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes/ep_1/versions"),
+        match=[query_param_matcher({"limit": "2"})],
+        headers={"fg-pagination-next-cursor": "next"},
+        json={
+            "versions": [
+                {
+                    "version": 2,
+                    "createdAt": NOW.isoformat(),
+                    "creatorApiKeyId": "key_1",
+                    "changedFields": ["startTime", "properties"],
+                },
+                {"version": 1, "createdAt": NOW.isoformat(), "changedFields": []},
+            ]
+        },
+    )
+
+    versions = Client("test").get_episode_versions(episode_id="ep_1", limit=2)
+
+    assert versions.items[0] == {
+        "version": 2,
+        "created_at": NOW,
+        "creator_org_member_id": None,
+        "creator_api_key_id": "key_1",
+        "changed_fields": ["startTime", "properties"],
+    }
+    assert versions.items[1]["creator_api_key_id"] is None
+    assert versions.next_cursor == "next"
+
+
+@responses.activate
+def test_update_episode_serializes_inputs():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes/ep_1"),
+        match=[
+            json_params_matcher(
+                {
+                    "appliesToVersion": 2,
+                    "startTime": NOW.astimezone().isoformat(),
+                    "endTime": NOW.replace(minute=1).astimezone().isoformat(),
+                    "recordings": {"add": ["rec_2"], "remove": ["rec_1"]},
+                    "properties": {"stage": "done", "reviewer": None},
+                },
+                strict_match=True,
+            )
+        ],
+        json={**_episode_json(), "version": 3, "properties": {"stage": "done"}},
+    )
+
+    episode = Client("test").update_episode(
+        episode_id="ep_1",
+        applies_to_version=2,
+        start_time=NOW,
+        end_time=NOW.replace(minute=1),
+        recordings={"add": ["rec_2"], "remove": ["rec_1"]},
+        properties={"stage": "done", "reviewer": None},
+    )
+
+    assert episode["id"] == "ep_1"
+    assert episode["version"] == 3
+    assert episode["properties"] == {"stage": "done"}
+
+
+@responses.activate
+def test_update_episode_sends_only_set_fields():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes/ep_1"),
+        match=[
+            json_params_matcher({"properties": {"stage": "done"}}, strict_match=True)
+        ],
+        json=_episode_json(),
+    )
+
+    Client("test").update_episode(episode_id="ep_1", properties={"stage": "done"})
+
+    assert len(responses.calls) == 1
 
 
 @responses.activate

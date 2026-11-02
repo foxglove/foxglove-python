@@ -2368,13 +2368,18 @@ def _episode_dict(episode):
     return result
 
 
+_EPISODE_FIELD_NAMES = {"startTime": "start_time", "endTime": "end_time"}
+
+
 def _episode_version_dict(version):
     return {
         "version": version["version"],
         "created_at": arrow.get(version["createdAt"]).datetime,
         "creator_org_member_id": version.get("creatorOrgMemberId"),
         "creator_api_key_id": version.get("creatorApiKeyId"),
-        "changed_fields": version["changedFields"],
+        "changed_fields": [
+            _EPISODE_FIELD_NAMES.get(field, field) for field in version["changedFields"]
+        ],
     }
 
 

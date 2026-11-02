@@ -293,7 +293,7 @@ def test_get_episode_versions():
         "created_at": NOW,
         "creator_org_member_id": None,
         "creator_api_key_id": "key_1",
-        "changed_fields": ["startTime", "properties"],
+        "changed_fields": ["start_time", "properties"],
     }
     assert versions.items[1]["creator_api_key_id"] is None
     assert versions.next_cursor == "next"

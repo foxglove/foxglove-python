@@ -822,6 +822,90 @@ class Client:
         )
         json_or_raise(response)
 
+    def get_device_tokens(self, *, device_id: Optional[str] = None):
+        """
+        Returns a list of device tokens.
+
+        :param device_id: Optional device ID to filter tokens by.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/device-tokens"),
+            params=without_nulls({"deviceId": device_id}),
+        )
+        return [_device_token_dict(token) for token in json_or_raise(response)]
+
+    def get_device_token(self, *, device_token_id: str):
+        """
+        Gets a single device token.
+
+        :param device_token_id: The id of the device token.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/device-tokens/{device_token_id}")
+        )
+        return _device_token_dict(json_or_raise(response))
+
+    def create_device_token(
+        self,
+        *,
+        device_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        enabled: Optional[bool] = None,
+        preapproved: Optional[bool] = None,
+    ):
+        """
+        Creates a device token.
+
+        The result includes the secret ``token`` value, which is only returned here.
+
+        :param device_id: Optional device to associate the token with. Without one,
+            the token can only be used to create a device.
+        :param project_id: Project for the token. Required when `device_id` is not set;
+            otherwise it must match the device's project.
+        :param enabled: Optionally set whether the token is enabled.
+        :param preapproved: Optionally set whether devices created with the token
+            are preapproved.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/device-tokens"),
+            json=without_nulls(
+                {
+                    "deviceId": device_id,
+                    "projectId": project_id,
+                    "enabled": enabled,
+                    "preapproved": preapproved,
+                }
+            ),
+        )
+        json = json_or_raise(response)
+        device_token = _device_token_dict(json)
+        device_token["token"] = json.get("token")
+        return device_token
+
+    def update_device_token(self, *, device_token_id: str, enabled: bool):
+        """
+        Enables or disables a device token.
+
+        :param device_token_id: The id of the device token.
+        :param enabled: Whether the token is enabled.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/device-tokens/{device_token_id}"),
+            json={"enabled": enabled},
+        )
+        return _device_token_dict(json_or_raise(response))
+
+    def delete_device_token(self, *, device_token_id: str):
+        """
+        Deletes a device token.
+
+        :param device_token_id: The id of the device token.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/device-tokens/{device_token_id}")
+        )
+        json_or_raise(response)
+
     def delete_import(self, *, device_id: Optional[str] = None, import_id: str):
         """
         Deletes an existing import.
@@ -2219,6 +2303,17 @@ def _device_dict(device):
         "project_id": device.get("projectId"),
         "created_at": arrow.get(created_at).datetime if created_at else None,
         "updated_at": arrow.get(updated_at).datetime if updated_at else None,
+    }
+
+
+def _device_token_dict(device_token):
+    return {
+        "id": device_token["id"],
+        "created_at": arrow.get(device_token["createdAt"]).datetime,
+        "device_id": device_token.get("deviceId"),
+        "project_id": device_token["projectId"],
+        "enabled": device_token["enabled"],
+        "preapproved": device_token["preapproved"],
     }
 
 

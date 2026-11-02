@@ -1763,9 +1763,7 @@ class Client:
                 include_properties=include_properties,
             ).auto_paging_iter()
         )
-        incomplete = sum(
-            bool(member.get("has_missing_recordings")) for member in episodes
-        )
+        incomplete = sum(member["has_missing_recordings"] for member in episodes)
         if incomplete:
             raise RuntimeError(
                 f"Version {version_number} can't be downloaded: {incomplete} "

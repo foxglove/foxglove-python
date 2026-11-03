@@ -4,7 +4,7 @@ import datetime
 import responses
 from faker import Faker
 from foxglove.client import Client
-from responses.matchers import json_params_matcher
+from responses.matchers import json_params_matcher, query_param_matcher
 
 from .api_url import api_url
 
@@ -304,3 +304,59 @@ def test_get_events():
     assert event["metadata"] == {}
     assert event["properties"] == {"key": "value"}
     assert event["event_type_id"] == "evtt_123"
+
+
+@responses.activate
+def test_get_event():
+    start = datetime.datetime.now().astimezone()
+    end = start + datetime.timedelta(seconds=10)
+    now = datetime.datetime.now().astimezone()
+    responses.add(
+        responses.GET,
+        api_url("/v1/events/evt_1"),
+        json={
+            "id": "evt_1",
+            "metadata": {"key": "value"},
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
+        },
+    )
+    event = Client("test").get_event(event_id="evt_1")
+    assert event["id"] == "evt_1"
+    assert event["device_id"] is None
+    assert event["device"] is None
+    assert event["start"] == start
+    assert event["end"] == end
+    assert event["metadata"] == {"key": "value"}
+
+
+@responses.activate
+def test_get_events_with_filters():
+    created_after = datetime.datetime.now().astimezone()
+    updated_after = created_after + datetime.timedelta(seconds=5)
+    responses.add(
+        responses.GET,
+        api_url("/v1/events"),
+        match=[
+            query_param_matcher(
+                {
+                    "eventId": "evt_1",
+                    "createdAfter": created_after.isoformat(),
+                    "updatedAfter": updated_after.isoformat(),
+                    "query": "key:value",
+                    "queryFields": "metadata,properties",
+                }
+            )
+        ],
+        json=[],
+    )
+    events = Client("test").get_events(
+        event_id="evt_1",
+        created_after=created_after,
+        updated_after=updated_after,
+        query="key:value",
+        query_fields=["metadata", "properties"],
+    )
+    assert events == []

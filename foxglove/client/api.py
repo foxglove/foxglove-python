@@ -336,6 +336,15 @@ class Client:
         response = self.__session.delete(self.__url__(f"/v1/events/{event_id}"))
         return json_or_raise(response)
 
+    def get_event(self, *, event_id: str):
+        """
+        Gets a single event.
+
+        event_id: The id of the event.
+        """
+        response = self.__session.get(self.__url__(f"/v1/events/{event_id}"))
+        return _event_dict(json_or_raise(response))
+
     def get_events(
         self,
         *,
@@ -350,6 +359,10 @@ class Client:
         query: Optional[str] = None,
         project_id: Optional[str] = None,
         event_type_id: Optional[str] = None,
+        event_id: Optional[str] = None,
+        created_after: Optional[datetime.datetime] = None,
+        updated_after: Optional[datetime.datetime] = None,
+        query_fields: Optional[List[str]] = None,
     ):
         """
         Retrieves events.
@@ -367,6 +380,11 @@ class Client:
             of `query`.
         project_id: Optional Project to filter events by.
         event_type_id: Optional Event Type ID to filter events by.
+        event_id: Optionally filter events by exact event ID.
+        created_after: Optionally return only events created after this time.
+        updated_after: Optionally return only events updated after this time.
+        query_fields: Optionally specify which fields `query` filters on:
+            "metadata" (the default) and/or "properties".
         """
         params = {
             "deviceId": device_id,
@@ -380,6 +398,14 @@ class Client:
             "query": query,
             "projectId": project_id,
             "eventTypeId": event_type_id,
+            "eventId": event_id,
+            "createdAfter": (
+                created_after.astimezone().isoformat() if created_after else None
+            ),
+            "updatedAfter": (
+                updated_after.astimezone().isoformat() if updated_after else None
+            ),
+            "queryFields": ",".join(query_fields) if query_fields else None,
         }
         response = self.__session.get(
             self.__url__("/v1/events"),
@@ -387,6 +413,87 @@ class Client:
         )
 
         return [_event_dict(event) for event in json_or_raise(response)]
+
+    def get_event_types(self):
+        """Return all event types."""
+        response = self.__session.get(self.__url__("/v1/event-types"))
+        return [_event_type_dict(event_type) for event_type in json_or_raise(response)]
+
+    def get_event_type(self, *, event_type_id: str):
+        """
+        Gets a single event type.
+
+        :param event_type_id: The id of the event type.
+        """
+        response = self.__session.get(self.__url__(f"/v1/event-types/{event_type_id}"))
+        return _event_type_dict(json_or_raise(response))
+
+    def create_event_type(
+        self,
+        *,
+        name: str,
+        custom_properties: List[Dict[str, Any]],
+        color_name: Optional[str] = None,
+    ):
+        """
+        Creates an event type.
+
+        :param name: Name of the event type.
+        :param custom_properties: Ordered custom properties for events of this type,
+            each a dict with the property's ``id`` and whether it is ``required``.
+        :param color_name: Optional color name, e.g. "red".
+        """
+        response = self.__session.post(
+            self.__url__("/v1/event-types"),
+            json=without_nulls(
+                {
+                    "name": name,
+                    "colorName": color_name,
+                    "customProperties": custom_properties,
+                }
+            ),
+        )
+        return _event_type_dict(json_or_raise(response))
+
+    def update_event_type(
+        self,
+        *,
+        event_type_id: str,
+        name: Optional[str] = None,
+        color_name: Optional[str] = None,
+        custom_properties: Optional[List[Dict[str, Any]]] = None,
+    ):
+        """
+        Updates an event type. At least one field must be set.
+
+        :param event_type_id: The id of the event type.
+        :param name: Optional new name.
+        :param color_name: Optional new color name.
+        :param custom_properties: Optional custom properties, each a dict with the
+            property's ``id`` and whether it is ``required``. Replaces the existing list.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/event-types/{event_type_id}"),
+            json=without_nulls(
+                {
+                    "name": name,
+                    "colorName": color_name,
+                    "customProperties": custom_properties,
+                }
+            ),
+        )
+        return _event_type_dict(json_or_raise(response))
+
+    def delete_event_type(self, *, event_type_id: str):
+        """
+        Deletes an event type.
+
+        :param event_type_id: The id of the event type.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/event-types/{event_type_id}")
+        )
+        json_or_raise(response)
 
     def get_messages(
         self,
@@ -904,15 +1011,41 @@ class Client:
 
         return _device_dict(json_or_raise(response))
 
-    def get_devices(self, *, project_id: Optional[str] = None):
+    def get_devices(
+        self,
+        *,
+        project_id: Optional[str] = None,
+        query: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
         """
         Returns a list of all devices.
 
         :param project_id: Optional Project to filter devices by.
+        :param query: Optional query string to filter devices by custom properties,
+            e.g. "properties.key:value". See
+            https://foxglove.dev/docs/api#tag/Devices/paths/~1devices/get for the syntax.
+        :param sort_by: Optionally sort devices by "id", "name", or a custom property
+            key prefixed with "properties.".
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param limit: Optionally limit the number of devices returned.
+        :param offset: Optionally offset the results by this many devices.
         """
         response = self.__session.get(
             self.__url__("/v1/devices"),
-            params=without_nulls({"projectId": project_id}),
+            params=without_nulls(
+                {
+                    "projectId": project_id,
+                    "query": query,
+                    "sortBy": sort_by,
+                    "sortOrder": sort_order,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ),
         )
 
         json = json_or_raise(response)
@@ -957,6 +1090,10 @@ class Client:
         new_name: Optional[str] = None,
         properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
         project_id: Optional[str] = None,
+        retain_recordings_seconds: Optional[int] = None,
+        enabled: Optional[bool] = None,
+        remote_access_enabled: Optional[bool] = None,
+        auto_delete_after_import: Optional[bool] = None,
     ):
         """
         Updates a device.
@@ -969,13 +1106,29 @@ class Client:
             and each value must be of the appropriate type.
         :param project_id: Project to retrieve the device from.
             Required for multi-project organizations.
+        :param retain_recordings_seconds: Optional retention period for recordings
+            created on a device running Foxlet. Zero retains recordings indefinitely.
+        :param enabled: Optionally enable or disable the device. Recordings can't be
+            uploaded for disabled devices.
+        :param remote_access_enabled: Optionally enable or disable remote access.
+        :param auto_delete_after_import: Optionally set whether a device running Foxlet
+            deletes recordings once they are uploaded and accepted for import.
         """
         identifier = _device_identifier_for_path(device_id, device_name)
 
         response = self.__session.patch(
             self.__url__(f"/v1/devices/{identifier}"),
             params={"projectId": project_id} if project_id is not None else None,
-            json=without_nulls({"name": new_name, "properties": properties}),
+            json=without_nulls(
+                {
+                    "name": new_name,
+                    "properties": properties,
+                    "retainRecordingsSeconds": retain_recordings_seconds,
+                    "enabled": enabled,
+                    "remoteAccessEnabled": remote_access_enabled,
+                    "autoDeleteAfterImport": auto_delete_after_import,
+                }
+            ),
         )
 
         return _device_dict(json_or_raise(response))
@@ -1001,6 +1154,90 @@ class Client:
         response = self.__session.delete(
             self.__url__(f"/v1/devices/{identifier}"),
             params={"projectId": project_id} if project_id is not None else None,
+        )
+        json_or_raise(response)
+
+    def get_device_tokens(self, *, device_id: Optional[str] = None):
+        """
+        Returns a list of device tokens.
+
+        :param device_id: Optional device ID to filter tokens by.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/device-tokens"),
+            params=without_nulls({"deviceId": device_id}),
+        )
+        return [_device_token_dict(token) for token in json_or_raise(response)]
+
+    def get_device_token(self, *, device_token_id: str):
+        """
+        Gets a single device token.
+
+        :param device_token_id: The id of the device token.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/device-tokens/{device_token_id}")
+        )
+        return _device_token_dict(json_or_raise(response))
+
+    def create_device_token(
+        self,
+        *,
+        device_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        enabled: Optional[bool] = None,
+        preapproved: Optional[bool] = None,
+    ):
+        """
+        Creates a device token.
+
+        The result includes the secret ``token`` value, which is only returned here.
+
+        :param device_id: Optional device to associate the token with. Without one,
+            the token can only be used to create a device.
+        :param project_id: Project for the token. Required when `device_id` is not set;
+            otherwise it must match the device's project.
+        :param enabled: Optionally set whether the token is enabled.
+        :param preapproved: Optionally set whether devices created with the token
+            are preapproved.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/device-tokens"),
+            json=without_nulls(
+                {
+                    "deviceId": device_id,
+                    "projectId": project_id,
+                    "enabled": enabled,
+                    "preapproved": preapproved,
+                }
+            ),
+        )
+        json = json_or_raise(response)
+        device_token = _device_token_dict(json)
+        device_token["token"] = json.get("token")
+        return device_token
+
+    def update_device_token(self, *, device_token_id: str, enabled: bool):
+        """
+        Enables or disables a device token.
+
+        :param device_token_id: The id of the device token.
+        :param enabled: Whether the token is enabled.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/device-tokens/{device_token_id}"),
+            json={"enabled": enabled},
+        )
+        return _device_token_dict(json_or_raise(response))
+
+    def delete_device_token(self, *, device_token_id: str):
+        """
+        Deletes a device token.
+
+        :param device_token_id: The id of the device token.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/device-tokens/{device_token_id}")
         )
         json_or_raise(response)
 
@@ -1369,6 +1606,7 @@ class Client:
                 "last_seen_at": (
                     arrow.get(p["lastSeenAt"]).datetime if p.get("lastSeenAt") else None
                 ),
+                "is_invite_only": p.get("isInviteOnly"),
             }
             for p in json
         ]
@@ -1898,22 +2136,22 @@ class Client:
     ) -> Path:
         """Export a committed version to MCAP files (including attachments) and a manifest.
 
-        The manifest uses the app's schema and selection digest, but ``file`` paths
+        The manifest uses the app's schema, but ``file`` paths
         are relative to the returned output directory, which contains manifest.json.
         App ZIP exports instead use paths relative to the ZIP root.
 
         ``include_properties=True`` adds episode custom properties to the manifest
         and requires access to episode properties. Properties are omitted by default.
 
-        ``topics`` selects topics; None or [] downloads all topics. Episodes with
-        some missing recordings are downloaded partially and flagged in the manifest.
-        Episodes with no streamable recordings are skipped. Other request failures
-        before streaming are recorded and the export continues; if all attempts fail,
-        this raises after writing the manifest. An all-skipped export succeeds.
+        ``topics`` selects topics; None or [] downloads all topics. A version with
+        any episode whose recordings are no longer available can't be downloaded;
+        this raises before writing anything. Request failures before streaming are
+        recorded in the manifest as failed and the export continues; if every episode
+        fails, this raises after writing the manifest.
 
-        Incomplete exports emit ``DatasetDownloadWarning`` with failed, skipped, and
-        partially available episode counts after writing the manifest. The return
-        value remains a Path. Promoting this warning to an error does not undo files.
+        Exports with failed episodes emit ``DatasetDownloadWarning`` after writing the
+        manifest. The return value remains a Path. Promoting this warning to an error
+        does not undo files.
 
         Interrupted transfers or filesystem failures stop the export and preserve
         completed MCAPs and the failed episode's .part file. The manifest is written
@@ -1933,8 +2171,8 @@ class Client:
             if any(destination.iterdir()):
                 raise RuntimeError("output_directory must be empty")
         dataset = self.get_dataset(dataset_id=dataset_id)
-        # Capture the complete selection before transfers, so even an interrupted
-        # export has the same selection digest as the app. MCAP bytes stay streamed.
+        # Capture the complete selection before transfers, so incomplete versions are
+        # refused before anything is written. MCAP bytes stay streamed.
         episodes = list(
             self.get_dataset_version_episodes(
                 dataset_id=dataset_id,
@@ -1945,6 +2183,14 @@ class Client:
                 include_properties=include_properties,
             ).auto_paging_iter()
         )
+        incomplete = sum(member["has_missing_recordings"] for member in episodes)
+        if incomplete:
+            raise RuntimeError(
+                f"Version {version_number} can't be downloaded: {incomplete} "
+                f"{'episode has' if incomplete == 1 else 'episodes have'} recordings "
+                "that are no longer available. Download another version, or remove "
+                "the affected episodes from the dataset and commit a new version."
+            )
         destination.mkdir(parents=True, exist_ok=True)
         selected_topics = list(topics) if topics else None
         return export_dataset(
@@ -2379,8 +2625,8 @@ def _device_identifier_for_path(
 def _event_dict(json_event):
     return {
         "id": json_event["id"],
-        "device_id": json_event["deviceId"],
-        "device": json_event["device"],
+        "device_id": json_event.get("deviceId"),
+        "device": json_event.get("device"),
         "start": arrow.get(json_event["start"]).datetime,
         "end": arrow.get(json_event["end"]).datetime,
         "metadata": json_event["metadata"],
@@ -2388,6 +2634,17 @@ def _event_dict(json_event):
         "updated_at": arrow.get(json_event["updatedAt"]).datetime,
         "properties": json_event.get("properties"),
         "event_type_id": json_event.get("eventTypeId"),
+    }
+
+
+def _event_type_dict(event_type):
+    return {
+        "id": event_type["id"],
+        "name": event_type["name"],
+        "color_name": event_type.get("colorName"),
+        "custom_properties": event_type.get("customProperties", []),
+        "created_at": arrow.get(event_type["createdAt"]).datetime,
+        "updated_at": arrow.get(event_type["updatedAt"]).datetime,
     }
 
 
@@ -2399,8 +2656,24 @@ def _device_dict(device):
         "name": device["name"],
         "properties": device.get("properties"),
         "project_id": device.get("projectId"),
+        "org_id": device.get("orgId"),
+        "retain_recordings_seconds": device.get("retainRecordingsSeconds"),
+        "enabled": device.get("enabled"),
+        "remote_access_enabled": device.get("remoteAccessEnabled"),
+        "auto_delete_after_import": device.get("autoDeleteAfterImport"),
         "created_at": arrow.get(created_at).datetime if created_at else None,
         "updated_at": arrow.get(updated_at).datetime if updated_at else None,
+    }
+
+
+def _device_token_dict(device_token):
+    return {
+        "id": device_token["id"],
+        "created_at": arrow.get(device_token["createdAt"]).datetime,
+        "device_id": device_token.get("deviceId"),
+        "project_id": device_token["projectId"],
+        "enabled": device_token["enabled"],
+        "preapproved": device_token["preapproved"],
     }
 
 
@@ -2448,7 +2721,6 @@ def _episode_recording_dict(recording):
         "end": arrow.get(recording["end"]).datetime,
         "device_id": recording.get("deviceId"),
         "available": recording["available"],
-        "resolvable": recording["resolvable"],
     }
 
 

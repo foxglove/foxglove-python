@@ -50,7 +50,7 @@ output_directory = client.download_dataset(
     # include_properties=True,
 )
 print(f"Exported dataset to {output_directory}")
-print("Check manifest.json for partial, skipped, or failed episodes")
+print("Check manifest.json for failed episodes")
 
 # A list call fetches one page. Automatic iteration follows cursors as needed.
 page = client.get_dataset_versions(dataset_id=dataset["id"], limit=100)

@@ -245,6 +245,7 @@ def test_upload():
         ],
         json={
             "link": upload_link,
+            "requestId": "req_1",
         },
     )
     responses.add(responses.PUT, upload_link)
@@ -254,6 +255,7 @@ def test_upload():
         device_id=device_id, filename=filename, data=data
     )
     assert upload_response["link"] == upload_link
+    assert upload_response["request_id"] == "req_1"
 
 
 @responses.activate

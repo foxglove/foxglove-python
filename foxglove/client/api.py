@@ -563,6 +563,11 @@ class Client:
         decoder_factories: Optional[List[DecoderFactory]] = None,
         project_id: Optional[str] = None,
         episode_id: Optional[str] = None,
+        episode_version: Optional[int] = None,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+        replay_policy: Optional[str] = None,
+        replay_lookback_seconds: Optional[float] = None,
     ):
         """
         yields a stream of (schema, channel, message, decoded message) values.
@@ -581,6 +586,14 @@ class Client:
             device_name as an identifier in multi-project organizations.
         episode_id: ID of an episode to download. Its time range is used when start and end
             are omitted.
+        episode_version: Episode version to stream. Requires ``episode_id``; the latest
+            version is used when omitted.
+        recording_id: ID of a recording to stream.
+        recording_key: Key of a recording to stream.
+        replay_policy: Optional replay policy. "lastPerChannel" includes the most recent
+            message on each channel from before ``start``, within ``replay_lookback_seconds``.
+        replay_lookback_seconds: How far before ``start`` to look for those messages.
+            Only used with ``replay_policy="lastPerChannel"``.
         """
         if topics is None:
             topics = []
@@ -594,6 +607,11 @@ class Client:
             topics=topics,
             project_id=project_id,
             episode_id=episode_id,
+            episode_version=episode_version,
+            recording_id=recording_id,
+            recording_key=recording_key,
+            replay_policy=replay_policy,
+            replay_lookback_seconds=replay_lookback_seconds,
         )
         response = requests.get(stream_link, stream=True)
         try:
@@ -614,6 +632,12 @@ class Client:
         output_format: OutputFormat = OutputFormat.mcap,
         include_attachments: bool = False,
         callback: Optional[ProgressCallback] = None,
+        topics: Optional[List[str]] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        compression_format: Optional[CompressionFormat] = None,
+        replay_policy: Optional[str] = None,
+        replay_lookback_seconds: Optional[float] = None,
     ):
         """
         Returns raw data bytes for a recording.
@@ -624,23 +648,31 @@ class Client:
         :param output_format: The output format of the data, defaulting to .mcap.
             Note: You can only export a .bag file if you originally uploaded a .bag file.
         :param callback: an optional callback to report download progress.
+        :param topics: An optional list of topics to retrieve; all topics when omitted.
+        :param start: Optional start of a time range within the recording. Requires ``end``.
+        :param end: Optional end of a time range within the recording. Requires ``start``.
+        :param compression_format: Compression format for MCAP chunks.
+        :param replay_policy: Optional replay policy. "lastPerChannel" includes the most
+            recent message on each channel from before ``start``, within
+            ``replay_lookback_seconds``.
+        :param replay_lookback_seconds: How far before ``start`` to look for those
+            messages. Only used with ``replay_policy="lastPerChannel"``.
         """
         if id is None and key is None:
             raise RuntimeError("id or key must be provided")
-        params = {
-            "recordingId": id,
-            "key": key,
-            "includeAttachments": include_attachments,
-            "outputFormat": output_format.value,
-        }
-        link_response = self.__session.post(
-            self.__url__("/v1/data/stream"),
-            json={k: v for k, v in params.items() if v is not None},
+        link = self._make_stream_link(
+            recording_id=id,
+            recording_key=key,
+            include_attachments=include_attachments,
+            output_format=output_format,
+            topics=topics,
+            start=start,
+            end=end,
+            compression_format=compression_format,
+            replay_policy=replay_policy,
+            replay_lookback_seconds=replay_lookback_seconds,
         )
-
-        json = json_or_raise(link_response)
-
-        return _download_stream_with_progress(json["link"], callback=callback)
+        return _download_stream_with_progress(link, callback=callback)
 
     def _make_stream_link(
         self,
@@ -658,29 +690,46 @@ class Client:
         episode_id: Optional[str] = None,
         episode_version: Optional[int] = None,
         include_attachments: Optional[bool] = None,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+        replay_policy: Optional[str] = None,
+        replay_lookback_seconds: Optional[float] = None,
     ) -> str:
         if topics is None:
             topics = []
+        by_recording = recording_id is not None or recording_key is not None
+        if episode_version is not None and episode_id is None:
+            raise RuntimeError("episode_version requires episode_id")
         if (
             device_id is None
             and device_name is None
             and session_id is None
             and session_key is None
             and episode_id is None
+            and not by_recording
         ):
             raise RuntimeError(
                 "device_id or device_name or session_id or session_key or episode_id "
-                "must be provided"
+                "or recording_id or recording_key must be provided"
             )
+        by_device = device_id is not None or device_name is not None
         if episode_id is not None and (
-            device_id is not None
-            or device_name is not None
+            by_device
             or session_id is not None
             or session_key is not None
+            or by_recording
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
-        if episode_id is None and (start is None or end is None):
-            raise RuntimeError("start and end must be provided unless using episode_id")
+        if by_recording and (session_id is not None or session_key is not None):
+            raise RuntimeError(
+                "recording_id or recording_key cannot be combined with a session"
+            )
+        needs_range = episode_id is None and (by_device or not by_recording)
+        if needs_range and (start is None or end is None):
+            raise RuntimeError(
+                "start and end must be provided unless using episode_id, "
+                "recording_id, or recording_key"
+            )
 
         params = {
             "deviceId": device_id,
@@ -690,6 +739,10 @@ class Client:
             "episodeId": episode_id,
             "episodeVersion": episode_version,
             "includeAttachments": include_attachments,
+            "recordingId": recording_id,
+            "recordingKey": recording_key,
+            "replayPolicy": replay_policy,
+            "replayLookbackSeconds": replay_lookback_seconds,
             "end": end.astimezone().isoformat() if end else None,
             "outputFormat": output_format.value,
             "start": start.astimezone().isoformat() if start else None,
@@ -722,6 +775,12 @@ class Client:
         callback: Optional[ProgressCallback] = None,
         project_id: Optional[str] = None,
         episode_id: Optional[str] = None,
+        episode_version: Optional[int] = None,
+        include_attachments: Optional[bool] = None,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+        replay_policy: Optional[str] = None,
+        replay_lookback_seconds: Optional[float] = None,
     ) -> bytes:
         """
         Returns raw data bytes for a device and time range.
@@ -742,6 +801,16 @@ class Client:
             device_name as an identifier in multi-project organizations.
         episode_id: ID of an episode to download. Its time range is used when start and end
             are omitted.
+        episode_version: Episode version to download. Requires ``episode_id``; the latest
+            version is used when omitted.
+        include_attachments: Whether to include MCAP attachments. Only valid for MCAP
+            output and when downloading by recording, session, or episode.
+        recording_id: ID of a recording to download.
+        recording_key: Key of a recording to download.
+        replay_policy: Optional replay policy. "lastPerChannel" includes the most recent
+            message on each channel from before ``start``, within ``replay_lookback_seconds``.
+        replay_lookback_seconds: How far before ``start`` to look for those messages.
+            Only used with ``replay_policy="lastPerChannel"``.
         """
         if topics is None:
             topics = []
@@ -758,6 +827,12 @@ class Client:
                 compression_format=compression_format,
                 project_id=project_id,
                 episode_id=episode_id,
+                episode_version=episode_version,
+                include_attachments=include_attachments,
+                recording_id=recording_id,
+                recording_key=recording_key,
+                replay_policy=replay_policy,
+                replay_lookback_seconds=replay_lookback_seconds,
             ),
             callback=callback,
         )
@@ -1708,6 +1783,11 @@ class Client:
         episode_id: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+        episode_version: Optional[int] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ):
         """
         List topics.
@@ -1724,16 +1804,32 @@ class Client:
             start and end are omitted.
         :param limit: Maximum topics in this page (server default and maximum: 2000).
         :param offset: Number of topics to skip to retrieve a subsequent page.
+        :param recording_id: ID of a recording to list topics from. Topics for a
+            recording that hasn't been imported are only returned when no time range,
+            device, or session is also given.
+        :param recording_key: Key of a recording to list topics from. The same
+            condition applies to recordings that haven't been imported.
+        :param episode_version: Episode version to list topics from. Requires
+            ``episode_id``; the latest version is used when omitted.
+        :param sort_by: Optionally sort by "topic" or "version".
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
         """
+        by_recording = recording_id is not None or recording_key is not None
+        if episode_version is not None and episode_id is None:
+            raise RuntimeError("episode_version requires episode_id")
         if episode_id is not None and (
             device_id is not None
             or device_name is not None
             or session_id is not None
             or session_key is not None
+            or by_recording
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
-        if episode_id is None and (start is None or end is None):
-            raise RuntimeError("start and end must be provided unless using episode_id")
+        if episode_id is None and not by_recording and (start is None or end is None):
+            raise RuntimeError(
+                "start and end must be provided unless using episode_id, "
+                "recording_id, or recording_key"
+            )
         response = self.__session.get(
             self.__url__("/v1/data/topics"),
             params={
@@ -1746,6 +1842,11 @@ class Client:
                 "sessionId": session_id,
                 "sessionKey": session_key,
                 "episodeId": episode_id,
+                "episodeVersion": episode_version,
+                "recordingId": recording_id,
+                "recordingKey": recording_key,
+                "sortBy": sort_by,
+                "sortOrder": sort_order,
                 "limit": limit,
                 "offset": offset,
             },
@@ -2301,7 +2402,7 @@ class Client:
 
         :param project_id: Project in which to create the episodes.
         :param episodes: Episode definitions. Each dictionary requires exactly one of
-            ``recordings`` or ``event_id``, and may include ``metadata`` and ``properties``.
+            ``recordings`` or ``event_id``, and may include ``properties``.
             Recording inputs may also include ``start_time`` and ``end_time``. An ``event_id``
             input snapshots the event's current time range and the completed recordings from
             its device that overlap it; later edits to the event or new imports do not change
@@ -2336,7 +2437,6 @@ class Client:
                         "endTime": (
                             end_time.astimezone().isoformat() if end_time else None
                         ),
-                        "metadata": episode.get("metadata"),
                         "properties": episode.get("properties"),
                     }
                 )
@@ -3578,7 +3678,6 @@ def _episode_dict(episode):
         "project_id": episode["projectId"],
         "start_time": arrow.get(episode["startTime"]).datetime,
         "end_time": arrow.get(episode["endTime"]).datetime,
-        "metadata": episode["metadata"],
         "version": episode["version"],
         "latest_version": episode["latestVersion"],
         "creator_org_member_id": episode.get("creatorOrgMemberId"),

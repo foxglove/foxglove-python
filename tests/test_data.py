@@ -203,6 +203,66 @@ def test_download_recording_data():
 
 
 @responses.activate
+def test_download_recording_data_by_key_with_range_and_replay():
+    download_link = fake.url()
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    end = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        match=[
+            json_params_matcher(
+                {
+                    "recordingKey": "run.mcap",
+                    "includeAttachments": False,
+                    "outputFormat": "mcap",
+                    "topics": ["/camera"],
+                    "start": start.astimezone().isoformat(),
+                    "end": end.astimezone().isoformat(),
+                    "compressionFormat": "zstd",
+                    "replayPolicy": "lastPerChannel",
+                    "replayLookbackSeconds": 30,
+                },
+                strict_match=True,
+            )
+        ],
+        json={"link": download_link},
+    )
+    responses.add(responses.GET, download_link, body=b"mcap")
+
+    data = Client("test").download_recording_data(
+        key="run.mcap",
+        topics=["/camera"],
+        start=start,
+        end=end,
+        compression_format=CompressionFormat.zstd,
+        replay_policy="lastPerChannel",
+        replay_lookback_seconds=30,
+    )
+
+    assert data == b"mcap"
+
+
+@responses.activate
+def test_download_data_by_recording_without_time_range():
+    download_link = fake.url()
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        match=[
+            json_params_matcher(
+                {"recordingId": "rec_1", "outputFormat": "mcap", "topics": []},
+                strict_match=True,
+            )
+        ],
+        json={"link": download_link},
+    )
+    responses.add(responses.GET, download_link, body=b"mcap")
+
+    assert Client("test").download_data(recording_id="rec_1") == b"mcap"
+
+
+@responses.activate
 def test_streaming_upload():
     upload_link = fake.url()
     responses.add(

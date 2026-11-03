@@ -60,4 +60,45 @@ def test_iter_messages_by_episode(_get):
         topics=[],
         project_id=None,
         episode_id="ep_1",
+        episode_version=None,
+        recording_id=None,
+        recording_key=None,
+        replay_policy=None,
+        replay_lookback_seconds=None,
+    )
+
+
+@patch("requests.get", side_effect=get_generated_data)
+def test_iter_messages_by_recording_with_replay(_get):
+    client = Client("test")
+    client._make_stream_link = MagicMock(return_value="the_link")
+    start = datetime(2026, 1, 1)
+    end = datetime(2026, 1, 2)
+
+    messages = list(
+        client.iter_messages(
+            recording_id="rec_1",
+            start=start,
+            end=end,
+            replay_policy="lastPerChannel",
+            replay_lookback_seconds=30,
+        )
+    )
+
+    assert len(messages) == 10
+    client._make_stream_link.assert_called_once_with(
+        device_id=None,
+        device_name=None,
+        session_id=None,
+        session_key=None,
+        start=start,
+        end=end,
+        topics=[],
+        project_id=None,
+        episode_id=None,
+        episode_version=None,
+        recording_id="rec_1",
+        recording_key=None,
+        replay_policy="lastPerChannel",
+        replay_lookback_seconds=30,
     )

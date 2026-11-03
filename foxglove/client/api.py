@@ -2359,7 +2359,7 @@ class Client:
 
         :param project_id: Project in which to create the episodes.
         :param episodes: Episode definitions. Each dictionary requires exactly one of
-            ``recordings`` or ``event_id``, and may include ``metadata`` and ``properties``.
+            ``recordings`` or ``event_id``, and may include ``properties``.
             Recording inputs may also include ``start_time`` and ``end_time``. An ``event_id``
             input snapshots the event's current time range and the completed recordings from
             its device that overlap it; later edits to the event or new imports do not change
@@ -2394,7 +2394,6 @@ class Client:
                         "endTime": (
                             end_time.astimezone().isoformat() if end_time else None
                         ),
-                        "metadata": episode.get("metadata"),
                         "properties": episode.get("properties"),
                     }
                 )
@@ -3636,7 +3635,6 @@ def _episode_dict(episode):
         "project_id": episode["projectId"],
         "start_time": arrow.get(episode["startTime"]).datetime,
         "end_time": arrow.get(episode["endTime"]).datetime,
-        "metadata": episode["metadata"],
         "version": episode["version"],
         "latest_version": episode["latestVersion"],
         "creator_org_member_id": episode.get("creatorOrgMemberId"),

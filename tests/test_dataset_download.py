@@ -373,7 +373,6 @@ def test_manifest_timestamps_match_app(tmp_path, monkeypatch):
                     "properties": {},
                     "start_time": instant,
                     "end_time": instant.replace(microsecond=0),
-                    "metadata": {},
                 },
                 "has_missing_recordings": False,
             }

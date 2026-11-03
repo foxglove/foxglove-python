@@ -19,7 +19,6 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
         "projectId": "prj_1",
         "startTime": NOW.isoformat(),
         "endTime": NOW.replace(minute=1).isoformat(),
-        "metadata": {},
         "version": 1,
         "latestVersion": 1,
         "createdAt": NOW.isoformat(),
@@ -356,7 +355,6 @@ def test_download_dataset(tmp_path, download_options, properties):
         "file": "episode_0000_ep_1.mcap",
         "startTime": "2026-09-15T00:00:00.000Z",
         "endTime": "2026-09-15T00:01:00.000Z",
-        "metadata": {},
         "byteSize": 12,
         "status": "downloaded",
     }

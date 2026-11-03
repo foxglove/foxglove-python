@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import responses
+from responses.matchers import json_params_matcher, query_param_matcher
 from foxglove.client import Client
 
 from .api_url import api_url
@@ -232,6 +233,143 @@ def test_get_and_delete_episode():
 
 
 @responses.activate
+def test_get_episodes_rejects_empty_exact_recording_ids():
+    with pytest.raises(ValueError, match="exact_recording_ids"):
+        Client("test").get_episodes(exact_recording_ids=[])
+
+    assert len(responses.calls) == 0
+
+
+@responses.activate
+def test_get_episodes_omits_none_exact_recording_ids():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes"),
+        match=[query_param_matcher({}, strict_match=True)],
+        json={"episodes": [_episode_json()]},
+    )
+
+    episodes = Client("test").get_episodes(exact_recording_ids=None)
+
+    assert episodes.items[0]["id"] == "ep_1"
+
+
+@responses.activate
+def test_get_episodes_filters_exact_recording_ids():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes"),
+        match=[query_param_matcher({"exactRecordingIds": "rec_1,rec_2"})],
+        json={"episodes": [_episode_json()]},
+    )
+
+    episodes = Client("test").get_episodes(exact_recording_ids=["rec_1", "rec_2"])
+
+    assert episodes.items[0]["id"] == "ep_1"
+
+
+@responses.activate
+def test_get_episode_at_version():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes/ep_1"),
+        match=[query_param_matcher({"version": "2", "include": "properties"})],
+        json={**_episode_json(), "properties": {"stage": "review"}},
+    )
+
+    episode = Client("test").get_episode(
+        episode_id="ep_1", version=2, include_properties=True
+    )
+
+    assert episode["version"] == 2
+    assert episode["latest_version"] == 3
+    assert episode["properties"] == {"stage": "review"}
+
+
+@responses.activate
+def test_get_episode_versions():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes/ep_1/versions"),
+        match=[query_param_matcher({"limit": "2"})],
+        headers={"fg-pagination-next-cursor": "next"},
+        json={
+            "versions": [
+                {
+                    "version": 2,
+                    "createdAt": NOW.isoformat(),
+                    "creatorApiKeyId": "key_1",
+                    "changedFields": ["startTime", "properties"],
+                },
+                {"version": 1, "createdAt": NOW.isoformat(), "changedFields": []},
+            ]
+        },
+    )
+
+    versions = Client("test").get_episode_versions(episode_id="ep_1", limit=2)
+
+    assert versions.items[0] == {
+        "version": 2,
+        "created_at": NOW,
+        "creator_org_member_id": None,
+        "creator_api_key_id": "key_1",
+        "changed_fields": ["start_time", "properties"],
+    }
+    assert versions.items[1]["creator_api_key_id"] is None
+    assert versions.next_cursor == "next"
+
+
+@responses.activate
+def test_update_episode_serializes_inputs():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes/ep_1"),
+        match=[
+            json_params_matcher(
+                {
+                    "appliesToVersion": 2,
+                    "startTime": NOW.astimezone().isoformat(),
+                    "endTime": NOW.replace(minute=1).astimezone().isoformat(),
+                    "recordings": {"add": ["rec_2"], "remove": ["rec_1"]},
+                    "properties": {"stage": "done", "reviewer": None},
+                },
+                strict_match=True,
+            )
+        ],
+        json={**_episode_json(), "version": 3, "properties": {"stage": "done"}},
+    )
+
+    episode = Client("test").update_episode(
+        episode_id="ep_1",
+        applies_to_version=2,
+        start_time=NOW,
+        end_time=NOW.replace(minute=1),
+        recordings={"add": ["rec_2"], "remove": ["rec_1"]},
+        properties={"stage": "done", "reviewer": None},
+    )
+
+    assert episode["id"] == "ep_1"
+    assert episode["version"] == 3
+    assert episode["properties"] == {"stage": "done"}
+
+
+@responses.activate
+def test_update_episode_sends_only_set_fields():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes/ep_1"),
+        match=[
+            json_params_matcher({"properties": {"stage": "done"}}, strict_match=True)
+        ],
+        json=_episode_json(),
+    )
+
+    Client("test").update_episode(episode_id="ep_1", properties={"stage": "done"})
+
+    assert len(responses.calls) == 1
+
+
+@responses.activate
 def test_download_data_by_episode_uses_episode_bounds():
     download_link = "https://storage.example/episode.mcap"
     responses.add(
@@ -290,3 +428,47 @@ def test_get_topics_without_episode_requires_time_range():
         client.get_topics(session_id="ses_1")
 
     assert str(raised.value) == "start and end must be provided unless using episode_id"
+
+
+CREATION_CONTEXT = {
+    "version": 1,
+    "basis": {"type": "recordings", "recordingIds": ["rec_1"]},
+}
+
+
+@responses.activate
+def test_get_episodes_includes_creation_context():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes"),
+        match=[query_param_matcher({"include": "recordings,creationContext"})],
+        json={
+            "episodes": [
+                {
+                    **_episode_json(include_recordings=True),
+                    "creationContext": CREATION_CONTEXT,
+                },
+                _episode_json("ep_2"),
+            ]
+        },
+    )
+
+    episodes = Client("test").get_episodes(
+        include_recordings=True, include_creation_context=True
+    )
+
+    assert episodes.items[0]["creation_context"] == CREATION_CONTEXT
+    assert "creation_context" not in episodes.items[1]
+
+
+@responses.activate
+def test_get_episode_keeps_null_creation_context():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes/ep_1"),
+        json={**_episode_json(), "creationContext": None},
+    )
+
+    episode = Client("test").get_episode(episode_id="ep_1")
+
+    assert episode["creation_context"] is None

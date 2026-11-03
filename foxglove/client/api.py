@@ -1797,22 +1797,22 @@ class Client:
     ) -> Path:
         """Export a committed version to MCAP files (including attachments) and a manifest.
 
-        The manifest uses the app's schema and selection digest, but ``file`` paths
+        The manifest uses the app's schema, but ``file`` paths
         are relative to the returned output directory, which contains manifest.json.
         App ZIP exports instead use paths relative to the ZIP root.
 
         ``include_properties=True`` adds episode custom properties to the manifest
         and requires access to episode properties. Properties are omitted by default.
 
-        ``topics`` selects topics; None or [] downloads all topics. Episodes with
-        some missing recordings are downloaded partially and flagged in the manifest.
-        Episodes with no streamable recordings are skipped. Other request failures
-        before streaming are recorded and the export continues; if all attempts fail,
-        this raises after writing the manifest. An all-skipped export succeeds.
+        ``topics`` selects topics; None or [] downloads all topics. A version with
+        any episode whose recordings are no longer available can't be downloaded;
+        this raises before writing anything. Request failures before streaming are
+        recorded in the manifest as failed and the export continues; if every episode
+        fails, this raises after writing the manifest.
 
-        Incomplete exports emit ``DatasetDownloadWarning`` with failed, skipped, and
-        partially available episode counts after writing the manifest. The return
-        value remains a Path. Promoting this warning to an error does not undo files.
+        Exports with failed episodes emit ``DatasetDownloadWarning`` after writing the
+        manifest. The return value remains a Path. Promoting this warning to an error
+        does not undo files.
 
         Interrupted transfers or filesystem failures stop the export and preserve
         completed MCAPs and the failed episode's .part file. The manifest is written
@@ -1832,8 +1832,8 @@ class Client:
             if any(destination.iterdir()):
                 raise RuntimeError("output_directory must be empty")
         dataset = self.get_dataset(dataset_id=dataset_id)
-        # Capture the complete selection before transfers, so even an interrupted
-        # export has the same selection digest as the app. MCAP bytes stay streamed.
+        # Capture the complete selection before transfers, so incomplete versions are
+        # refused before anything is written. MCAP bytes stay streamed.
         episodes = list(
             self.get_dataset_version_episodes(
                 dataset_id=dataset_id,
@@ -1844,6 +1844,14 @@ class Client:
                 include_properties=include_properties,
             ).auto_paging_iter()
         )
+        incomplete = sum(member["has_missing_recordings"] for member in episodes)
+        if incomplete:
+            raise RuntimeError(
+                f"Version {version_number} can't be downloaded: {incomplete} "
+                f"{'episode has' if incomplete == 1 else 'episodes have'} recordings "
+                "that are no longer available. Download another version, or remove "
+                "the affected episodes from the dataset and commit a new version."
+            )
         destination.mkdir(parents=True, exist_ok=True)
         selected_topics = list(topics) if topics else None
         return export_dataset(
@@ -2358,7 +2366,6 @@ def _episode_recording_dict(recording):
         "end": arrow.get(recording["end"]).datetime,
         "device_id": recording.get("deviceId"),
         "available": recording["available"],
-        "resolvable": recording["resolvable"],
     }
 
 

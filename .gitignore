@@ -121,4 +121,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-.claude/
+.claude/*
+!.claude/skills/

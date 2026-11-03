@@ -414,6 +414,87 @@ class Client:
 
         return [_event_dict(event) for event in json_or_raise(response)]
 
+    def get_event_types(self):
+        """Return all event types."""
+        response = self.__session.get(self.__url__("/v1/event-types"))
+        return [_event_type_dict(event_type) for event_type in json_or_raise(response)]
+
+    def get_event_type(self, *, event_type_id: str):
+        """
+        Gets a single event type.
+
+        :param event_type_id: The id of the event type.
+        """
+        response = self.__session.get(self.__url__(f"/v1/event-types/{event_type_id}"))
+        return _event_type_dict(json_or_raise(response))
+
+    def create_event_type(
+        self,
+        *,
+        name: str,
+        custom_properties: List[Dict[str, Any]],
+        color_name: Optional[str] = None,
+    ):
+        """
+        Creates an event type.
+
+        :param name: Name of the event type.
+        :param custom_properties: Ordered custom properties for events of this type,
+            each a dict with the property's ``id`` and whether it is ``required``.
+        :param color_name: Optional color name, e.g. "red".
+        """
+        response = self.__session.post(
+            self.__url__("/v1/event-types"),
+            json=without_nulls(
+                {
+                    "name": name,
+                    "colorName": color_name,
+                    "customProperties": custom_properties,
+                }
+            ),
+        )
+        return _event_type_dict(json_or_raise(response))
+
+    def update_event_type(
+        self,
+        *,
+        event_type_id: str,
+        name: Optional[str] = None,
+        color_name: Optional[str] = None,
+        custom_properties: Optional[List[Dict[str, Any]]] = None,
+    ):
+        """
+        Updates an event type. At least one field must be set.
+
+        :param event_type_id: The id of the event type.
+        :param name: Optional new name.
+        :param color_name: Optional new color name.
+        :param custom_properties: Optional custom properties, each a dict with the
+            property's ``id`` and whether it is ``required``. Replaces the existing list.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/event-types/{event_type_id}"),
+            json=without_nulls(
+                {
+                    "name": name,
+                    "colorName": color_name,
+                    "customProperties": custom_properties,
+                }
+            ),
+        )
+        return _event_type_dict(json_or_raise(response))
+
+    def delete_event_type(self, *, event_type_id: str):
+        """
+        Deletes an event type.
+
+        :param event_type_id: The id of the event type.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/event-types/{event_type_id}")
+        )
+        json_or_raise(response)
+
     def get_messages(
         self,
         *,
@@ -1742,22 +1823,22 @@ class Client:
     ) -> Path:
         """Export a committed version to MCAP files (including attachments) and a manifest.
 
-        The manifest uses the app's schema and selection digest, but ``file`` paths
+        The manifest uses the app's schema, but ``file`` paths
         are relative to the returned output directory, which contains manifest.json.
         App ZIP exports instead use paths relative to the ZIP root.
 
         ``include_properties=True`` adds episode custom properties to the manifest
         and requires access to episode properties. Properties are omitted by default.
 
-        ``topics`` selects topics; None or [] downloads all topics. Episodes with
-        some missing recordings are downloaded partially and flagged in the manifest.
-        Episodes with no streamable recordings are skipped. Other request failures
-        before streaming are recorded and the export continues; if all attempts fail,
-        this raises after writing the manifest. An all-skipped export succeeds.
+        ``topics`` selects topics; None or [] downloads all topics. A version with
+        any episode whose recordings are no longer available can't be downloaded;
+        this raises before writing anything. Request failures before streaming are
+        recorded in the manifest as failed and the export continues; if every episode
+        fails, this raises after writing the manifest.
 
-        Incomplete exports emit ``DatasetDownloadWarning`` with failed, skipped, and
-        partially available episode counts after writing the manifest. The return
-        value remains a Path. Promoting this warning to an error does not undo files.
+        Exports with failed episodes emit ``DatasetDownloadWarning`` after writing the
+        manifest. The return value remains a Path. Promoting this warning to an error
+        does not undo files.
 
         Interrupted transfers or filesystem failures stop the export and preserve
         completed MCAPs and the failed episode's .part file. The manifest is written
@@ -1777,8 +1858,8 @@ class Client:
             if any(destination.iterdir()):
                 raise RuntimeError("output_directory must be empty")
         dataset = self.get_dataset(dataset_id=dataset_id)
-        # Capture the complete selection before transfers, so even an interrupted
-        # export has the same selection digest as the app. MCAP bytes stay streamed.
+        # Capture the complete selection before transfers, so incomplete versions are
+        # refused before anything is written. MCAP bytes stay streamed.
         episodes = list(
             self.get_dataset_version_episodes(
                 dataset_id=dataset_id,
@@ -1789,6 +1870,14 @@ class Client:
                 include_properties=include_properties,
             ).auto_paging_iter()
         )
+        incomplete = sum(member["has_missing_recordings"] for member in episodes)
+        if incomplete:
+            raise RuntimeError(
+                f"Version {version_number} can't be downloaded: {incomplete} "
+                f"{'episode has' if incomplete == 1 else 'episodes have'} recordings "
+                "that are no longer available. Download another version, or remove "
+                "the affected episodes from the dataset and commit a new version."
+            )
         destination.mkdir(parents=True, exist_ok=True)
         selected_topics = list(topics) if topics else None
         return export_dataset(
@@ -2235,6 +2324,17 @@ def _event_dict(json_event):
     }
 
 
+def _event_type_dict(event_type):
+    return {
+        "id": event_type["id"],
+        "name": event_type["name"],
+        "color_name": event_type.get("colorName"),
+        "custom_properties": event_type.get("customProperties", []),
+        "created_at": arrow.get(event_type["createdAt"]).datetime,
+        "updated_at": arrow.get(event_type["updatedAt"]).datetime,
+    }
+
+
 def _device_dict(device):
     created_at = device.get("createdAt")
     updated_at = device.get("updatedAt")
@@ -2292,7 +2392,6 @@ def _episode_recording_dict(recording):
         "end": arrow.get(recording["end"]).datetime,
         "device_id": recording.get("deviceId"),
         "available": recording["available"],
-        "resolvable": recording["resolvable"],
     }
 
 

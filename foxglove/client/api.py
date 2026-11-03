@@ -1424,6 +1424,7 @@ class Client:
                 "last_seen_at": (
                     arrow.get(p["lastSeenAt"]).datetime if p.get("lastSeenAt") else None
                 ),
+                "is_invite_only": p.get("isInviteOnly"),
             }
             for p in json
         ]

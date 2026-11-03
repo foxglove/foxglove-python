@@ -45,12 +45,18 @@ def _validate_episode_range(start, end):
         raise ValueError("start and end must be supplied together")
 
 
-def _episode_include(include_recordings: bool, include_properties: bool):
+def _episode_include(
+    include_recordings: bool,
+    include_properties: bool,
+    include_creation_context: bool = False,
+):
     include = []
     if include_recordings:
         include.append("recordings")
     if include_properties:
         include.append("properties")
+    if include_creation_context:
+        include.append("creationContext")
     return ",".join(include) or None
 
 
@@ -1973,8 +1979,12 @@ class Client:
         properties_query: Optional[str] = None,
         include_recordings: bool = False,
         include_properties: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return a Page of the latest committed or initial editable membership.
+
+        Set ``include_creation_context`` to include each episode's ``creation_context``,
+        which keeps the API's field names.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -1994,23 +2004,36 @@ class Client:
             properties_query=properties_query,
             include_recordings=include_recordings,
             include_properties=include_properties,
+            include_creation_context=include_creation_context,
         )
 
     def update_dataset_episodes(
         self,
         *,
         dataset_id: str,
-        add: Optional[List[str]] = None,
+        add: Optional[List[Union[str, Dict[str, Any]]]] = None,
         remove: Optional[List[str]] = None,
+        update: Optional[List[Union[str, Dict[str, Any]]]] = None,
     ):
-        """Stage episode additions and removals in the editable version."""
+        """
+        Stage episode additions, version updates, and removals in the editable version.
+
+        :param dataset_id: The id of the dataset.
+        :param add: Episodes to add. Each item is an episode id, which uses the latest
+            episode version, or a dict ``{"id": ..., "version": ...}`` selecting an
+            episode version (``version`` is optional).
+        :param remove: Episode ids to remove.
+        :param update: Existing members whose episode version should change, in the same
+            forms as ``add``. Omitting ``version`` selects the latest episode version.
+        """
         response = self.__session.patch(
             self.__url__(f"/v1/datasets/{dataset_id}/episodes"),
-            json=without_nulls({"add": add, "remove": remove}),
+            json=without_nulls({"add": add, "update": update, "remove": remove}),
         )
         result = json_or_raise(response)
         return {
             "added": result["added"],
+            "updated": result["updated"],
             "removed": result["removed"],
             "already_present": result["alreadyPresent"],
         }
@@ -2048,6 +2071,21 @@ class Client:
         )
         return _dataset_version_dict(json_or_raise(response))
 
+    def update_dataset_version(
+        self, *, dataset_id: str, version_number: int, description: Optional[str]
+    ):
+        """
+        Update a dataset version's description. Pass ``description=None`` to clear it.
+
+        Works on both the editable version and committed versions; episodes and commit
+        attribution are unchanged.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/datasets/{dataset_id}/versions/{version_number}"),
+            json={"description": description},
+        )
+        return _dataset_version_dict(json_or_raise(response))
+
     def get_dataset_version_episodes(
         self,
         *,
@@ -2064,8 +2102,12 @@ class Client:
         properties_query: Optional[str] = None,
         include_recordings: bool = False,
         include_properties: bool = False,
+        include_creation_context: bool = False,
     ):
         """Return a Page of episode membership in a specific version.
+
+        Set ``include_creation_context`` to include each episode's ``creation_context``,
+        which keeps the API's field names.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
@@ -2085,6 +2127,7 @@ class Client:
             properties_query=properties_query,
             include_recordings=include_recordings,
             include_properties=include_properties,
+            include_creation_context=include_creation_context,
         )
 
     def _get_dataset_episodes(
@@ -2103,6 +2146,7 @@ class Client:
         properties_query: Optional[str],
         include_recordings: bool,
         include_properties: bool,
+        include_creation_context: bool,
     ):
         _validate_episode_range(start, end)
         path = f"/v1/datasets/{dataset_id}"
@@ -2128,7 +2172,9 @@ class Client:
                     ),
                     "recordingId": recording_id,
                     "propertiesQuery": properties_query,
-                    "include": _episode_include(include_recordings, include_properties),
+                    "include": _episode_include(
+                        include_recordings, include_properties, include_creation_context
+                    ),
                 }
             ),
         )
@@ -2143,8 +2189,13 @@ class Client:
         cursor: Optional[str] = None,
         include_recordings: bool = False,
         include_properties: bool = False,
+        include_creation_context: bool = False,
     ):
-        """Return membership changes from ``base_version`` to ``version_number``."""
+        """Return membership changes from ``base_version`` to ``version_number``.
+
+        Set ``include_creation_context`` to include each episode's ``creation_context``,
+        which keeps the API's field names.
+        """
         response = self.__session.get(
             self.__url__(
                 f"/v1/datasets/{dataset_id}/versions/{version_number}/compare"
@@ -2154,22 +2205,39 @@ class Client:
                     "version": base_version,
                     "limit": limit,
                     "cursor": cursor,
-                    "include": _episode_include(include_recordings, include_properties),
+                    "include": _episode_include(
+                        include_recordings, include_properties, include_creation_context
+                    ),
                 }
             ),
         )
         result = json_or_raise(response)
+        changes = []
+        for change in result["changes"]:
+            converted = _dataset_episode_dict(change)
+            if "previousEpisode" in change:
+                converted["previous_episode"] = _episode_dict(change["previousEpisode"])
+            if "previousVersion" in change:
+                converted["previous_version"] = change["previousVersion"]
+            changes.append(converted)
         return {
-            "changes": [_dataset_episode_dict(change) for change in result["changes"]],
+            "changes": changes,
             "added_count": result["addedCount"],
             "removed_count": result["removedCount"],
+            "changed_count": result["changedCount"],
             "next_cursor": result["nextCursor"],
         }
 
-    def commit_dataset(self, *, dataset_id: str):
-        """Commit staged changes and open the next editable version."""
+    def commit_dataset(self, *, dataset_id: str, description: Optional[str] = None):
+        """Commit staged changes and open the next editable version.
+
+        ``description`` sets the committed version's description; if omitted, the
+        editable version's description is kept. To clear a description, use
+        ``update_dataset_version``.
+        """
         response = self.__session.post(
-            self.__url__(f"/v1/datasets/{dataset_id}/commit"), json={}
+            self.__url__(f"/v1/datasets/{dataset_id}/commit"),
+            json=without_nulls({"description": description}),
         )
         result = json_or_raise(response)
         return {
@@ -2186,6 +2254,7 @@ class Client:
         return {
             "discarded_adds": result["discardedAdds"],
             "discarded_removes": result["discardedRemoves"],
+            "discarded_updates": result["discardedUpdates"],
         }
 
     def restore_dataset_version(
@@ -2202,9 +2271,11 @@ class Client:
         result = json_or_raise(response)
         return {
             "added": result["added"],
+            "updated": result["updated"],
             "removed": result["removed"],
             "discarded_adds": result["discardedAdds"],
             "discarded_removes": result["discardedRemoves"],
+            "discarded_updates": result["discardedUpdates"],
         }
 
     def create_episodes(self, *, project_id: str, episodes: List[Dict[str, Any]]):
@@ -3149,6 +3220,8 @@ def _dataset_dict(dataset):
         result["episode_count"] = dataset["episodeCount"]
     if "added" in dataset:
         result["added"] = dataset["added"]
+    if "updated" in dataset:
+        result["updated"] = dataset["updated"]
     if "removed" in dataset:
         result["removed"] = dataset["removed"]
     if "alreadyPresent" in dataset:
@@ -3208,6 +3281,9 @@ def _episode_dict(episode):
         ]
     if "hasMissingRecordings" in episode:
         result["has_missing_recordings"] = episode["hasMissingRecordings"]
+    # Creation context is passed through with API field names.
+    if "creationContext" in episode:
+        result["creation_context"] = episode["creationContext"]
     return result
 
 
@@ -3246,6 +3322,8 @@ def _dataset_version_dict(version):
         "episode_count": version["episodeCount"],
         "added_episode_count": version["addedEpisodeCount"],
         "removed_episode_count": version["removedEpisodeCount"],
+        "changed_episode_count": version["changedEpisodeCount"],
+        "description": version.get("description"),
     }
     if "hasMissingRecordings" in version:
         result["has_missing_recordings"] = version["hasMissingRecordings"]

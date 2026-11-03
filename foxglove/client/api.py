@@ -799,36 +799,52 @@ class Client:
     def get_coverage(
         self,
         *,
-        start: datetime.datetime,
-        end: datetime.datetime,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
         tolerance: Optional[int] = None,
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+        include_edge_recordings: Optional[bool] = None,
     ):
         """
         List coverage ranges for data.
 
-        :param start: The earliest time after which to retrieve data.
-        :param end: The latest time before which to retrieve data.
+        :param start: The earliest time after which to retrieve data. Required with
+            ``end`` unless filtering by recording or session.
+        :param end: The latest time before which to retrieve data. Required with
+            ``start`` unless filtering by recording or session.
         :param device_id: Optional device id to limit data by.
         :param tolerance: Minimum interval (in seconds) that ranges must be separated by
             to be considered discrete.
         :param project_id: Optional Project to filter coverage by.
         :param session_id: Optional Session ID to filter coverage by.
         :param session_key: Optional Session key to filter coverage by.
+        :param recording_id: Optional recording ID to filter coverage by.
+        :param recording_key: Optional recording key to filter coverage by.
+        :param include_edge_recordings: Optionally include recordings from an Edge Site
+            or a device running Foxlet. Ranges then include ``import_status``.
         """
         params = {
             "deviceId": device_id,
             "deviceName": device_name,
             "tolerance": tolerance,
-            "start": start.astimezone().isoformat(),
-            "end": end.astimezone().isoformat(),
+            "start": start.astimezone().isoformat() if start else None,
+            "end": end.astimezone().isoformat() if end else None,
             "projectId": project_id,
             "sessionId": session_id,
             "sessionKey": session_key,
+            "recordingId": recording_id,
+            "recordingKey": recording_key,
+            "includeEdgeRecordings": (
+                bool_query_param(include_edge_recordings)
+                if include_edge_recordings is not None
+                else None
+            ),
         }
         response = self.__session.get(
             self.__url__("/v1/data/coverage"),
@@ -842,6 +858,7 @@ class Client:
                 "device": c.get("device"),
                 "start": arrow.get(c["start"]).datetime,
                 "end": arrow.get(c["end"]).datetime,
+                "import_status": c.get("importStatus"),
             }
             for c in json
         ]

@@ -2293,13 +2293,6 @@ class Client:
         """
         serialized = []
         for index, episode in enumerate(episodes):
-            if "metadata" in episode:
-                warnings.warn(
-                    f"episodes[{index}]: metadata is no longer supported and is ignored; "
-                    "use properties instead.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
             event_id = episode.get("event_id")
             recordings = episode.get("recordings")
             start_time = episode.get("start_time")

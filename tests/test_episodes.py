@@ -130,28 +130,6 @@ def test_create_episodes_serializes_event_inputs():
     }
 
 
-@responses.activate
-def test_create_episodes_ignores_metadata():
-    responses.add(
-        responses.POST,
-        api_url("/v1/episodes"),
-        json={"episodes": [{"id": "ep_1", "created": True}]},
-    )
-
-    with pytest.warns(
-        DeprecationWarning, match=r"episodes\[0\]: metadata is no longer supported"
-    ):
-        Client("test").create_episodes(
-            project_id="prj_1",
-            episodes=[{"event_id": "evt_1", "metadata": {"label": "merge"}}],
-        )
-
-    assert json.loads(responses.calls[0].request.body) == {
-        "projectId": "prj_1",
-        "episodes": [{"eventId": "evt_1"}],
-    }
-
-
 @pytest.mark.parametrize(
     "episode,message",
     [
@@ -208,7 +186,6 @@ def test_get_episodes_maps_response_and_filters():
     assert episodes.items[0]["version"] == 2
     assert episodes.items[0]["latest_version"] == 3
     assert episodes.items[0]["properties"] == {"stage": "review", "tags": ["night"]}
-    assert "metadata" not in episodes.items[0]
     assert episodes.items[0]["recordings"][0]["device_id"] == "dev_1"
     assert episodes.items[0]["recordings"][0]["location"] == {
         "bucket": "robot-logs",
@@ -249,20 +226,6 @@ def test_get_and_delete_episode():
 
     assert episode["id"] == "ep_1"
     assert responses.calls[0].request.params == {"include": "recordings"}
-
-
-@responses.activate
-def test_get_episode_ignores_metadata_in_response():
-    responses.add(
-        responses.GET,
-        api_url("/v1/episodes/ep_1"),
-        json={**_episode_json(), "metadata": {"result": "success"}},
-    )
-
-    episode = Client("test").get_episode(episode_id="ep_1")
-
-    assert episode["id"] == "ep_1"
-    assert "metadata" not in episode
 
 
 @responses.activate

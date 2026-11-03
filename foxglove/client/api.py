@@ -840,7 +840,11 @@ class Client:
             "sessionKey": session_key,
             "recordingId": recording_id,
             "recordingKey": recording_key,
-            "includeEdgeRecordings": bool_query_param(include_edge_recordings),
+            "includeEdgeRecordings": (
+                bool_query_param(include_edge_recordings)
+                if include_edge_recordings is not None
+                else None
+            ),
         }
         response = self.__session.get(
             self.__url__("/v1/data/coverage"),

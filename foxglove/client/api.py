@@ -3000,6 +3000,53 @@ class Client:
             return None
         return json_or_raise(response)
 
+    def get_extensions(self):
+        """Return all extensions published to the organization."""
+        response = self.__session.get(self.__url__("/v1/extensions"))
+        return [_extension_dict(extension) for extension in json_or_raise(response)]
+
+    def get_extension(self, *, extension_id: str):
+        """
+        Gets a single extension, including a signed ``foxe`` link to download its
+        active version.
+
+        :param extension_id: The id of the extension.
+        """
+        response = self.__session.get(self.__url__(f"/v1/extensions/{extension_id}"))
+        return _extension_dict(json_or_raise(response))
+
+    def publish_extension(
+        self,
+        *,
+        data: Union[bytes, IO[Any]],
+        callback: Optional[SizeProgressCallback] = None,
+    ):
+        """
+        Publishes a new extension, or a new version of an existing extension, to the
+        organization. Returns a dict with the extension's ``id``.
+
+        The extension's name, publisher, display name, and version are read from the
+        package.json inside the package.
+
+        :param data: The contents of the extension package (.foxe file).
+        :param callback: An optional callback to report progress on the upload.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/extension-upload"),
+            data=ProgressBufferReader(data, callback=callback),
+            headers={"Content-Type": "application/octet-stream"},
+        )
+        return {"id": json_or_raise(response)["id"]}
+
+    def delete_extension(self, *, extension_id: str):
+        """
+        Deletes an extension, unpublishing it from the organization.
+
+        :param extension_id: The id of the extension.
+        """
+        response = self.__session.delete(self.__url__(f"/v1/extensions/{extension_id}"))
+        json_or_raise(response)
+
 
 def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -> str:
     if session_id is not None and session_key is not None:
@@ -3226,6 +3273,21 @@ def _dataset_dict(dataset):
         result["removed"] = dataset["removed"]
     if "alreadyPresent" in dataset:
         result["already_present"] = dataset["alreadyPresent"]
+    return result
+
+
+def _extension_dict(extension):
+    result = {
+        "id": extension["id"],
+        "name": extension["name"],
+        "publisher": extension["publisher"],
+        "display_name": extension["displayName"],
+        "description": extension.get("description"),
+        "active_version": extension.get("activeVersion"),
+        "sha256_sum": extension.get("sha256Sum"),
+    }
+    if "foxe" in extension:
+        result["foxe"] = extension["foxe"]
     return result
 
 

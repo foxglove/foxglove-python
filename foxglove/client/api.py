@@ -2380,6 +2380,57 @@ class Client:
             ),
         )
 
+    def get_lake_files(
+        self,
+        *,
+        site_id: str,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        topic: Optional[str] = None,
+    ):
+        """
+        Lists the MCAP files in the lake bucket of a self-managed Primary Site.
+        Each imported recording produces one file per topic.
+
+        The query must be limited to a device or recording. Querying by device requires
+        `start` and `end` (at most 24 hours apart) unless a recording or session is also given.
+
+        :param site_id: The ID of the self-managed Primary Site.
+        :param device_id: Optionally filter files by device ID.
+        :param device_name: Optionally filter files by device name.
+        :param recording_id: Optionally filter files by recording ID.
+        :param recording_key: Optionally filter files by recording key.
+        :param session_id: Optionally filter files to recordings in the session with this ID.
+        :param session_key: Optionally filter files to recordings in the session with this key.
+        :param start: Optionally specify the inclusive start of a recording time range.
+        :param end: Optionally specify the inclusive end of a recording time range.
+        :param topic: Optionally include only files for this topic.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/lake-files"),
+            params=without_nulls(
+                {
+                    "siteId": site_id,
+                    "deviceId": device_id,
+                    "deviceName": device_name,
+                    "recordingId": recording_id,
+                    "recordingKey": recording_key,
+                    "sessionId": session_id,
+                    "sessionKey": session_key,
+                    "start": start.astimezone().isoformat() if start else None,
+                    "end": end.astimezone().isoformat() if end else None,
+                    "topic": topic,
+                }
+            ),
+        )
+        return [_lake_file_dict(lake_file) for lake_file in json_or_raise(response)]
+
     def upload_data(
         self,
         *,
@@ -2892,6 +2943,13 @@ def _device_identifier_for_path(
     device_id: Optional[str], device_name: Optional[str]
 ) -> str:
     return urlquote(_device_identifier(device_id, device_name), safe="")
+
+
+def _lake_file_dict(lake_file):
+    return {
+        "path": lake_file["path"],
+        "topics": lake_file["topics"],
+    }
 
 
 def _event_dict(json_event):

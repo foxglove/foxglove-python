@@ -2504,6 +2504,7 @@ class Client:
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
+        query: Optional[str] = None,
     ):
         """Fetches sessions.
 
@@ -2520,6 +2521,8 @@ class Client:
         sort_order: Optionally specify the sort order, either "asc" or "desc".
         limit: Optionally limit the number of records returned.
         offset: Optionally offset the results by this many records.
+        query: Optionally filter sessions on custom properties using a space-separated
+            query string (e.g. "key:value").
         """
 
         all_params = {
@@ -2533,6 +2536,7 @@ class Client:
             "sortOrder": sort_order,
             "limit": limit,
             "offset": offset,
+            "query": query,
         }
         response = self.__session.get(
             self.__url__("/v1/sessions"),
@@ -3008,6 +3012,8 @@ def _device_token_dict(device_token):
 
 
 def _session_dict(session):
+    recording_start = session.get("recordingStart")
+    recording_end = session.get("recordingEnd")
     return {
         "id": session["id"],
         "project_id": session["projectId"],
@@ -3017,6 +3023,12 @@ def _session_dict(session):
         "updated_at": arrow.get(session["updatedAt"]).datetime,
         "recordings": session["recordings"],
         "properties": session.get("properties"),
+        # Only the list endpoint returns the recording summary; elsewhere these are None.
+        "recording_count": session.get("recordingCount"),
+        "recording_start": (
+            arrow.get(recording_start).datetime if recording_start else None
+        ),
+        "recording_end": arrow.get(recording_end).datetime if recording_end else None,
     }
 
 

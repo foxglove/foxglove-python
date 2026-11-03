@@ -806,6 +806,188 @@ class Client:
             for c in json
         ]
 
+    def get_sites(self):
+        """Returns a list of all sites."""
+        response = self.__session.get(self.__url__("/v1/sites"))
+        return [_site_dict(site) for site in json_or_raise(response)]
+
+    def get_site(self, *, site_id: str):
+        """
+        Gets a single site.
+
+        :param site_id: The id of the site.
+        """
+        response = self.__session.get(self.__url__(f"/v1/sites/{site_id}"))
+        return _site_dict(json_or_raise(response))
+
+    def create_site(
+        self,
+        *,
+        name: str,
+        site_type: str,
+        retain_recordings_seconds: Optional[float] = None,
+    ):
+        """
+        Creates a site.
+
+        :param name: A name for the site.
+        :param site_type: The type of site to create: "self-hosted" or "edge".
+        :param retain_recordings_seconds: Optional retention period for recordings
+            created at the site. Zero retains recordings indefinitely.
+            Only available on Edge Sites.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/sites"),
+            json=without_nulls(
+                {
+                    "name": name,
+                    "type": site_type,
+                    "retainRecordingsSeconds": retain_recordings_seconds,
+                }
+            ),
+        )
+        return _site_dict(json_or_raise(response))
+
+    def update_site(
+        self,
+        *,
+        site_id: str,
+        name: Optional[str] = None,
+        retain_recordings_seconds: Optional[float] = None,
+        url: Optional[str] = None,
+    ):
+        """
+        Updates a site.
+
+        :param site_id: The id of the site.
+        :param name: Optional new name.
+        :param retain_recordings_seconds: Optional retention period for recordings
+            created at the site. Zero retains recordings indefinitely.
+            Only available on Edge Sites.
+        :param url: Optional URL that a self-hosted Primary Site exposes for
+            accessing its data.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/sites/{site_id}"),
+            json=without_nulls(
+                {
+                    "name": name,
+                    "retainRecordingsSeconds": retain_recordings_seconds,
+                    "url": url,
+                }
+            ),
+        )
+        return _site_dict(json_or_raise(response))
+
+    def delete_site(self, *, site_id: str):
+        """
+        Deletes a site. Deletion is permanent and cannot be undone.
+
+        :param site_id: The id of the site.
+        """
+        response = self.__session.delete(self.__url__(f"/v1/sites/{site_id}"))
+        json_or_raise(response)
+
+    def get_site_ingest_path_policy(self, *, site_id: str):
+        """
+        Gets the latest ingest path policy revision for a site.
+        Returns None if no policy has been saved.
+
+        :param site_id: The id of the site.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/sites/{site_id}/ingest-path-policy")
+        )
+        if response.status_code == 204:
+            return None
+        return _site_ingest_path_policy_dict(json_or_raise(response))
+
+    def save_site_ingest_path_policy(
+        self,
+        *,
+        site_id: str,
+        rules: List[Dict[str, Any]],
+        schema_version: int = 1,
+        previous_revision: Optional[int] = None,
+    ):
+        """
+        Saves an ingest path policy for a Bring Your Own Storage site.
+        A new revision is recorded only when the policy changes.
+
+        :param site_id: The id of the site.
+        :param rules: Ordered rules, each a dict with a ``pattern`` and an ``action``
+            in the API's format. The first matching rule wins; an empty list
+            ignores every path.
+        :param schema_version: Policy document version.
+        :param previous_revision: Optional revision that was current when the policy
+            was edited; use 0 when the site has no saved policy. The request fails
+            if it is stale and the policy differs from the current one.
+        """
+        response = self.__session.post(
+            self.__url__(f"/v1/sites/{site_id}/ingest-path-policy"),
+            json=without_nulls(
+                {
+                    "schemaVersion": schema_version,
+                    "rules": rules,
+                    "previousRevision": previous_revision,
+                }
+            ),
+        )
+        return _site_ingest_path_policy_dict(json_or_raise(response))
+
+    def notify_site_bucket(
+        self,
+        *,
+        message_id: str,
+        file_name: str,
+        bucket_name: str,
+        storage_provider: str,
+        azure_storage_account_name: Optional[str] = None,
+        notification_type: Optional[str] = None,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+        project_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
+    ):
+        """
+        Notifies a Primary Site that an object in its bucket was created or removed.
+        The client must be created with a site inbox notification token.
+
+        :param message_id: Unique message identifier, used to deduplicate notifications.
+        :param file_name: The name of the file in the bucket.
+        :param bucket_name: The bucket name.
+        :param storage_provider: "google_cloud", "aws", "azure", or "s3_compatible".
+        :param azure_storage_account_name: Azure storage account containing the
+            container. Required for Azure Bring Your Own Storage sites.
+        :param notification_type: "object_created" (the default) or "object_removed".
+        :param device_id: Optional device to associate with the recording.
+        :param device_name: Optional name of the device to associate with the
+            recording; the device is created if it does not exist.
+        :param project_id: Optional project to associate with the recording.
+        :param session_id: Optional id of a session to associate with the recording.
+        :param session_key: Optional key of a session to associate with the recording.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/site-bucket-notifications"),
+            json=without_nulls(
+                {
+                    "messageId": message_id,
+                    "fileName": file_name,
+                    "bucketName": bucket_name,
+                    "storageProvider": storage_provider,
+                    "azureStorageAccountName": azure_storage_account_name,
+                    "notificationType": notification_type,
+                    "deviceId": device_id,
+                    "deviceName": device_name,
+                    "projectId": project_id,
+                    "sessionId": session_id,
+                    "sessionKey": session_key,
+                }
+            ),
+        )
+        json_or_raise(response)
+
     def get_device(
         self,
         *,
@@ -2539,6 +2721,24 @@ def _episode_recording_dict(recording):
         "end": arrow.get(recording["end"]).datetime,
         "device_id": recording.get("deviceId"),
         "available": recording["available"],
+    }
+
+
+def _site_dict(site):
+    return {
+        "id": site["id"],
+        "name": site["name"],
+        "type": site["type"],
+        "url": site.get("url"),
+        "retain_recordings_seconds": site.get("retainRecordingsSeconds"),
+    }
+
+
+def _site_ingest_path_policy_dict(policy):
+    return {
+        "revision": policy["revision"],
+        "created_at": arrow.get(policy["createdAt"]).datetime,
+        "policy": policy["policy"],
     }
 
 

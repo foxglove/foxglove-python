@@ -284,13 +284,13 @@ def test_download_dataset(tmp_path, download_options, properties):
     expected_episode = {
         "index": 0,
         "id": "ep_1",
+        "version": 1,
         "file": "episode_0000_ep_1.mcap",
         "startTime": "2026-09-15T00:00:00.000Z",
         "endTime": "2026-09-15T00:01:00.000Z",
         "metadata": {},
         "byteSize": 12,
         "status": "downloaded",
-        "episodeHasMissingRecordings": False,
     }
     if properties is not None:
         expected_episode["properties"] = properties

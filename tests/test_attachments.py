@@ -60,8 +60,48 @@ def test_get_attachments():
             "fingerprint": fingerprint,
             "log_time": now,
             "create_time": now,
+            "data_offset": None,
+            "lake_path": None,
         },
     ]
+
+
+@responses.activate
+def test_get_attachment():
+    now = datetime.now(tzoffset(None, 0))
+    responses.add(
+        responses.GET,
+        api_url("/v1/recording-attachments/att_1"),
+        json={
+            "id": "att_1",
+            "recordingId": "rec_1",
+            "siteId": "site_1",
+            "name": "calibration.json",
+            "mediaType": "application/json",
+            "size": 128,
+            "crc": 1234,
+            "fingerprint": "abc",
+            "logTime": now.isoformat(),
+            "createTime": now.isoformat(),
+            "dataOffset": 4096,
+            "lakePath": "lake/rec_1/attachments/calibration.json",
+        },
+    )
+    attachment = Client("test").get_attachment(id="att_1")
+    assert attachment == {
+        "id": "att_1",
+        "recording_id": "rec_1",
+        "site_id": "site_1",
+        "name": "calibration.json",
+        "media_type": "application/json",
+        "size": 128,
+        "crc": 1234,
+        "fingerprint": "abc",
+        "log_time": now,
+        "create_time": now,
+        "data_offset": 4096,
+        "lake_path": "lake/rec_1/attachments/calibration.json",
+    }
 
 
 @responses.activate

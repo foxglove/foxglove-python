@@ -432,6 +432,11 @@ def test_get_topics_by_episode_uses_episode_bounds():
     }
 
 
+def test_download_rejects_episode_version_without_episode():
+    with pytest.raises(RuntimeError, match="episode_version requires episode_id"):
+        Client("test").download_data(recording_id="rec_1", episode_version=2)
+
+
 def test_episode_download_rejects_another_identifier():
     client = Client("test")
 

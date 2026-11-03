@@ -707,6 +707,8 @@ class Client:
         if topics is None:
             topics = []
         by_recording = recording_id is not None or recording_key is not None
+        if episode_version is not None and episode_id is None:
+            raise RuntimeError("episode_version requires episode_id")
         if (
             device_id is None
             and device_name is None

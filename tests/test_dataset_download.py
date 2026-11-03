@@ -12,12 +12,12 @@ from mcap.reader import make_reader
 from mcap.writer import Writer
 
 from foxglove.client import Client, DatasetDownloadWarning
-from foxglove.client.dataset_download import selection_digest, export_dataset
+from foxglove.client.dataset_download import export_dataset
 from .api_url import api_url
 from .test_datasets import _dataset_json, _version_json, _dataset_episode_json
 
 
-def mock_selection(*, count=2, missing=True):
+def mock_selection(*, count=2, missing=False):
     responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
     responses.add(
         responses.GET,
@@ -59,7 +59,7 @@ def run_download(tmp_path, **kwargs):
 
 @responses.activate
 def test_dataset_download_preserves_attachments_and_manifest_paths(tmp_path):
-    mock_selection(count=1, missing=False)
+    mock_selection(count=1)
     data = io.BytesIO()
     writer = Writer(data)
     writer.start()
@@ -128,24 +128,25 @@ def test_stream_attachment_option_preserves_default(include):
 
 @pytest.mark.parametrize("topics", [None, [], ["/a"]])
 @responses.activate
-def test_partial_and_skipped_episodes(tmp_path, topics):
+def test_episode_with_no_data_left_is_failed(tmp_path, topics):
     mock_selection()
     sign_error("NoStreamableRecordings")
     stream_success()
-    with pytest.warns(DatasetDownloadWarning):
+    with pytest.warns(DatasetDownloadWarning, match="1 failed"):
         assert run_download(tmp_path, topics=topics) == tmp_path
     manifest = json.loads((tmp_path / "manifest.json").read_text())
-    skipped, downloaded = manifest["episodes"]
-    assert skipped["status"] == "skipped"
-    assert "file" not in skipped
-    assert "Import those recordings" in skipped["reason"]
+    failed, downloaded = manifest["episodes"]
+    assert failed["status"] == "failed"
+    assert "file" not in failed
+    assert "Import those recordings" in failed["reason"]
     assert downloaded["status"] == "downloaded"
-    assert downloaded["episodeHasMissingRecordings"] is True
+    assert downloaded["version"] == 1
+    assert "episodeHasMissingRecordings" not in downloaded
     assert (tmp_path / downloaded["file"]).read_bytes() == b"mcap"
     if topics:
-        assert manifest["selection"]["topics"] == topics
+        assert manifest["selection"] == {"topics": topics, "episodeCount": 2}
     else:
-        assert "topics" not in manifest["selection"]
+        assert manifest["selection"] == {"episodeCount": 2}
     for call in responses.calls:
         if call.request.method == "POST":
             assert json.loads(call.request.body)["topics"] == (topics or [])
@@ -154,16 +155,33 @@ def test_partial_and_skipped_episodes(tmp_path, topics):
 
 
 @responses.activate
-def test_all_skipped_is_success(tmp_path):
+def test_all_episodes_with_no_data_left_raise(tmp_path):
     mock_selection()
     sign_error("NoStreamableRecordings")
-    with pytest.warns(DatasetDownloadWarning):
+    with pytest.raises(RuntimeError, match="No episodes could be downloaded"):
         run_download(tmp_path)
     assert [path.name for path in tmp_path.iterdir()] == ["manifest.json"]
     assert all(
-        entry["status"] == "skipped"
+        entry["status"] == "failed"
         for entry in json.loads((tmp_path / "manifest.json").read_text())["episodes"]
     )
+
+
+@pytest.mark.parametrize(
+    "count,message",
+    [
+        (1, "1 episode has recordings"),
+        (2, "2 episodes have recordings"),
+    ],
+)
+@responses.activate
+def test_version_with_missing_recordings_is_not_downloaded(tmp_path, count, message):
+    mock_selection(count=count, missing=True)
+    output = tmp_path / "export"
+    with pytest.raises(RuntimeError, match=message):
+        run_download(output)
+    assert not output.exists()
+    assert not any(call.request.method == "POST" for call in responses.calls)
 
 
 @pytest.mark.parametrize("status", [404, 403, 503])
@@ -279,30 +297,11 @@ def test_existing_output_is_never_overwritten(tmp_path):
     assert existing.read_text() == "keep"
 
 
-@pytest.mark.parametrize(
-    "topics,digest",
-    [
-        (None, "c65436f9e9c5a225cb738a1cfb0e15a1394b84fd4de890937d871498f47800ae"),
-        (
-            ["/b", "/a"],
-            "cff9c74162c5488d22376749f20e6e4090db6cd21383eb500b848ca4b4ba2d2b",
-        ),
-        (
-            ["/\ue000", "/😀"],
-            "830455c1642352826c36ce205b324b1d6a5d54f0de3de9aafe9d64ae4af53fe2",
-        ),
-    ],
-)
-def test_selection_digest_matches_app_javascript(topics, digest):
-    # Expected values generated with the app's JSON.stringify + UTF-16 sort + SHA-256.
-    assert selection_digest("ds_1", 1, ["ep_b", "ep_a"], topics) == digest
-
-
-@pytest.mark.parametrize("outcome", ["complete", "partial", "skipped", "failed"])
+@pytest.mark.parametrize("outcome", ["complete", "unavailable", "failed"])
 @responses.activate
 def test_export_warning_counts(tmp_path, outcome):
-    mock_selection(missing=outcome == "partial")
-    if outcome == "skipped":
+    mock_selection()
+    if outcome == "unavailable":
         sign_error("NoStreamableRecordings")
     elif outcome == "failed":
         sign_error(status=503)
@@ -315,35 +314,22 @@ def test_export_warning_counts(tmp_path, outcome):
         return
     assert len(captured) == 1
     assert captured[0].category is DatasetDownloadWarning
-    expected = {
-        "partial": "0 failed, 0 skipped, 2 downloaded with missing recordings",
-        "skipped": "0 failed, 1 skipped, 0 downloaded with missing recordings",
-        "failed": "1 failed, 0 skipped, 0 downloaded with missing recordings",
-    }
-    assert expected[outcome] in str(captured[0].message)
+    assert "1 failed" in str(captured[0].message)
     assert str(tmp_path / "manifest.json") in str(captured[0].message)
 
 
 @responses.activate
 def test_warning_as_error_preserves_written_export(tmp_path):
-    mock_selection(count=1)
+    mock_selection()
+    sign_error(status=503)
     stream_success()
     with warnings.catch_warnings():
         warnings.simplefilter("error", DatasetDownloadWarning)
         with pytest.raises(DatasetDownloadWarning):
             run_download(tmp_path)
-    entry = json.loads((tmp_path / "manifest.json").read_text())["episodes"][0]
+    entry = json.loads((tmp_path / "manifest.json").read_text())["episodes"][1]
     assert entry["status"] == "downloaded"
     assert (tmp_path / entry["file"]).read_bytes() == b"mcap"
-
-
-@responses.activate
-def test_all_skipped_warns_once(tmp_path):
-    mock_selection()
-    sign_error("NoStreamableRecordings")
-    with pytest.warns(DatasetDownloadWarning, match="0 failed, 2 skipped") as captured:
-        assert run_download(tmp_path) == tmp_path
-    assert len(captured) == 1
 
 
 @responses.activate

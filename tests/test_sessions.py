@@ -68,6 +68,30 @@ def test_get_sessions():
 
 
 @responses.activate
+def test_get_sessions_query_and_recording_summary():
+    s1 = {
+        **_make_session_json(recording_ids=["rec_1", "rec_2"]),
+        "recordingCount": 2,
+        "recordingStart": NOW.isoformat(),
+        "recordingEnd": NOW.isoformat(),
+    }
+    s2 = {**_make_session_json(), "recordingCount": 0}
+    responses.add(
+        responses.GET,
+        api_url("/v1/sessions"),
+        match=[query_string_matcher("query=robot%3Aalpha")],
+        json=[s1, s2],
+    )
+    result = Client("test").get_sessions(query="robot:alpha")
+    assert result[0]["recording_count"] == 2
+    assert result[0]["recording_start"] == NOW
+    assert result[0]["recording_end"] == NOW
+    assert result[1]["recording_count"] == 0
+    assert result[1]["recording_start"] is None
+    assert result[1]["recording_end"] is None
+
+
+@responses.activate
 def test_get_session():
     session_id = fake.uuid4()
     project_id = fake.uuid4()

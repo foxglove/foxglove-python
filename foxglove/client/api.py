@@ -1713,9 +1713,10 @@ class Client:
         :param limit: Maximum topics in this page (server default and maximum: 2000).
         :param offset: Number of topics to skip to retrieve a subsequent page.
         :param recording_id: ID of a recording to list topics from. Topics for a
-            recording that hasn't been imported are only returned when no other
-            parameter is given.
-        :param recording_key: Key of a recording to list topics from.
+            recording that hasn't been imported are only returned when no time range,
+            device, or session is also given.
+        :param recording_key: Key of a recording to list topics from. The same
+            condition applies to recordings that haven't been imported.
         :param episode_version: Episode version to list topics from. Requires
             ``episode_id``; the latest version is used when omitted.
         :param sort_by: Optionally sort by "topic" or "version".

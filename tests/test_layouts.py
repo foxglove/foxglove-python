@@ -120,21 +120,21 @@ def test_create_layout():
 
 
 @responses.activate
-def test_update_layout_sends_only_set_fields():
+def test_update_layout_sends_only_set_fields_for_org_api_key():
     responses.add(
         responses.PATCH,
         api_url("/v1/layouts/lyt_1"),
         match=[
             json_params_matcher(
-                {"folderName": "", "permission": "ORG_READ"}, strict_match=True
+                {"folderName": "", "permission": "ORG_WRITE"}, strict_match=True
             )
         ],
-        json=_layout_json(permission="ORG_READ", folderName=None),
+        json=_layout_json(permission="ORG_WRITE", folderName=None),
     )
-    layout = Client("test").update_layout(
-        layout_id="lyt_1", folder_name="", permission="ORG_READ"
+    layout = Client("test-org-api-key").update_layout(
+        layout_id="lyt_1", folder_name="", permission="ORG_WRITE"
     )
-    assert layout["permission"] == "ORG_READ"
+    assert layout["permission"] == "ORG_WRITE"
     assert layout["folder_name"] is None
 
 

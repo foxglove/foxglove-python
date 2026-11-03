@@ -2078,7 +2078,8 @@ class Client:
         folder_name: Optional[str] = None,
     ):
         """
-        Creates a layout. API keys can only create shared layouts.
+        Creates a layout. Organization API keys must use "ORG_WRITE" permission.
+        Personal access tokens may use any of the listed permissions.
 
         :param name: The name of the layout.
         :param permission: "CREATOR_WRITE", "ORG_READ", or "ORG_WRITE".
@@ -2115,7 +2116,9 @@ class Client:
     ):
         """
         Updates a layout. At least one field must be set.
-        API keys can only update shared layouts.
+        Organization API keys can only update "ORG_WRITE" layouts and may only
+        set permission to "ORG_WRITE". Personal access tokens follow the owner's
+        layout permissions.
 
         :param layout_id: The id of the layout.
         :param name: Optional new name.

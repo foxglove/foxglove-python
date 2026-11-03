@@ -2274,7 +2274,6 @@ def _episode_recording_dict(recording):
         "end": arrow.get(recording["end"]).datetime,
         "device_id": recording.get("deviceId"),
         "available": recording["available"],
-        "resolvable": recording["resolvable"],
     }
 
 

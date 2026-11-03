@@ -403,6 +403,27 @@ def test_get_topics_by_episode_uses_episode_bounds():
     }
 
 
+@responses.activate
+def test_get_topics_at_episode_version():
+    responses.add(
+        responses.GET,
+        api_url("/v1/data/topics"),
+        match=[
+            query_param_matcher(
+                {"includeSchemas": "false", "episodeId": "ep_1", "episodeVersion": "2"}
+            )
+        ],
+        json=[],
+    )
+
+    assert Client("test").get_topics(episode_id="ep_1", episode_version=2) == []
+
+
+def test_get_topics_rejects_episode_with_recording():
+    with pytest.raises(RuntimeError, match="cannot be combined"):
+        Client("test").get_topics(episode_id="ep_1", recording_id="rec_1")
+
+
 def test_episode_download_rejects_another_identifier():
     client = Client("test")
 
@@ -427,7 +448,10 @@ def test_get_topics_without_episode_requires_time_range():
     with pytest.raises(RuntimeError) as raised:
         client.get_topics(session_id="ses_1")
 
-    assert str(raised.value) == "start and end must be provided unless using episode_id"
+    assert str(raised.value) == (
+        "start and end must be provided unless using episode_id, "
+        "recording_id, or recording_key"
+    )
 
 
 CREATION_CONTEXT = {

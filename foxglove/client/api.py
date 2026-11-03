@@ -660,28 +660,19 @@ class Client:
         """
         if id is None and key is None:
             raise RuntimeError("id or key must be provided")
-        params = {
-            "recordingId": id,
-            "recordingKey": key,
-            "includeAttachments": include_attachments,
-            "outputFormat": output_format.value,
-            "topics": topics,
-            "start": start.astimezone().isoformat() if start else None,
-            "end": end.astimezone().isoformat() if end else None,
-            "compressionFormat": (
-                compression_format.value if compression_format is not None else None
-            ),
-            "replayPolicy": replay_policy,
-            "replayLookbackSeconds": replay_lookback_seconds,
-        }
-        link_response = self.__session.post(
-            self.__url__("/v1/data/stream"),
-            json={k: v for k, v in params.items() if v is not None},
+        link = self._make_stream_link(
+            recording_id=id,
+            recording_key=key,
+            include_attachments=include_attachments,
+            output_format=output_format,
+            topics=topics,
+            start=start,
+            end=end,
+            compression_format=compression_format,
+            replay_policy=replay_policy,
+            replay_lookback_seconds=replay_lookback_seconds,
         )
-
-        json = json_or_raise(link_response)
-
-        return _download_stream_with_progress(json["link"], callback=callback)
+        return _download_stream_with_progress(link, callback=callback)
 
     def _make_stream_link(
         self,
@@ -721,15 +712,20 @@ class Client:
                 "device_id or device_name or session_id or session_key or episode_id "
                 "or recording_id or recording_key must be provided"
             )
+        by_device = device_id is not None or device_name is not None
         if episode_id is not None and (
-            device_id is not None
-            or device_name is not None
+            by_device
             or session_id is not None
             or session_key is not None
             or by_recording
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
-        if episode_id is None and not by_recording and (start is None or end is None):
+        if by_recording and (session_id is not None or session_key is not None):
+            raise RuntimeError(
+                "recording_id or recording_key cannot be combined with a session"
+            )
+        needs_range = episode_id is None and (by_device or not by_recording)
+        if needs_range and (start is None or end is None):
             raise RuntimeError(
                 "start and end must be provided unless using episode_id, "
                 "recording_id, or recording_key"

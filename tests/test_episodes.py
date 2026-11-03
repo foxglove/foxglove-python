@@ -437,6 +437,16 @@ def test_download_rejects_episode_version_without_episode():
         Client("test").download_data(recording_id="rec_1", episode_version=2)
 
 
+def test_download_rejects_recording_with_session():
+    with pytest.raises(RuntimeError, match="cannot be combined with a session"):
+        Client("test").download_data(recording_id="rec_1", session_id="ses_1")
+
+
+def test_download_by_recording_and_device_requires_time_range():
+    with pytest.raises(RuntimeError, match="start and end must be provided"):
+        Client("test").download_data(recording_id="rec_1", device_id="dev_1")
+
+
 def test_episode_download_rejects_another_identifier():
     client = Client("test")
 

@@ -336,6 +336,15 @@ class Client:
         response = self.__session.delete(self.__url__(f"/v1/events/{event_id}"))
         return json_or_raise(response)
 
+    def get_event(self, *, event_id: str):
+        """
+        Gets a single event.
+
+        event_id: The id of the event.
+        """
+        response = self.__session.get(self.__url__(f"/v1/events/{event_id}"))
+        return _event_dict(json_or_raise(response))
+
     def get_events(
         self,
         *,
@@ -350,6 +359,10 @@ class Client:
         query: Optional[str] = None,
         project_id: Optional[str] = None,
         event_type_id: Optional[str] = None,
+        event_id: Optional[str] = None,
+        created_after: Optional[datetime.datetime] = None,
+        updated_after: Optional[datetime.datetime] = None,
+        query_fields: Optional[List[str]] = None,
     ):
         """
         Retrieves events.
@@ -367,6 +380,11 @@ class Client:
             of `query`.
         project_id: Optional Project to filter events by.
         event_type_id: Optional Event Type ID to filter events by.
+        event_id: Optionally filter events by exact event ID.
+        created_after: Optionally return only events created after this time.
+        updated_after: Optionally return only events updated after this time.
+        query_fields: Optionally specify which fields `query` filters on:
+            "metadata" (the default) and/or "properties".
         """
         params = {
             "deviceId": device_id,
@@ -380,6 +398,14 @@ class Client:
             "query": query,
             "projectId": project_id,
             "eventTypeId": event_type_id,
+            "eventId": event_id,
+            "createdAfter": (
+                created_after.astimezone().isoformat() if created_after else None
+            ),
+            "updatedAfter": (
+                updated_after.astimezone().isoformat() if updated_after else None
+            ),
+            "queryFields": ",".join(query_fields) if query_fields else None,
         }
         response = self.__session.get(
             self.__url__("/v1/events"),
@@ -2286,8 +2312,8 @@ def _device_identifier_for_path(
 def _event_dict(json_event):
     return {
         "id": json_event["id"],
-        "device_id": json_event["deviceId"],
-        "device": json_event["device"],
+        "device_id": json_event.get("deviceId"),
+        "device": json_event.get("device"),
         "start": arrow.get(json_event["start"]).datetime,
         "end": arrow.get(json_event["end"]).datetime,
         "metadata": json_event["metadata"],

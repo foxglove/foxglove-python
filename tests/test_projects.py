@@ -28,6 +28,7 @@ def test_get_projects():
                 "name": project1_name,
                 "orgMemberCount": project1_org_member_count,
                 "lastSeenAt": project1_last_seen_at.isoformat(),
+                "isInviteOnly": True,
             },
             {
                 "id": project2_id,
@@ -43,6 +44,7 @@ def test_get_projects():
     assert project1["name"] == project1_name
     assert project1["org_member_count"] == project1_org_member_count
     assert project1["last_seen_at"] == arrow.get(project1_last_seen_at).datetime
+    assert project1["is_invite_only"] is True
 
     # Handles optional values
     project2 = next(p for p in projects if p["id"] == project2_id)
@@ -50,6 +52,7 @@ def test_get_projects():
     assert project2["name"] is None
     assert project2["org_member_count"] == 0
     assert project2["last_seen_at"] is None
+    assert project2["is_invite_only"] is None
 
 
 @responses.activate

@@ -387,6 +387,35 @@ def test_download_data_by_episode_uses_episode_bounds():
 
 
 @responses.activate
+def test_download_data_at_episode_version_with_attachments():
+    download_link = "https://storage.example/episode.mcap"
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        match=[
+            json_params_matcher(
+                {
+                    "episodeId": "ep_1",
+                    "episodeVersion": 2,
+                    "includeAttachments": True,
+                    "outputFormat": "mcap",
+                    "topics": [],
+                },
+                strict_match=True,
+            )
+        ],
+        json={"link": download_link},
+    )
+    responses.add(responses.GET, download_link, body=b"mcap")
+
+    data = Client("test").download_data(
+        episode_id="ep_1", episode_version=2, include_attachments=True
+    )
+
+    assert data == b"mcap"
+
+
+@responses.activate
 def test_get_topics_by_episode_uses_episode_bounds():
     responses.add(responses.GET, api_url("/v1/data/topics"), json=[])
 
@@ -397,6 +426,21 @@ def test_get_topics_by_episode_uses_episode_bounds():
         "includeSchemas": "false",
         "episodeId": "ep_1",
     }
+
+
+def test_download_rejects_episode_version_without_episode():
+    with pytest.raises(RuntimeError, match="episode_version requires episode_id"):
+        Client("test").download_data(recording_id="rec_1", episode_version=2)
+
+
+def test_download_rejects_recording_with_session():
+    with pytest.raises(RuntimeError, match="cannot be combined with a session"):
+        Client("test").download_data(recording_id="rec_1", session_id="ses_1")
+
+
+def test_download_by_recording_and_device_requires_time_range():
+    with pytest.raises(RuntimeError, match="start and end must be provided"):
+        Client("test").download_data(recording_id="rec_1", device_id="dev_1")
 
 
 def test_episode_download_rejects_another_identifier():
@@ -414,7 +458,10 @@ def test_download_without_episode_requires_time_range():
     with pytest.raises(RuntimeError) as raised:
         client.download_data(device_id="dev_1")
 
-    assert str(raised.value) == "start and end must be provided unless using episode_id"
+    assert str(raised.value) == (
+        "start and end must be provided unless using episode_id, "
+        "recording_id, or recording_key"
+    )
 
 
 def test_get_topics_without_episode_requires_time_range():

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Foxglove Python Client API Sync"
+  short_description: "Sync requested Python client methods with the public API"
+  default_prompt: "Use $foxglove-python-api-sync to update the Python client methods or fields I request against the public API spec."

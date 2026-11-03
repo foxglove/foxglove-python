@@ -3,7 +3,7 @@ from datetime import datetime
 import responses
 from dateutil.tz import tzoffset
 from faker import Faker
-from responses.matchers import json_params_matcher
+from responses.matchers import json_params_matcher, query_param_matcher
 
 from foxglove.client import Client
 
@@ -156,6 +156,57 @@ def test_get_devices():
     assert devices[0]["project_id"] == project_id
     assert devices[0]["created_at"] == now
     assert devices[0]["updated_at"] == now
+    assert devices[0]["enabled"] is None
+
+    responses.add(
+        responses.GET,
+        api_url("/v1/devices"),
+        match=[
+            query_param_matcher(
+                {
+                    "query": "properties.sn:1",
+                    "sortBy": "properties.serial_number",
+                    "sortOrder": "desc",
+                    "limit": "10",
+                    "offset": "20",
+                }
+            )
+        ],
+        json=[
+            {
+                "id": id,
+                "name": "robot",
+                "projectId": project_id,
+                "orgId": "org_123",
+                "retainRecordingsSeconds": 3600,
+                "enabled": False,
+                "remoteAccessEnabled": True,
+                "autoDeleteAfterImport": True,
+                "createdAt": now.isoformat(),
+                "updatedAt": now.isoformat(),
+            }
+        ],
+    )
+    [device] = client.get_devices(
+        query="properties.sn:1",
+        sort_by="properties.serial_number",
+        sort_order="desc",
+        limit=10,
+        offset=20,
+    )
+    assert device == {
+        "id": id,
+        "name": "robot",
+        "properties": None,
+        "project_id": project_id,
+        "org_id": "org_123",
+        "retain_recordings_seconds": 3600,
+        "enabled": False,
+        "remote_access_enabled": True,
+        "auto_delete_after_import": True,
+        "created_at": now,
+        "updated_at": now,
+    }
 
 
 @responses.activate
@@ -243,3 +294,40 @@ def test_update_device():
     assert device["project_id"] == project_id
     assert device["created_at"] == now
     assert device["updated_at"] == now
+
+    # Patching device settings
+    responses.add(
+        responses.PATCH,
+        api_url(f"/v1/devices/{new_name}"),
+        match=[
+            json_params_matcher(
+                {
+                    "retainRecordingsSeconds": 0,
+                    "enabled": False,
+                    "remoteAccessEnabled": False,
+                    "autoDeleteAfterImport": True,
+                },
+                strict_match=True,
+            )
+        ],
+        json={
+            "id": "with-new-settings",
+            "name": new_name,
+            "projectId": project_id,
+            "retainRecordingsSeconds": 0,
+            "enabled": False,
+            "remoteAccessEnabled": False,
+            "autoDeleteAfterImport": True,
+        },
+    )
+    device = client.update_device(
+        device_name=new_name,
+        retain_recordings_seconds=0,
+        enabled=False,
+        remote_access_enabled=False,
+        auto_delete_after_import=True,
+    )
+    assert device["retain_recordings_seconds"] == 0
+    assert device["enabled"] is False
+    assert device["remote_access_enabled"] is False
+    assert device["auto_delete_after_import"] is True

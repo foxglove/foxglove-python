@@ -33,7 +33,6 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
                 "end": NOW.replace(minute=1).isoformat(),
                 "deviceId": "dev_1",
                 "available": True,
-                "resolvable": True,
             }
         ]
         episode["hasMissingRecordings"] = False
@@ -196,7 +195,6 @@ def test_get_episodes_maps_response_and_filters():
         "bucket": "robot-logs",
         "path": "fleet/run.mcap",
     }
-    assert episodes.items[0]["recordings"][0]["resolvable"] is True
     assert episodes.items[0]["has_missing_recordings"] is False
     assert responses.calls[0].request.params == {
         "projectId": "prj_1",

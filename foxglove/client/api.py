@@ -1374,6 +1374,149 @@ class Client:
             for i in json
         ]
 
+    def get_recording(
+        self,
+        *,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+    ):
+        """
+        Fetches a single recording.
+
+        :param recording_id: The ID of the recording to fetch.
+        :param recording_key: The key of the recording to fetch.
+        """
+        identifier = _recording_identifier_for_path(recording_id, recording_key)
+        response = self.__session.get(self.__url__(f"/v1/recordings/{identifier}"))
+        return _recording_dict(json_or_raise(response))
+
+    def import_recording_from_edge(self, *, recording_id: str):
+        """
+        Requests import of a recording from its Edge Site to its Primary Site.
+
+        Returns the recording ID and its current import status. Poll
+        :func:`get_recording` to observe changes to the import status.
+
+        :param recording_id: The ID of the recording to import.
+        """
+        response = self.__session.post(
+            self.__url__(f"/v1/recordings/{urlquote(recording_id, safe='')}/import"),
+        )
+        json = json_or_raise(response)
+        return {"id": json.get("id"), "import_status": json.get("importStatus")}
+
+    def get_pending_imports(
+        self,
+        *,
+        request_id: Optional[str] = None,
+        key: Optional[str] = None,
+        device_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+        site_backfill_job_id: Optional[str] = None,
+        filename: Optional[str] = None,
+        updated_since: Optional[datetime.datetime] = None,
+        show_completed: bool = False,
+        show_quarantined: bool = False,
+        site_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """
+        Fetches pending imports: in-progress import jobs for uploaded recordings.
+
+        :param request_id: Optionally filter by import request ID.
+        :param key: Optionally filter by the recording key provided when uploading.
+        :param device_id: Optionally filter by device ID.
+        :param device_name: Optionally filter by device name.
+        :param site_backfill_job_id: Optionally filter to imports enqueued by this site
+            backfill job.
+        :param filename: Optionally filter by exactly matching filename.
+        :param updated_since: Optionally filter to imports updated since this time.
+        :param show_completed: Include completed imports.
+        :param show_quarantined: Include quarantined imports.
+        :param site_id: Optionally filter by Primary Site ID.
+        :param project_id: Optionally filter by project ID.
+        :param sort_by: Optionally sort records by this field name (e.g. "updated_at").
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param limit: Optionally limit the number of records returned.
+        :param offset: Optionally offset the results by this many records.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/data/pending-imports"),
+            params=without_nulls(
+                {
+                    "requestId": request_id,
+                    "key": key,
+                    "deviceId": device_id,
+                    "deviceName": device_name,
+                    "siteBackfillJobId": site_backfill_job_id,
+                    "filename": filename,
+                    "updatedSince": (
+                        updated_since.astimezone().isoformat()
+                        if updated_since
+                        else None
+                    ),
+                    "showCompleted": bool_query_param(show_completed),
+                    "showQuarantined": bool_query_param(show_quarantined),
+                    "siteId": site_id,
+                    "projectId": project_id,
+                    "sortBy": camelize(sort_by),
+                    "sortOrder": sort_order,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ),
+        )
+        return [_pending_import_dict(i) for i in json_or_raise(response)]
+
+    def get_import_errors(
+        self,
+        *,
+        device_name: Optional[str] = None,
+        filename_matches: Optional[str] = None,
+        error: Optional[str] = None,
+        site_backfill_job_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """
+        Fetches imports that failed with an error.
+
+        :param device_name: Optionally filter by device name.
+        :param filename_matches: Optionally filter by a pattern matched against the filename.
+        :param error: Optionally filter by a string in the error message.
+        :param site_backfill_job_id: Optionally filter to errors from imports enqueued by
+            this site backfill job.
+        :param project_id: Optionally filter by project ID.
+        :param sort_by: Optionally sort records by this field name (e.g. "updated_at").
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param limit: Optionally limit the number of records returned.
+        :param offset: Optionally offset the results by this many records.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/data/import-errors"),
+            params=without_nulls(
+                {
+                    "deviceName": device_name,
+                    "filenameMatches": filename_matches,
+                    "error": error,
+                    "siteBackfillJobId": site_backfill_job_id,
+                    "projectId": project_id,
+                    "sortBy": camelize(sort_by),
+                    "sortOrder": sort_order,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ),
+        )
+        return [_pending_import_dict(i) for i in json_or_raise(response)]
+
     def get_recordings(
         self,
         *,
@@ -1392,6 +1535,8 @@ class Client:
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
+        topic: Optional[str] = None,
+        metadata_query: Optional[str] = None,
     ):
         """Fetches recordings.
 
@@ -1413,6 +1558,9 @@ class Client:
         :param project_id: Optional Project to filter recordings by.
         :param session_id: Optional Session ID to filter recordings by.
         :param session_key: Optional Session key to filter recordings by.
+        :param topic: Optionally filter responses to recordings containing this topic.
+        :param metadata_query: Optionally filter recordings by metadata using the
+            recordings search query syntax (e.g. "key:value").
         """
         all_params = {
             "deviceId": device_id,
@@ -1430,6 +1578,8 @@ class Client:
             "projectId": project_id,
             "sessionId": session_id,
             "sessionKey": session_key,
+            "topic": topic,
+            "metadataQuery": metadata_query,
         }
         response = self.__session.get(
             self.__url__("/v1/recordings"),
@@ -1437,32 +1587,7 @@ class Client:
         )
         json = json_or_raise(response)
 
-        out = []
-        for i in json:
-            imported_at = i.get("importedAt")
-            if imported_at is not None:
-                imported_at = arrow.get(imported_at).datetime
-            out.append(
-                {
-                    "id": i["id"],
-                    "path": i["path"],
-                    "size": i["size"],
-                    "message_count": i.get("messageCount"),
-                    "created_at": arrow.get(i["createdAt"]).datetime,
-                    "imported_at": imported_at,
-                    "start": arrow.get(i["start"]).datetime,
-                    "end": arrow.get(i["end"]).datetime,
-                    "import_status": i["importStatus"],
-                    "site": i.get("site"),
-                    "edge_site": i.get("edgeSite"),
-                    "device": i.get("device"),
-                    "metadata": i.get("metadata"),
-                    "key": i.get("key"),
-                    "project_id": i.get("projectId"),
-                    "session_id": i.get("sessionId"),
-                    "session_key": i.get("sessionKey"),
-                }
-            )
+        out = [_recording_dict(i) for i in json]
 
         return out
 
@@ -2316,6 +2441,7 @@ class Client:
         )
         return {
             "link": link,
+            "request_id": json.get("requestId"),
             "text": upload_request.text,
             "code": upload_request.status_code,
         }
@@ -2674,6 +2800,64 @@ def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -
     identifier = session_id if session_id is not None else session_key
     assert identifier is not None, "one of session_id or session_key must be provided"
     return identifier
+
+
+def _recording_identifier_for_path(
+    recording_id: Optional[str], recording_key: Optional[str]
+) -> str:
+    if recording_id is not None and recording_key is not None:
+        raise RuntimeError("recording_id and recording_key are mutually exclusive")
+    if recording_id is None and recording_key is None:
+        raise RuntimeError("recording_id or recording_key must be provided")
+    identifier = recording_id if recording_id is not None else recording_key
+    assert identifier is not None
+    return urlquote(identifier, safe="")
+
+
+def _recording_dict(recording):
+    imported_at = recording.get("importedAt")
+    return {
+        "id": recording["id"],
+        "path": recording["path"],
+        "size": recording["size"],
+        "message_count": recording.get("messageCount"),
+        "created_at": arrow.get(recording["createdAt"]).datetime,
+        "imported_at": arrow.get(imported_at).datetime if imported_at else None,
+        "start": arrow.get(recording["start"]).datetime,
+        "end": arrow.get(recording["end"]).datetime,
+        "import_status": recording["importStatus"],
+        "site": recording.get("site"),
+        "edge_site": recording.get("edgeSite"),
+        "device": recording.get("device"),
+        "metadata": recording.get("metadata"),
+        "key": recording.get("key"),
+        "project_id": recording.get("projectId"),
+        "session_id": recording.get("sessionId"),
+        "session_key": recording.get("sessionKey"),
+        "location": recording.get("location"),
+    }
+
+
+def _pending_import_dict(pending_import):
+    quarantined_at = pending_import.get("quarantinedAt")
+    return {
+        "request_id": pending_import["requestId"],
+        "import_id": pending_import.get("importId"),
+        "org_id": pending_import["orgId"],
+        "project_id": pending_import.get("projectId"),
+        "site_id": pending_import["siteId"],
+        "device_id": pending_import.get("deviceId"),
+        "device_name": pending_import.get("deviceName"),
+        "filename": pending_import["filename"],
+        "pipeline_stage": pending_import["pipelineStage"],
+        "status": pending_import.get("status"),
+        "error": pending_import.get("error"),
+        "created_at": arrow.get(pending_import["createdAt"]).datetime,
+        "updated_at": arrow.get(pending_import["updatedAt"]).datetime,
+        "quarantined_at": (
+            arrow.get(quarantined_at).datetime if quarantined_at else None
+        ),
+    }
 
 
 def _session_identifier_for_path(

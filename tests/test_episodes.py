@@ -419,6 +419,11 @@ def test_get_topics_at_episode_version():
     assert Client("test").get_topics(episode_id="ep_1", episode_version=2) == []
 
 
+def test_get_topics_rejects_episode_version_without_episode():
+    with pytest.raises(RuntimeError, match="episode_version requires episode_id"):
+        Client("test").get_topics(recording_id="rec_1", episode_version=2)
+
+
 def test_get_topics_rejects_episode_with_recording():
     with pytest.raises(RuntimeError, match="cannot be combined"):
         Client("test").get_topics(episode_id="ep_1", recording_id="rec_1")

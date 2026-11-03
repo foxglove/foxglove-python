@@ -1722,6 +1722,8 @@ class Client:
         :param sort_order: Optionally specify the sort order, either "asc" or "desc".
         """
         by_recording = recording_id is not None or recording_key is not None
+        if episode_version is not None and episode_id is None:
+            raise RuntimeError("episode_version requires episode_id")
         if episode_id is not None and (
             device_id is not None
             or device_name is not None

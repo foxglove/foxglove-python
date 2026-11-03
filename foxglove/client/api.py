@@ -1744,6 +1744,96 @@ class Client:
             results.append(result)
         return results
 
+    def get_custom_properties(self, *, resource_type: Optional[str] = None):
+        """
+        List custom properties.
+
+        :param resource_type: Optionally filter by resource type: "device", "event",
+            "session" or "episode".
+        """
+        response = self.__session.get(
+            self.__url__("/v1/custom-properties"),
+            params=without_nulls({"resourceType": resource_type}),
+        )
+        return [_custom_property_dict(p) for p in json_or_raise(response)]
+
+    def get_custom_property(self, *, custom_property_id: str):
+        """
+        Gets a single custom property.
+
+        :param custom_property_id: The id of the custom property.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/custom-properties/{custom_property_id}")
+        )
+        return _custom_property_dict(json_or_raise(response))
+
+    def create_custom_property(
+        self,
+        *,
+        key: str,
+        label: str,
+        resource_type: str,
+        value_type: str,
+        enum_values: Optional[List[str]] = None,
+    ):
+        """
+        Creates a custom property.
+
+        :param key: Immutable identifier used to refer to the property in queries.
+        :param label: Display label.
+        :param resource_type: Resource type the property applies to: "device",
+            "event", "session" or "episode".
+        :param value_type: One of "string", "multiline-string", "number", "enum",
+            "boolean" or "multi-enum".
+        :param enum_values: Allowed values; required for "enum" and "multi-enum".
+        """
+        response = self.__session.post(
+            self.__url__("/v1/custom-properties"),
+            json=without_nulls(
+                {
+                    "key": key,
+                    "label": label,
+                    "resourceType": resource_type,
+                    "valueType": value_type,
+                    "enumValues": enum_values,
+                }
+            ),
+        )
+        return _custom_property_dict(json_or_raise(response))
+
+    def update_custom_property(
+        self,
+        *,
+        custom_property_id: str,
+        label: Optional[str] = None,
+        enum_values: Optional[List[str]] = None,
+    ):
+        """
+        Updates a custom property.
+
+        :param custom_property_id: The id of the custom property.
+        :param label: Optional new display label.
+        :param enum_values: Optional enum values. Must be a superset of the existing
+            values; use this to reorder or add values.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/custom-properties/{custom_property_id}"),
+            json=without_nulls({"label": label, "enumValues": enum_values}),
+        )
+        return _custom_property_dict(json_or_raise(response))
+
+    def delete_custom_property(self, *, custom_property_id: str):
+        """
+        Deletes a custom property.
+
+        :param custom_property_id: The id of the custom property.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/custom-properties/{custom_property_id}")
+        )
+        json_or_raise(response)
+
     def get_projects(self):
         """
         List all available projects in the organization.
@@ -2941,6 +3031,18 @@ def _device_identifier(device_id: Optional[str], device_name: Optional[str]) -> 
     identifier = device_id if device_id is not None else device_name
     assert identifier is not None, "one of device_id or device_name must be provided"
     return identifier
+
+
+def _custom_property_dict(custom_property):
+    return {
+        "id": custom_property["id"],
+        "key": custom_property["key"],
+        "label": custom_property["label"],
+        "resource_type": custom_property["resourceType"],
+        "value_type": custom_property["valueType"],
+        "enum_values": custom_property.get("enumValues"),
+        "has_associated_data": custom_property.get("hasAssociatedData"),
+    }
 
 
 def _device_identifier_for_path(

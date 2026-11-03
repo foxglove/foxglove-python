@@ -388,6 +388,87 @@ class Client:
 
         return [_event_dict(event) for event in json_or_raise(response)]
 
+    def get_event_types(self):
+        """Return all event types."""
+        response = self.__session.get(self.__url__("/v1/event-types"))
+        return [_event_type_dict(event_type) for event_type in json_or_raise(response)]
+
+    def get_event_type(self, *, event_type_id: str):
+        """
+        Gets a single event type.
+
+        :param event_type_id: The id of the event type.
+        """
+        response = self.__session.get(self.__url__(f"/v1/event-types/{event_type_id}"))
+        return _event_type_dict(json_or_raise(response))
+
+    def create_event_type(
+        self,
+        *,
+        name: str,
+        custom_properties: List[Dict[str, Any]],
+        color_name: Optional[str] = None,
+    ):
+        """
+        Creates an event type.
+
+        :param name: Name of the event type.
+        :param custom_properties: Ordered custom properties for events of this type,
+            each a dict with the property's ``id`` and whether it is ``required``.
+        :param color_name: Optional color name, e.g. "red".
+        """
+        response = self.__session.post(
+            self.__url__("/v1/event-types"),
+            json=without_nulls(
+                {
+                    "name": name,
+                    "colorName": color_name,
+                    "customProperties": custom_properties,
+                }
+            ),
+        )
+        return _event_type_dict(json_or_raise(response))
+
+    def update_event_type(
+        self,
+        *,
+        event_type_id: str,
+        name: Optional[str] = None,
+        color_name: Optional[str] = None,
+        custom_properties: Optional[List[Dict[str, Any]]] = None,
+    ):
+        """
+        Updates an event type. At least one field must be set.
+
+        :param event_type_id: The id of the event type.
+        :param name: Optional new name.
+        :param color_name: Optional new color name.
+        :param custom_properties: Optional custom properties, each a dict with the
+            property's ``id`` and whether it is ``required``. Replaces the existing list.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/event-types/{event_type_id}"),
+            json=without_nulls(
+                {
+                    "name": name,
+                    "colorName": color_name,
+                    "customProperties": custom_properties,
+                }
+            ),
+        )
+        return _event_type_dict(json_or_raise(response))
+
+    def delete_event_type(self, *, event_type_id: str):
+        """
+        Deletes an event type.
+
+        :param event_type_id: The id of the event type.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/event-types/{event_type_id}")
+        )
+        json_or_raise(response)
+
     def get_messages(
         self,
         *,
@@ -2214,6 +2295,17 @@ def _event_dict(json_event):
         "updated_at": arrow.get(json_event["updatedAt"]).datetime,
         "properties": json_event.get("properties"),
         "event_type_id": json_event.get("eventTypeId"),
+    }
+
+
+def _event_type_dict(event_type):
+    return {
+        "id": event_type["id"],
+        "name": event_type["name"],
+        "color_name": event_type.get("colorName"),
+        "custom_properties": event_type.get("customProperties", []),
+        "created_at": arrow.get(event_type["createdAt"]).datetime,
+        "updated_at": arrow.get(event_type["updatedAt"]).datetime,
     }
 
 

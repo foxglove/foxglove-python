@@ -1633,21 +1633,7 @@ class Client:
             params={k: v for k, v in all_params.items() if v is not None},
         )
         json = json_or_raise(response)
-        return [
-            {
-                "id": i["id"],
-                "recording_id": i["recordingId"],
-                "site_id": i["siteId"],
-                "name": i["name"],
-                "media_type": i["mediaType"],
-                "size": i["size"],
-                "crc": i["crc"],
-                "fingerprint": i["fingerprint"],
-                "log_time": arrow.get(i["logTime"]).datetime,
-                "create_time": arrow.get(i["createTime"]).datetime,
-            }
-            for i in json
-        ]
+        return [_attachment_dict(i) for i in json]
 
     def download_attachment(
         self,
@@ -1676,6 +1662,14 @@ class Client:
                 )
             return _download_stream_with_progress(location, callback=callback)
         return _download_response_with_progress(response, callback=callback)
+
+    def get_attachment(self, *, id: str):
+        """Fetch a single attachment by ID.
+
+        :param id: the attachment ID.
+        """
+        response = self.__session.get(self.__url__(f"/v1/recording-attachments/{id}"))
+        return _attachment_dict(json_or_raise(response))
 
     def get_topics(
         self,
@@ -2864,6 +2858,23 @@ def _session_identifier_for_path(
     session_id: Optional[str], session_key: Optional[str]
 ) -> str:
     return urlquote(_session_identifier(session_id, session_key), safe="")
+
+
+def _attachment_dict(attachment):
+    return {
+        "id": attachment["id"],
+        "recording_id": attachment["recordingId"],
+        "site_id": attachment["siteId"],
+        "name": attachment["name"],
+        "media_type": attachment["mediaType"],
+        "size": attachment["size"],
+        "crc": attachment["crc"],
+        "fingerprint": attachment["fingerprint"],
+        "log_time": arrow.get(attachment["logTime"]).datetime,
+        "create_time": arrow.get(attachment["createTime"]).datetime,
+        "data_offset": attachment.get("dataOffset"),
+        "lake_path": attachment.get("lakePath"),
+    }
 
 
 def _device_identifier(device_id: Optional[str], device_name: Optional[str]) -> str:

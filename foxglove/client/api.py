@@ -756,6 +756,40 @@ class Client:
             callback=callback,
         )
 
+    def get_site_tokens(self, *, site_id: Optional[str] = None):
+        """
+        Returns a list of site tokens.
+
+        :param site_id: Optional site to filter tokens by.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/site-tokens"),
+            params=without_nulls({"siteId": site_id}),
+        )
+        return [_site_token_dict(token) for token in json_or_raise(response)]
+
+    def create_site_token(self, *, site_id: str):
+        """
+        Creates a site token. The returned ``token`` is only available on creation.
+
+        :param site_id: The site to associate with the token.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/site-tokens"), json={"siteId": site_id}
+        )
+        return _site_token_dict(json_or_raise(response))
+
+    def delete_site_token(self, *, site_token_id: str):
+        """
+        Deletes a site token.
+
+        :param site_token_id: The id of the site token.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/site-tokens/{site_token_id}")
+        )
+        json_or_raise(response)
+
     def get_coverage(
         self,
         *,
@@ -2777,6 +2811,17 @@ def _dataset_episode_dict(dataset_episode):
         result["has_missing_recordings"] = dataset_episode["hasMissingRecordings"]
     if "change" in dataset_episode:
         result["change"] = dataset_episode["change"]
+    return result
+
+
+def _site_token_dict(token):
+    result = {
+        "id": token["id"],
+        "site_id": token["siteId"],
+        "created_at": arrow.get(token["createdAt"]).datetime,
+    }
+    if "token" in token:
+        result["token"] = token["token"]
     return result
 
 

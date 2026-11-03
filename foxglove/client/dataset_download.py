@@ -125,7 +125,6 @@ def export_dataset(
                 "version": episode["version"],
                 "startTime": _iso(episode["start_time"]),
                 "endTime": _iso(episode["end_time"]),
-                "metadata": episode["metadata"],
             }
             if "properties" in episode:
                 entry["properties"] = episode["properties"]

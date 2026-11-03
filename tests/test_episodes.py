@@ -17,7 +17,6 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
         "projectId": "prj_1",
         "startTime": NOW.isoformat(),
         "endTime": NOW.replace(minute=1).isoformat(),
-        "metadata": {"result": "success", "nestedValue": {"keepMe": True}},
         "version": 2,
         "latestVersion": 3,
         "creatorApiKeyId": "key_1",
@@ -54,7 +53,6 @@ def test_create_episodes_serializes_inputs():
                 "recordings": ["rec_1"],
                 "start_time": NOW,
                 "end_time": NOW.replace(minute=1),
-                "metadata": {"result": "success"},
                 "properties": {"stage": "review", "tags": []},
             }
         ],
@@ -68,7 +66,6 @@ def test_create_episodes_serializes_inputs():
                 "recordings": ["rec_1"],
                 "startTime": NOW.astimezone().isoformat(),
                 "endTime": NOW.replace(minute=1).astimezone().isoformat(),
-                "metadata": {"result": "success"},
                 "properties": {"stage": "review", "tags": []},
             }
         ],
@@ -123,13 +120,13 @@ def test_create_episodes_serializes_event_inputs():
 
     result = Client("test").create_episodes(
         project_id="prj_1",
-        episodes=[{"event_id": "evt_1", "metadata": {"label": "merge"}}],
+        episodes=[{"event_id": "evt_1"}],
     )
 
     assert result == [{"id": "ep_1", "created": False}]
     assert json.loads(responses.calls[0].request.body) == {
         "projectId": "prj_1",
-        "episodes": [{"eventId": "evt_1", "metadata": {"label": "merge"}}],
+        "episodes": [{"eventId": "evt_1"}],
     }
 
 
@@ -189,7 +186,6 @@ def test_get_episodes_maps_response_and_filters():
     assert episodes.items[0]["version"] == 2
     assert episodes.items[0]["latest_version"] == 3
     assert episodes.items[0]["properties"] == {"stage": "review", "tags": ["night"]}
-    assert episodes.items[0]["metadata"]["nestedValue"] == {"keepMe": True}
     assert episodes.items[0]["recordings"][0]["device_id"] == "dev_1"
     assert episodes.items[0]["recordings"][0]["location"] == {
         "bucket": "robot-logs",

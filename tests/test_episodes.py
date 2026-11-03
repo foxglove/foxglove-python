@@ -138,10 +138,13 @@ def test_create_episodes_ignores_metadata():
         json={"episodes": [{"id": "ep_1", "created": True}]},
     )
 
-    Client("test").create_episodes(
-        project_id="prj_1",
-        episodes=[{"event_id": "evt_1", "metadata": {"label": "merge"}}],
-    )
+    with pytest.warns(
+        DeprecationWarning, match=r"episodes\[0\]: metadata is no longer supported"
+    ):
+        Client("test").create_episodes(
+            project_id="prj_1",
+            episodes=[{"event_id": "evt_1", "metadata": {"label": "merge"}}],
+        )
 
     assert json.loads(responses.calls[0].request.body) == {
         "projectId": "prj_1",

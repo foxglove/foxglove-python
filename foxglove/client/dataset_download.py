@@ -1,7 +1,6 @@
 """Directory exports using the app's dataset download manifest format."""
 
 import datetime
-import hashlib
 import json
 import re
 import warnings
@@ -12,7 +11,7 @@ import requests
 
 
 class DatasetDownloadWarning(UserWarning):
-    """An export completed with failed, skipped, or partially available episodes."""
+    """An export completed, but some episodes failed to download."""
 
 
 def _iso(value: datetime.datetime) -> str:
@@ -23,12 +22,14 @@ def _iso(value: datetime.datetime) -> str:
     )
 
 
+_NO_DATA_LEFT_REASON = (
+    "No Primary Site holds data for any recording in this episode. "
+    "Import those recordings to include it."
+)
+
+
 class EpisodeRequestError(Exception):
     """A stream could not be opened; no output file has been written."""
-
-    def __init__(self, reason: str, *, unavailable: bool = False):
-        super().__init__(reason)
-        self.unavailable = unavailable
 
 
 def _request_error(
@@ -39,11 +40,7 @@ def _request_error(
         try:
             body = response.json()
             if isinstance(body, dict) and body.get("code") == "NoStreamableRecordings":
-                return EpisodeRequestError(
-                    "No Primary Site holds data for any recording in this episode. "
-                    "Import those recordings to include it.",
-                    unavailable=True,
-                )
+                return EpisodeRequestError(_NO_DATA_LEFT_REASON)
         except ValueError:
             pass
     # requests exception strings can contain signed URLs. Keep credentials out of manifests.
@@ -81,27 +78,6 @@ def download_episode(output_path: Path, get_link: Callable[[], str]) -> int:
         response.close()
 
 
-def selection_digest(
-    dataset_id: str,
-    version_number: int,
-    episode_ids: List[str],
-    topics: Optional[List[str]],
-) -> str:
-    # JavaScript Array.sort compares UTF-16 code units, including for topic names.
-    def js_sort_key(value: str) -> bytes:
-        return value.encode("utf-16-be", errors="surrogatepass")
-
-    selection: Dict[str, Any] = {
-        "datasetId": dataset_id,
-        "versionNumber": version_number,
-        "episodeIds": sorted(episode_ids, key=js_sort_key),
-    }
-    if topics is not None:
-        selection["topics"] = sorted(topics, key=js_sort_key)
-    canonical = json.dumps(selection, ensure_ascii=False, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
 def _write_manifest(destination: Path, manifest: Dict[str, Any]) -> None:
     temporary_path = destination / ".manifest.json.part"
     with temporary_path.open("w", encoding="utf-8") as output:
@@ -120,15 +96,7 @@ def export_dataset(
     download: Callable[[str, int, Path], int],
 ) -> Path:
     entries: List[Dict[str, Any]] = []
-    selection: Dict[str, Any] = {
-        "digest": selection_digest(
-            dataset["id"],
-            version["version_number"],
-            [item["episode"]["id"] for item in episodes],
-            topics,
-        ),
-        "episodeCount": version["episode_count"],
-    }
+    selection: Dict[str, Any] = {"episodeCount": version["episode_count"]}
     if topics is not None:
         selection["topics"] = topics
     manifest = {
@@ -154,6 +122,7 @@ def export_dataset(
             entry = {
                 "index": index,
                 "id": episode["id"],
+                "version": episode["version"],
                 "startTime": _iso(episode["start_time"]),
                 "endTime": _iso(episode["end_time"]),
                 "metadata": episode["metadata"],
@@ -168,12 +137,8 @@ def export_dataset(
                     episode["id"], episode["version"], destination / filename
                 )
             except EpisodeRequestError as error:
-                entry.update(
-                    status="skipped" if error.unavailable else "failed",
-                    reason=str(error),
-                )
-                if not error.unavailable:
-                    failed += 1
+                entry.update(status="failed", reason=str(error))
+                failed += 1
             except BaseException as error:
                 entry.update(
                     status="failed",
@@ -183,12 +148,7 @@ def export_dataset(
                 raise
             else:
                 downloaded += 1
-                entry.update(
-                    status="downloaded",
-                    file=filename,
-                    byteSize=size,
-                    episodeHasMissingRecordings=member["has_missing_recordings"],
-                )
+                entry.update(status="downloaded", file=filename, byteSize=size)
             entries.append(entry)
     except BaseException:
         try:
@@ -199,12 +159,9 @@ def export_dataset(
     _write_manifest(destination, manifest)
     if downloaded == 0 and failed:
         raise RuntimeError("No episodes could be downloaded; see manifest.json")
-    skipped = sum(entry["status"] == "skipped" for entry in entries)
-    partial = sum(entry.get("episodeHasMissingRecordings", False) for entry in entries)
-    if failed or skipped or partial:
+    if failed:
         warnings.warn(
-            f"Incomplete dataset export: {failed} failed, {skipped} skipped, "
-            f"{partial} downloaded with missing recordings; "
+            f"Incomplete dataset export: {failed} failed; "
             f"see {destination / 'manifest.json'}",
             DatasetDownloadWarning,
             stacklevel=3,

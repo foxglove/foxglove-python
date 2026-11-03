@@ -2912,6 +2912,138 @@ class Client:
 
         return json_or_raise(response)
 
+    def get_layouts(
+        self,
+        *,
+        updated_since: Optional[datetime.datetime] = None,
+        include_data: bool = True,
+    ):
+        """
+        Returns a list of layouts shared with the organization.
+
+        :param updated_since: Optionally return only layouts updated since this time.
+        :param include_data: Whether to include each layout's ``data``.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/layouts"),
+            params=without_nulls(
+                {
+                    "updatedSince": (
+                        updated_since.astimezone().isoformat()
+                        if updated_since
+                        else None
+                    ),
+                    "includeData": bool_query_param(include_data),
+                }
+            ),
+        )
+        return [_layout_dict(layout) for layout in json_or_raise(response)]
+
+    def get_layout(self, *, layout_id: str, include_data: bool = False):
+        """
+        Gets a single layout.
+
+        :param layout_id: The id of the layout.
+        :param include_data: Whether to include the layout's ``data``.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/layouts/{layout_id}"),
+            params={"includeData": bool_query_param(include_data)},
+        )
+        return _layout_dict(json_or_raise(response))
+
+    def create_layout(
+        self,
+        *,
+        name: str,
+        permission: str,
+        data: Dict[str, Any],
+        layout_id: Optional[str] = None,
+        saved_at: Optional[datetime.datetime] = None,
+        folder_name: Optional[str] = None,
+    ):
+        """
+        Creates a layout. Organization API keys must use "ORG_WRITE" permission.
+        Personal access tokens may use any of the listed permissions.
+
+        :param name: The name of the layout.
+        :param permission: "CREATOR_WRITE", "ORG_READ", or "ORG_WRITE".
+        :param data: The layout contents. Treat this as opaque and round-trip
+            values returned by the API.
+        :param layout_id: Optional id for the new layout.
+        :param saved_at: Optional time the layout was last saved locally.
+        :param folder_name: Optional folder name used to organize layouts.
+            Cannot contain forward slashes.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/layouts"),
+            json=without_nulls(
+                {
+                    "id": layout_id,
+                    "name": name,
+                    "savedAt": saved_at.astimezone().isoformat() if saved_at else None,
+                    "folderName": folder_name,
+                    "permission": permission,
+                    "data": data,
+                }
+            ),
+        )
+        return _layout_dict(json_or_raise(response))
+
+    def update_layout(
+        self,
+        *,
+        layout_id: str,
+        name: Optional[str] = None,
+        folder_name: Optional[str] = None,
+        permission: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+    ):
+        """
+        Updates a layout. At least one field must be set.
+        Organization API keys can only update "ORG_WRITE" layouts and may only
+        set permission to "ORG_WRITE". Personal access tokens follow the owner's
+        layout permissions.
+
+        :param layout_id: The id of the layout.
+        :param name: Optional new name.
+        :param folder_name: Optional new folder name. An empty string removes the
+            layout from its folder.
+        :param permission: Optional new permission: "CREATOR_WRITE", "ORG_READ",
+            or "ORG_WRITE".
+        :param data: Optional new layout contents.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/layouts/{layout_id}"),
+            json=without_nulls(
+                {
+                    "name": name,
+                    "folderName": folder_name,
+                    "permission": permission,
+                    "data": data,
+                }
+            ),
+        )
+        return _layout_dict(json_or_raise(response))
+
+    def delete_layout(self, *, layout_id: str):
+        """
+        Soft-deletes a layout. It can be restored with `restore_layout`.
+
+        :param layout_id: The id of the layout.
+        """
+        response = self.__session.delete(self.__url__(f"/v1/layouts/{layout_id}"))
+        json_or_raise(response)
+
+    def restore_layout(self, *, layout_id: str):
+        """
+        Restores a soft-deleted layout.
+
+        :param layout_id: The id of the layout.
+        """
+        response = self.__session.post(self.__url__(f"/v1/layouts/{layout_id}/restore"))
+        json_or_raise(response)
+
     def get_site_inbox_notification_tokens(self, *, site_id: Optional[str] = None):
         """
         Returns a list of site inbox notification tokens.
@@ -3336,6 +3468,20 @@ def _session_dict(session):
             arrow.get(recording_start).datetime if recording_start else None
         ),
         "recording_end": arrow.get(recording_end).datetime if recording_end else None,
+    }
+
+
+def _layout_dict(layout):
+    saved_at = layout.get("savedAt")
+    return {
+        "id": layout["id"],
+        "name": layout["name"],
+        "created_at": arrow.get(layout["createdAt"]).datetime,
+        "updated_at": arrow.get(layout["updatedAt"]).datetime,
+        "saved_at": arrow.get(saved_at).datetime if saved_at else None,
+        "folder_name": layout.get("folderName"),
+        "permission": layout["permission"],
+        "data": layout.get("data"),
     }
 
 

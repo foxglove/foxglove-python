@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import responses
+from responses.matchers import query_param_matcher
 from faker import Faker
 from foxglove.client import Client
 
@@ -43,3 +44,29 @@ def test_get_coverage():
     )
     assert len(coverage) == 2
     assert coverage[0]["device_id"] == device_id
+
+
+@responses.activate
+def test_get_coverage_by_recording_with_edge_recordings():
+    responses.add(
+        responses.GET,
+        api_url("/v1/data/coverage"),
+        match=[
+            query_param_matcher(
+                {"recordingKey": "run.mcap", "includeEdgeRecordings": "true"}
+            )
+        ],
+        json=[
+            {
+                "deviceId": "dev_1",
+                "device": {"id": "dev_1", "name": "robot"},
+                "start": datetime(2026, 1, 1).isoformat(),
+                "end": datetime(2026, 1, 2).isoformat(),
+                "importStatus": "pending",
+            }
+        ],
+    )
+    coverage = Client("test").get_coverage(
+        recording_key="run.mcap", include_edge_recordings=True
+    )
+    assert coverage[0]["import_status"] == "pending"

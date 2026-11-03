@@ -1766,6 +1766,11 @@ class Client:
         episode_id: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+        episode_version: Optional[int] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ):
         """
         List topics.
@@ -1782,16 +1787,32 @@ class Client:
             start and end are omitted.
         :param limit: Maximum topics in this page (server default and maximum: 2000).
         :param offset: Number of topics to skip to retrieve a subsequent page.
+        :param recording_id: ID of a recording to list topics from. Topics for a
+            recording that hasn't been imported are only returned when no time range,
+            device, or session is also given.
+        :param recording_key: Key of a recording to list topics from. The same
+            condition applies to recordings that haven't been imported.
+        :param episode_version: Episode version to list topics from. Requires
+            ``episode_id``; the latest version is used when omitted.
+        :param sort_by: Optionally sort by "topic" or "version".
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
         """
+        by_recording = recording_id is not None or recording_key is not None
+        if episode_version is not None and episode_id is None:
+            raise RuntimeError("episode_version requires episode_id")
         if episode_id is not None and (
             device_id is not None
             or device_name is not None
             or session_id is not None
             or session_key is not None
+            or by_recording
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
-        if episode_id is None and (start is None or end is None):
-            raise RuntimeError("start and end must be provided unless using episode_id")
+        if episode_id is None and not by_recording and (start is None or end is None):
+            raise RuntimeError(
+                "start and end must be provided unless using episode_id, "
+                "recording_id, or recording_key"
+            )
         response = self.__session.get(
             self.__url__("/v1/data/topics"),
             params={
@@ -1804,6 +1825,11 @@ class Client:
                 "sessionId": session_id,
                 "sessionKey": session_key,
                 "episodeId": episode_id,
+                "episodeVersion": episode_version,
+                "recordingId": recording_id,
+                "recordingKey": recording_key,
+                "sortBy": sort_by,
+                "sortOrder": sort_order,
                 "limit": limit,
                 "offset": offset,
             },

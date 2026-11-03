@@ -3,6 +3,7 @@ from datetime import datetime
 import pytest
 import responses
 from faker import Faker
+from responses.matchers import query_param_matcher
 from foxglove.client import Client
 from foxglove.client.api import camelize
 from requests.exceptions import RequestException
@@ -71,6 +72,31 @@ def test_get_topics():
     )
     assert len(topics_response) == 1
     assert topics_response[0]["topic"] == "/topic"
+
+
+@responses.activate
+def test_get_topics_by_recording_without_time_range():
+    responses.add(
+        responses.GET,
+        api_url("/v1/data/topics"),
+        match=[
+            query_param_matcher(
+                {
+                    "recordingKey": "run.mcap",
+                    "includeSchemas": "false",
+                    "sortBy": "topic",
+                    "sortOrder": "desc",
+                }
+            )
+        ],
+        json=[],
+    )
+    assert (
+        Client("test").get_topics(
+            recording_key="run.mcap", sort_by="topic", sort_order="desc"
+        )
+        == []
+    )
 
 
 def test_camelize():

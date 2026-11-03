@@ -1666,12 +1666,17 @@ class Client:
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
         Use ``exact_recording_ids`` to match episodes whose recordings are exactly
-        these recording IDs.
+        these recording IDs. Pass None to leave the recording set unrestricted;
+        an empty list raises ValueError.
         Use ``properties_query`` to filter by custom property values.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
         _validate_episode_range(start, end)
+        if exact_recording_ids is not None and not exact_recording_ids:
+            raise ValueError(
+                "exact_recording_ids must contain at least one recording ID"
+            )
         return self._get_page(
             "/v1/episodes",
             _episode_dict,
@@ -1688,7 +1693,9 @@ class Client:
                     ),
                     "recordingId": recording_id,
                     "exactRecordingIds": (
-                        ",".join(exact_recording_ids) if exact_recording_ids else None
+                        ",".join(exact_recording_ids)
+                        if exact_recording_ids is not None
+                        else None
                     ),
                     "propertiesQuery": properties_query,
                     "sortBy": camelize(sort_by),

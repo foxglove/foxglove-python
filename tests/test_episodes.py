@@ -235,6 +235,28 @@ def test_get_and_delete_episode():
 
 
 @responses.activate
+def test_get_episodes_rejects_empty_exact_recording_ids():
+    with pytest.raises(ValueError, match="exact_recording_ids"):
+        Client("test").get_episodes(exact_recording_ids=[])
+
+    assert len(responses.calls) == 0
+
+
+@responses.activate
+def test_get_episodes_omits_none_exact_recording_ids():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes"),
+        match=[query_param_matcher({}, strict_match=True)],
+        json={"episodes": [_episode_json()]},
+    )
+
+    episodes = Client("test").get_episodes(exact_recording_ids=None)
+
+    assert episodes.items[0]["id"] == "ep_1"
+
+
+@responses.activate
 def test_get_episodes_filters_exact_recording_ids():
     responses.add(
         responses.GET,

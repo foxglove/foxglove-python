@@ -274,6 +274,45 @@ def test_dataset_version_actions():
 
 
 @responses.activate
+@pytest.mark.parametrize(
+    "kwargs,body",
+    [({}, {}), ({"description": None}, {"description": None})],
+)
+def test_commit_dataset_keeps_or_clears_description(kwargs, body):
+    responses.add(
+        responses.POST,
+        api_url("/v1/datasets/ds_1/commit"),
+        match=[json_params_matcher(body, strict_match=True)],
+        json={"committed": _version_json(), "editableVersionNumber": 2},
+    )
+
+    Client("test").commit_dataset(dataset_id="ds_1", **kwargs)
+
+    assert len(responses.calls) == 1
+
+
+@responses.activate
+def test_clone_dataset_version():
+    responses.add(
+        responses.POST,
+        api_url("/v1/datasets/ds_1/versions/3/clone"),
+        match=[
+            json_params_matcher(
+                {"name": "Copy", "includeHistory": True}, strict_match=True
+            )
+        ],
+        json={**_dataset_json(), "id": "ds_2", "name": "Copy"},
+    )
+
+    clone = Client("test").clone_dataset_version(
+        dataset_id="ds_1", version_number=3, name="Copy", include_history=True
+    )
+
+    assert clone["id"] == "ds_2"
+    assert clone["name"] == "Copy"
+
+
+@responses.activate
 @pytest.mark.parametrize("description", ["Release candidate", None])
 def test_update_dataset_version(description):
     responses.add(

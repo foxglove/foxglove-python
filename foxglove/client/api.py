@@ -2346,16 +2346,16 @@ class Client:
             "next_cursor": result["nextCursor"],
         }
 
-    def commit_dataset(self, *, dataset_id: str, description: Optional[str] = None):
+    def commit_dataset(self, *, dataset_id: str, description: Any = _UNSET):
         """Commit staged changes and open the next editable version.
 
-        ``description`` sets the committed version's description; if omitted, the
-        editable version's description is kept. To clear a description, use
-        ``update_dataset_version``.
+        ``description`` sets the committed version's description. Pass
+        ``description=None`` to clear it; if omitted, the editable version's
+        description is kept.
         """
+        body = {} if description is _UNSET else {"description": description}
         response = self.__session.post(
-            self.__url__(f"/v1/datasets/{dataset_id}/commit"),
-            json=without_nulls({"description": description}),
+            self.__url__(f"/v1/datasets/{dataset_id}/commit"), json=body
         )
         result = json_or_raise(response)
         return {
@@ -2395,6 +2395,33 @@ class Client:
             "discarded_removes": result["discardedRemoves"],
             "discarded_updates": result["discardedUpdates"],
         }
+
+    def clone_dataset_version(
+        self,
+        *,
+        dataset_id: str,
+        version_number: int,
+        name: str,
+        description: Optional[str] = None,
+        include_history: Optional[bool] = None,
+    ):
+        """Create a new dataset from the episodes of a committed version.
+
+        The new dataset is independent of the source. By default it has a single
+        committed version; ``include_history=True`` copies every version up to and
+        including the cloned one. Either way, it has an empty editable version on top.
+        """
+        response = self.__session.post(
+            self.__url__(f"/v1/datasets/{dataset_id}/versions/{version_number}/clone"),
+            json=without_nulls(
+                {
+                    "name": name,
+                    "description": description,
+                    "includeHistory": include_history,
+                }
+            ),
+        )
+        return _dataset_dict(json_or_raise(response))
 
     def create_episodes(self, *, project_id: str, episodes: List[Dict[str, Any]]):
         """Create episodes, reusing any whose latest version has identical membership, bounds,

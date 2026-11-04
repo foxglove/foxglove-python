@@ -2409,7 +2409,7 @@ class Client:
 
         The new dataset is independent of the source. By default it has a single
         committed version; ``include_history=True`` copies every version up to and
-        including the cloned one. Either way, it has an empty draft on top.
+        including the cloned one. Either way, it has an empty editable version on top.
         """
         response = self.__session.post(
             self.__url__(f"/v1/datasets/{dataset_id}/versions/{version_number}/clone"),

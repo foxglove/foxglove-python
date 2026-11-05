@@ -2943,19 +2943,20 @@ class Client:
         *,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        project_id: str,
+        project_id: Optional[str] = None,
     ):
         """Fetches a single session.
 
         session_id: The ID of the session to fetch
         session_key: The key of the session to fetch
         project_id: The project ID to fetch the session from.
+            Required for multi-project organizations.
         """
         identifier = _session_identifier_for_path(session_id, session_key)
 
         response = self.__session.get(
             self.__url__(f"/v1/sessions/{identifier}"),
-            params={"projectId": project_id},
+            params=without_nulls({"projectId": project_id}),
         )
         return _session_dict(json_or_raise(response))
 
@@ -3000,36 +3001,42 @@ class Client:
         *,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        project_id: str,
-        new_key: Optional[str] = None,
+        project_id: Optional[str] = None,
+        new_key: Any = _UNSET,
         add_recording_ids: Optional[List[str]] = None,
         remove_recording_ids: Optional[List[str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int, None]]] = None,
     ):
         """Updates a session.
 
         session_id: The ID of the session to update.
         session_key: The current key of the session to update.
         project_id: The Project ID to which the session belongs.
+            Required for multi-project organizations.
         new_key: Optional new user-supplied identifier, unique within the project.
+            Pass ``new_key=None`` to clear the session's key.
         add_recording_ids: IDs of recordings to add to the session.
         remove_recording_ids: IDs of recordings to remove from the session.
         properties: Optional custom properties to add to or edit on the session.
             Each key must be defined as a custom property for your organization,
-            and each value must be of the appropriate type.
+            and each value must be of the appropriate type. A value of ``None``
+            unsets that property; properties not included are unchanged.
         """
         identifier = _session_identifier_for_path(session_id, session_key)
 
-        params = {
-            "key": new_key,
-            "addRecordingIds": add_recording_ids,
-            "removeRecordingIds": remove_recording_ids,
-            "properties": properties,
-        }
+        params = without_nulls(
+            {
+                "addRecordingIds": add_recording_ids,
+                "removeRecordingIds": remove_recording_ids,
+                "properties": properties,
+            }
+        )
+        if new_key is not _UNSET:
+            params["key"] = new_key
         response = self.__session.patch(
             self.__url__(f"/v1/sessions/{identifier}"),
-            params={"projectId": project_id},
-            json={k: v for k, v in params.items() if v is not None},
+            params=without_nulls({"projectId": project_id}),
+            json=params,
         )
 
         return _session_dict(json_or_raise(response))
@@ -3039,19 +3046,20 @@ class Client:
         *,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        project_id: str,
+        project_id: Optional[str] = None,
     ):
         """Deletes a session.
 
         session_id: The ID of the session to delete.
         session_key: The key of the session to delete.
         project_id: The Project ID to which the session belongs.
+            Required for multi-project organizations.
         """
         identifier = _session_identifier_for_path(session_id, session_key)
 
         response = self.__session.delete(
             self.__url__(f"/v1/sessions/{identifier}"),
-            params={"projectId": project_id},
+            params=without_nulls({"projectId": project_id}),
         )
 
         return json_or_raise(response)

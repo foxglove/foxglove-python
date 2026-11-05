@@ -3541,8 +3541,9 @@ class Client:
         :param event_type: The event that starts a run, such as "recording.created",
             "recording.imported", "session.created", "event.created",
             "event.updated", or "clock.updated" for a trigger that runs on a schedule.
-        :param enabled: Optionally whether the trigger is enabled. The API enables
-            new triggers by default.
+        :param enabled: Whether the trigger is enabled. When omitted, the trigger is
+            enabled, even when it replaces a disabled trigger. Pass ``enabled=False``
+            to keep a trigger disabled.
         :param schedule: When a "clock.updated" trigger runs, as a dict with a
             ``cadence`` ("hourly", "daily", "weekly", or "monthly") and an
             ``anchor``: a datetime or timestamp string at a whole UTC hour whose

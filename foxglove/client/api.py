@@ -1978,6 +1978,52 @@ class Client:
             for p in json
         ]
 
+    def get_org_members(
+        self,
+        *,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        search: Optional[str] = None,
+        role: Optional[str] = None,
+        status: Optional[str] = None,
+        project_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """
+        List the members of the organization.
+
+        Requires an API key with the ``orgMembers.list`` capability. Keys limited
+        to specific projects are refused.
+
+        :param sort_by: Optionally sort by "display_name", "email", "role",
+            "last_seen_at", "created_at", "status", or "project_count".
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param search: Optionally filter members by name or email.
+        :param role: Optionally filter by role: "admin" or "user".
+        :param status: Optionally filter by status: "active", "invited",
+            "pending-approval", or "denied-approval".
+        :param project_id: Optionally filter members by this project ID.
+        :param limit: Optionally limit the number of members returned.
+        :param offset: Optionally offset the results by this many members.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/org-members"),
+            params=without_nulls(
+                {
+                    "sortBy": camelize(sort_by),
+                    "sortOrder": sort_order,
+                    "search": search,
+                    "role": role,
+                    "status": status,
+                    "projectId": project_id,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ),
+        )
+        return [_org_member_dict(m) for m in json_or_raise(response)]
+
     def create_dataset(
         self,
         *,
@@ -3523,6 +3569,23 @@ def _custom_property_dict(custom_property):
         "value_type": custom_property["valueType"],
         "enum_values": custom_property.get("enumValues"),
         "has_associated_data": custom_property.get("hasAssociatedData"),
+    }
+
+
+def _org_member_dict(member):
+    last_seen_at = member.get("lastSeenAt")
+    return {
+        "id": member["id"],
+        "org_id": member["orgId"],
+        "email": member["email"],
+        "display_name": member.get("displayName"),
+        "avatar_image_url": member.get("avatarImageUrl"),
+        "role": member["role"],
+        "status": member["status"],
+        "project_ids": member.get("projectIds"),
+        "created_at": arrow.get(member["createdAt"]).datetime,
+        "updated_at": arrow.get(member["updatedAt"]).datetime,
+        "last_seen_at": arrow.get(last_seen_at).datetime if last_seen_at else None,
     }
 
 

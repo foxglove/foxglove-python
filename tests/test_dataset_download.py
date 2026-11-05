@@ -399,7 +399,6 @@ def test_manifest_keeps_api_episode_times(tmp_path):
         startTime="2026-09-15T00:00:00.123456789Z",
         endTime="2026-09-15T00:00:00.123456789Z",
     )
-    del member["hasMissingRecordings"]
     responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
     responses.add(
         responses.GET,

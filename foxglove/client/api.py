@@ -2444,8 +2444,8 @@ class Client:
             ``recordings`` or ``event_id``, and may include ``properties``.
             Recording inputs may also include ``start_time`` and ``end_time``, each a datetime
             or an RFC 3339 timestamp string; a string is sent unchanged, so it can carry up
-            to nanosecond precision (for example, a time read from the API). Equal times
-            describe a single instant. An ``event_id``
+            to nanosecond precision. Episode times returned by this client are datetimes with
+            microsecond precision. Equal times describe a single instant. An ``event_id``
             input snapshots the event's current time range and the completed recordings from
             its device that overlap it; later edits to the event or new imports do not change
             the episode. ``properties`` keys must be episode custom properties defined for your
@@ -2745,9 +2745,7 @@ class Client:
                 mapper=_dataset_export_episode_dict,
             ).auto_paging_iter()
         )
-        incomplete = sum(
-            member.get("has_missing_recordings", False) for member in episodes
-        )
+        incomplete = sum(member["has_missing_recordings"] for member in episodes)
         if incomplete:
             raise RuntimeError(
                 f"Version {version_number} can't be downloaded: {incomplete} "

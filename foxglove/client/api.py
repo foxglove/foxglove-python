@@ -3588,6 +3588,119 @@ class Client:
         )
         json_or_raise(response)
 
+    def create_automation_run(
+        self, *, automation_id: str, run_prompt: Optional[str] = None
+    ):
+        """Start a run of an automation and return the pending run.
+
+        Automations are in beta. The run executes as the automation's owner, using
+        the owner's data access and AI usage. Members, including personal access
+        tokens, must pass ``run_prompt``. Organization API keys must omit it, and
+        the run uses only the automation's saved instructions.
+
+        :param automation_id: The ID of the automation to run.
+        :param run_prompt: Free-text instructions for this run, which may reference
+            recordings or other resources.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/automations/runs"),
+            json=without_nulls(
+                {"automationId": automation_id, "runPrompt": run_prompt}
+            ),
+        )
+        return _automation_run_dict(json_or_raise(response))
+
+    def get_automation_runs(
+        self,
+        *,
+        project_id: str,
+        automation_ids: Optional[List[str]] = None,
+        statuses: Optional[List[str]] = None,
+        created_after: Optional[datetime.datetime] = None,
+        created_before: Optional[datetime.datetime] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        owner_member_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """List a project's automation runs, newest first unless ``sort_order`` says
+        otherwise.
+
+        Each run includes its automation's name and what triggered it. Use
+        ``get_automation_run`` to read a run's prompts and final answer.
+        ``trigger_source``, ``trigger_schedule``, and ``token_usage`` are passed
+        through unchanged with the API's field names.
+
+        Automations are in beta. Personal access tokens and organization API keys
+        can list runs.
+
+        :param project_id: The project to list runs from.
+        :param automation_ids: Optionally only include runs of these automations.
+        :param statuses: Optionally only include runs with these statuses, such as
+            "pending", "running", "succeeded", or "failed".
+        :param created_after: Optionally only include runs created at or after this
+            time.
+        :param created_before: Optionally only include runs created at or before
+            this time.
+        :param sort_by: Optionally the field to sort by. Only "created_at" is
+            supported.
+        :param sort_order: Optionally the sort order, either "asc" or "desc".
+        :param owner_member_id: Optionally only include runs of automations owned
+            by this organization member. Use "me" for the member the token acts
+            as; organization API keys can't use "me".
+        :param limit: Optionally limit the number of runs returned.
+        :param offset: Optionally skip this many runs.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/automations/runs"),
+            params=without_nulls(
+                {
+                    "projectId": project_id,
+                    "automationId": (
+                        ",".join(automation_ids) if automation_ids is not None else None
+                    ),
+                    "status": ",".join(statuses) if statuses is not None else None,
+                    "createdAfter": (
+                        created_after.astimezone().isoformat()
+                        if created_after
+                        else None
+                    ),
+                    "createdBefore": (
+                        created_before.astimezone().isoformat()
+                        if created_before
+                        else None
+                    ),
+                    "sortBy": camelize(sort_by),
+                    "sortOrder": sort_order,
+                    "ownerMemberId": owner_member_id,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ),
+        )
+        return [
+            _automation_run_summary_dict(run) for run in json_or_raise(response)["runs"]
+        ]
+
+    def get_automation_run(self, *, run_id: str):
+        """Get an automation run with its prompts and final answer.
+
+        ``final_answer`` is ``None`` until the run finishes with a text answer.
+        ``trigger`` is the trigger that started the run, as it was then, or ``None``
+        for a manual run. ``trigger_source`` and ``token_usage`` are passed through
+        unchanged with the API's field names, and are ``None`` when not applicable.
+
+        Automations are in beta. Personal access tokens and organization API keys
+        can get runs.
+
+        :param run_id: The ID of the run.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/automations/runs/{urlquote(run_id, safe='')}")
+        )
+        return _automation_run_details_dict(json_or_raise(response))
+
 
 def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -> str:
     if session_id is not None and session_key is not None:
@@ -4029,6 +4142,54 @@ def _automation_trigger_dict(trigger):
         "created_at": arrow.get(trigger["createdAt"]).datetime,
         "updated_at": arrow.get(trigger["updatedAt"]).datetime,
         "deleted_at": arrow.get(deleted_at).datetime if deleted_at else None,
+    }
+
+
+def _automation_run_base_dict(run):
+    started_at = run["startedAt"]
+    completed_at = run["completedAt"]
+    return {
+        "id": run["id"],
+        "automation_id": run["automationId"],
+        "status": run["status"],
+        "created_at": arrow.get(run["createdAt"]).datetime,
+        "updated_at": arrow.get(run["updatedAt"]).datetime,
+        "started_at": arrow.get(started_at).datetime if started_at else None,
+        "completed_at": arrow.get(completed_at).datetime if completed_at else None,
+        "error_message": run["errorMessage"],
+    }
+
+
+def _automation_run_dict(run):
+    return {
+        **_automation_run_base_dict(run),
+        "action_prompt": run["actionPrompt"],
+        "run_prompt": run["runPrompt"],
+    }
+
+
+def _automation_run_summary_dict(run):
+    return {
+        **_automation_run_base_dict(run),
+        "automation_name": run["automationName"],
+        "trigger_event_type": run["triggerEventType"],
+        # Passed through with API field names.
+        "trigger_source": run["triggerSource"],
+        "trigger_schedule": run["triggerSchedule"],
+        "token_usage": run["tokenUsage"],
+    }
+
+
+def _automation_run_details_dict(run):
+    trigger = run["trigger"]
+    return {
+        **_automation_run_dict(run),
+        "automation_name": run["automationName"],
+        "final_answer": run["finalAnswer"],
+        "trigger": _automation_trigger_dict(trigger) if trigger else None,
+        # Passed through with API field names.
+        "trigger_source": run["triggerSource"],
+        "token_usage": run["tokenUsage"],
     }
 
 

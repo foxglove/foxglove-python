@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 import responses
+from responses.matchers import query_param_matcher
 from mcap.reader import make_reader
 from mcap.writer import Writer
 
@@ -375,6 +376,8 @@ def test_manifest_timestamps_match_app(tmp_path, monkeypatch):
                     "end_time": instant.replace(microsecond=0),
                 },
                 "has_missing_recordings": False,
+                "raw_start_time": "2024-01-01T00:00:00.123456789Z",
+                "raw_end_time": "2024-01-01T00:00:00.000Z",
             }
         ],
         destination=tmp_path,
@@ -384,5 +387,40 @@ def test_manifest_timestamps_match_app(tmp_path, monkeypatch):
     manifest = json.loads((tmp_path / "manifest.json").read_text())
     assert manifest["generatedAt"] == "2024-01-01T00:00:00.123Z"
     assert manifest["version"]["committedAt"] == "2024-01-01T00:00:00.123Z"
-    assert manifest["episodes"][0]["startTime"] == "2024-01-01T00:00:00.123Z"
+    assert manifest["episodes"][0]["startTime"] == "2024-01-01T00:00:00.123456789Z"
     assert manifest["episodes"][0]["endTime"] == "2024-01-01T00:00:00.000Z"
+
+
+@responses.activate
+def test_manifest_keeps_api_episode_times(tmp_path):
+    member = _dataset_episode_json()
+    # An instant episode at nanosecond precision.
+    member["episode"].update(
+        startTime="2026-09-15T00:00:00.123456789Z",
+        endTime="2026-09-15T00:00:00.123456789Z",
+    )
+    del member["hasMissingRecordings"]
+    responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
+    responses.add(
+        responses.GET,
+        api_url("/v1/datasets/ds_1/versions/1"),
+        json={**_version_json(), "episodeCount": 1},
+    )
+    responses.add(
+        responses.GET,
+        api_url("/v1/datasets/ds_1/versions/1/episodes"),
+        match=[
+            query_param_matcher(
+                {"sortBy": "startTime", "sortOrder": "asc", "limit": "2000"}
+            )
+        ],
+        json={"episodes": [member]},
+    )
+    stream_success()
+
+    output = run_download(tmp_path)
+
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["episodes"][0]["startTime"] == "2026-09-15T00:00:00.123456789Z"
+    assert manifest["episodes"][0]["endTime"] == "2026-09-15T00:00:00.123456789Z"
+    assert manifest["episodes"][0]["status"] == "downloaded"

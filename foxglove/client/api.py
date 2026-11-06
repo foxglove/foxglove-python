@@ -3607,6 +3607,85 @@ class Client:
         )
         json_or_raise(response)
 
+    def get_automation_trigger(self, *, automation_id: str):
+        """Get an automation's current trigger.
+
+        Automations are in beta. The trigger's ``configuration`` is passed through
+        unchanged with the API's field names (``schedule``, ``eventTypeId``).
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}/trigger")
+        )
+        return _automation_trigger_dict(json_or_raise(response))
+
+    def set_automation_trigger(
+        self,
+        *,
+        automation_id: str,
+        event_type: str,
+        enabled: Optional[bool] = None,
+        schedule: Optional[Dict[str, Any]] = None,
+        event_type_id: Optional[str] = None,
+    ):
+        """Replace an automation's trigger and return it as ``get_automation_trigger``
+        does.
+
+        Automations are in beta. Use a personal access token.
+
+        :param automation_id: The ID of the automation.
+        :param event_type: The event that starts a run, such as "recording.created",
+            "recording.imported", "session.created", "event.created",
+            "event.updated", or "clock.updated" for a trigger that runs on a schedule.
+        :param enabled: Whether the trigger is enabled. When omitted, the trigger is
+            enabled, even when it replaces a disabled trigger. Pass ``enabled=False``
+            to keep a trigger disabled.
+        :param schedule: When a "clock.updated" trigger runs, as a dict with a
+            ``cadence`` ("hourly", "daily", "weekly", or "monthly") and an
+            ``anchor``: a datetime or timestamp string at a whole UTC hour whose
+            calendar fields set the recurrence. Datetimes are sent in UTC. Required
+            for "clock.updated" and not allowed for other event types.
+        :param event_type_id: For "event.created" and "event.updated" only. Starts
+            runs only for events of this event type.
+        """
+        configuration = without_nulls(
+            {
+                "schedule": (
+                    {
+                        "cadence": schedule["cadence"],
+                        "anchor": _utc_timestamp(schedule["anchor"]),
+                    }
+                    if schedule is not None
+                    else None
+                ),
+                "eventTypeId": event_type_id,
+            }
+        )
+        response = self.__session.put(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}/trigger"),
+            json=without_nulls(
+                {
+                    "eventType": event_type,
+                    "enabled": enabled,
+                    "configuration": configuration or None,
+                }
+            ),
+        )
+        return _automation_trigger_dict(json_or_raise(response))
+
+    def delete_automation_trigger(self, *, automation_id: str):
+        """Delete an automation's trigger. The automation can still be run manually.
+
+        Automations are in beta. Use a personal access token.
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}/trigger")
+        )
+        json_or_raise(response)
+
 
 def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -> str:
     if session_id is not None and session_key is not None:
@@ -4052,6 +4131,28 @@ def _automation_list_item_dict(automation):
         "trigger_enabled": automation["triggerEnabled"],
         "last_run_at": arrow.get(last_run_at).datetime if last_run_at else None,
         "last_run_status": automation["lastRunStatus"],
+    }
+
+
+def _utc_timestamp(value: Union[datetime.datetime, str]) -> str:
+    if isinstance(value, str):
+        return value
+    return value.astimezone(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _automation_trigger_dict(trigger):
+    deleted_at = trigger["deletedAt"]
+    return {
+        "id": trigger["id"],
+        "automation_id": trigger["automationId"],
+        "event_type": trigger["eventType"],
+        "enabled": trigger["enabled"],
+        "configuration_version": trigger["configurationVersion"],
+        # Passed through with API field names.
+        "configuration": trigger["configuration"],
+        "created_at": arrow.get(trigger["createdAt"]).datetime,
+        "updated_at": arrow.get(trigger["updatedAt"]).datetime,
+        "deleted_at": arrow.get(deleted_at).datetime if deleted_at else None,
     }
 
 

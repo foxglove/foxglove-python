@@ -1402,9 +1402,24 @@ class Client:
         )
         json_or_raise(response)
 
-    def delete_recording(self, *, recording_id: str):
+    def delete_recording(
+        self,
+        *,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+    ):
+        """
+        Deletes a recording and its imported data.
+
+        If the recording was imported from an Edge Site, the copy on the Edge Site
+        is unchanged and the recording can be imported again.
+
+        :param recording_id: The ID of the recording to delete.
+        :param recording_key: The key of the recording to delete.
+        """
+        identifier = _recording_identifier_for_path(recording_id, recording_key)
         response = self.__session.delete(
-            self.__url__(f"/v1/recordings/{recording_id}"),
+            self.__url__(f"/v1/recordings/{identifier}"),
         )
         json_or_raise(response)
 

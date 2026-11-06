@@ -45,6 +45,13 @@ def _validate_episode_range(start, end):
         raise ValueError("start and end must be supplied together")
 
 
+def _episode_time(value: Optional[Union[datetime.datetime, str]]) -> Optional[str]:
+    """Serialize an episode time. A string is sent unchanged, keeping its precision."""
+    if isinstance(value, str):
+        return value
+    return value.astimezone().isoformat() if value else None
+
+
 def _episode_include(
     include_recordings: bool,
     include_properties: bool,
@@ -577,7 +584,9 @@ class Client:
         session_id: ID of a session to download data from
         session_key: Key of a session to download data from
         start: The earliest time from which to retrieve data.
+            Required with device_id or device_name.
         end: The latest time from which to retrieve data.
+            Required with device_id or device_name.
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
         decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
@@ -724,11 +733,9 @@ class Client:
             raise RuntimeError(
                 "recording_id or recording_key cannot be combined with a session"
             )
-        needs_range = episode_id is None and (by_device or not by_recording)
-        if needs_range and (start is None or end is None):
+        if by_device and (start is None or end is None):
             raise RuntimeError(
-                "start and end must be provided unless using episode_id, "
-                "recording_id, or recording_key"
+                "start and end must be provided when using device_id or device_name"
             )
 
         params = {
@@ -790,7 +797,9 @@ class Client:
         session_id: ID of a session to download data from
         session_key: Key of a session to download data from
         start: The earliest time from which to retrieve data.
+            Required with device_id or device_name.
         end: The latest time from which to retrieve data.
+            Required with device_id or device_name.
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
@@ -1394,9 +1403,24 @@ class Client:
         )
         json_or_raise(response)
 
-    def delete_recording(self, *, recording_id: str):
+    def delete_recording(
+        self,
+        *,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+    ):
+        """
+        Deletes a recording and its imported data.
+
+        If the recording was imported from an Edge Site, the copy on the Edge Site
+        is unchanged and the recording can be imported again.
+
+        :param recording_id: The ID of the recording to delete.
+        :param recording_key: The key of the recording to delete.
+        """
+        identifier = _recording_identifier_for_path(recording_id, recording_key)
         response = self.__session.delete(
-            self.__url__(f"/v1/recordings/{recording_id}"),
+            self.__url__(f"/v1/recordings/{identifier}"),
         )
         json_or_raise(response)
 
@@ -1796,8 +1820,11 @@ class Client:
         :param device_id: Optionally filter topics by this device ID.
         :param device_name: Optionally filter topics by this device name.
         :param start: Filter topics by this start time.
+            Required with ``device_id`` or ``device_name``.
         :param end: Filter topics by this end time.
+            Required with ``device_id`` or ``device_name``.
         :param include_schemas: Optionally include the schema in the response.
+            A topic's ``schema`` is ``None`` when the API returns none for it.
         :param project_id: Optional Project to filter topics by.
         :param session_id: ID of a session to list topics from
         :param session_key: Key of a session to list topics from
@@ -1826,10 +1853,11 @@ class Client:
             or by_recording
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
-        if episode_id is None and not by_recording and (start is None or end is None):
+        if (device_id is not None or device_name is not None) and (
+            start is None or end is None
+        ):
             raise RuntimeError(
-                "start and end must be provided unless using episode_id, "
-                "recording_id, or recording_key"
+                "start and end must be provided when using device_id or device_name"
             )
         response = self.__session.get(
             self.__url__("/v1/data/topics"),
@@ -1865,7 +1893,10 @@ class Client:
                 "schema_name": t["schemaName"],
             }
             if include_schemas:
-                result["schema"] = base64.b64decode(t["schema"])
+                schema = t.get("schema")
+                result["schema"] = (
+                    base64.b64decode(schema) if schema is not None else None
+                )
             results.append(result)
         return results
 
@@ -1979,6 +2010,52 @@ class Client:
             for p in json
         ]
 
+    def get_org_members(
+        self,
+        *,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        search: Optional[str] = None,
+        role: Optional[str] = None,
+        status: Optional[str] = None,
+        project_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """
+        List the members of the organization.
+
+        Requires an API key with the ``orgMembers.list`` capability. Keys limited
+        to specific projects are refused.
+
+        :param sort_by: Optionally sort by "display_name", "email", "role",
+            "last_seen_at", "created_at", "status", or "project_count".
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param search: Optionally filter members by name or email.
+        :param role: Optionally filter by role: "admin" or "user".
+        :param status: Optionally filter by status: "active", "invited",
+            "pending-approval", or "denied-approval".
+        :param project_id: Optionally filter members by this project ID.
+        :param limit: Optionally limit the number of members returned.
+        :param offset: Optionally offset the results by this many members.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/org-members"),
+            params=without_nulls(
+                {
+                    "sortBy": camelize(sort_by),
+                    "sortOrder": sort_order,
+                    "search": search,
+                    "role": role,
+                    "status": status,
+                    "projectId": project_id,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ),
+        )
+        return [_org_member_dict(m) for m in json_or_raise(response)]
+
     def create_dataset(
         self,
         *,
@@ -2091,8 +2168,8 @@ class Client:
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        start: Optional[Union[datetime.datetime, str]] = None,
+        end: Optional[Union[datetime.datetime, str]] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         properties_query: Optional[str] = None,
@@ -2106,6 +2183,8 @@ class Client:
         which keeps the API's field names.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
+        Each is a datetime or an RFC 3339 timestamp string, which is sent unchanged
+        and may have up to nanosecond precision.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
@@ -2214,8 +2293,8 @@ class Client:
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        start: Optional[Union[datetime.datetime, str]] = None,
+        end: Optional[Union[datetime.datetime, str]] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         properties_query: Optional[str] = None,
@@ -2229,6 +2308,8 @@ class Client:
         which keeps the API's field names.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
+        Each is a datetime or an RFC 3339 timestamp string, which is sent unchanged
+        and may have up to nanosecond precision.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
@@ -2258,14 +2339,15 @@ class Client:
         sort_order: Optional[str],
         limit: Optional[int],
         cursor: Optional[str],
-        start: Optional[datetime.datetime],
-        end: Optional[datetime.datetime],
+        start: Optional[Union[datetime.datetime, str]],
+        end: Optional[Union[datetime.datetime, str]],
         has_missing_recordings: Optional[bool],
         recording_id: Optional[str],
         properties_query: Optional[str],
         include_recordings: bool,
         include_properties: bool,
         include_creation_context: bool,
+        mapper: Optional[Callable[[Any], Any]] = None,
     ):
         _validate_episode_range(start, end)
         path = f"/v1/datasets/{dataset_id}"
@@ -2274,7 +2356,7 @@ class Client:
         path += "/episodes"
         return self._get_page(
             path,
-            _dataset_episode_dict,
+            mapper or _dataset_episode_dict,
             collection="episodes",
             params=without_nulls(
                 {
@@ -2282,8 +2364,8 @@ class Client:
                     "sortOrder": sort_order,
                     "limit": limit,
                     "cursor": cursor,
-                    "start": start.astimezone().isoformat() if start else None,
-                    "end": end.astimezone().isoformat() if end else None,
+                    "start": _episode_time(start),
+                    "end": _episode_time(end),
                     "hasMissingRecordings": (
                         bool_query_param(has_missing_recordings)
                         if has_missing_recordings is not None
@@ -2431,7 +2513,10 @@ class Client:
         :param project_id: Project in which to create the episodes.
         :param episodes: Episode definitions. Each dictionary requires exactly one of
             ``recordings`` or ``event_id``, and may include ``properties``.
-            Recording inputs may also include ``start_time`` and ``end_time``. An ``event_id``
+            Recording inputs may also include ``start_time`` and ``end_time``, each a datetime
+            or an RFC 3339 timestamp string; a string is sent unchanged, so it can carry up
+            to nanosecond precision. Episode times returned by this client are datetimes with
+            microsecond precision. Equal times describe a single instant. An ``event_id``
             input snapshots the event's current time range and the completed recordings from
             its device that overlap it; later edits to the event or new imports do not change
             the episode. ``properties`` keys must be episode custom properties defined for your
@@ -2459,12 +2544,8 @@ class Client:
                     {
                         "eventId": event_id,
                         "recordings": recordings,
-                        "startTime": (
-                            start_time.astimezone().isoformat() if start_time else None
-                        ),
-                        "endTime": (
-                            end_time.astimezone().isoformat() if end_time else None
-                        ),
+                        "startTime": _episode_time(start_time),
+                        "endTime": _episode_time(end_time),
                         "properties": episode.get("properties"),
                     }
                 )
@@ -2483,7 +2564,9 @@ class Client:
         :param episodes: Episode updates. Each dictionary requires ``id`` and may include
             ``applies_to_version``, ``start_time``, ``end_time``, ``recordings``, and
             ``properties``. ``applies_to_version`` rejects the update if the episode's latest
-            version differs. ``recordings`` is a dictionary with optional ``add`` and
+            version differs. ``start_time`` and ``end_time`` are each a datetime or an RFC 3339
+            timestamp string; a string is sent unchanged, so it can carry up to nanosecond
+            precision. ``recordings`` is a dictionary with optional ``add`` and
             ``remove`` lists of recording IDs. ``properties`` keys not included in the
             update keep their values; to unset a property, pass None as the value.
         """
@@ -2492,16 +2575,8 @@ class Client:
                 {
                     "id": episode["id"],
                     "appliesToVersion": episode.get("applies_to_version"),
-                    "startTime": (
-                        episode["start_time"].astimezone().isoformat()
-                        if episode.get("start_time")
-                        else None
-                    ),
-                    "endTime": (
-                        episode["end_time"].astimezone().isoformat()
-                        if episode.get("end_time")
-                        else None
-                    ),
+                    "startTime": _episode_time(episode.get("start_time")),
+                    "endTime": _episode_time(episode.get("end_time")),
                     "recordings": episode.get("recordings"),
                     "properties": episode.get("properties"),
                 }
@@ -2518,8 +2593,8 @@ class Client:
         self,
         *,
         project_id: Optional[str] = None,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        start: Optional[Union[datetime.datetime, str]] = None,
+        end: Optional[Union[datetime.datetime, str]] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         exact_recording_ids: Optional[List[str]] = None,
@@ -2538,6 +2613,8 @@ class Client:
         which keeps the API's field names.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
+        Each is a datetime or an RFC 3339 timestamp string, which is sent unchanged
+        and may have up to nanosecond precision.
         Use ``exact_recording_ids`` to match episodes whose recordings are exactly
         these recording IDs. Pass None to leave the recording set unrestricted;
         an empty list raises ValueError.
@@ -2557,8 +2634,8 @@ class Client:
             params=without_nulls(
                 {
                     "projectId": project_id,
-                    "start": start.astimezone().isoformat() if start else None,
-                    "end": end.astimezone().isoformat() if end else None,
+                    "start": _episode_time(start),
+                    "end": _episode_time(end),
                     "hasMissingRecordings": (
                         bool_query_param(has_missing_recordings)
                         if has_missing_recordings is not None
@@ -2636,8 +2713,8 @@ class Client:
         *,
         episode_id: str,
         applies_to_version: Optional[int] = None,
-        start_time: Optional[datetime.datetime] = None,
-        end_time: Optional[datetime.datetime] = None,
+        start_time: Optional[Union[datetime.datetime, str]] = None,
+        end_time: Optional[Union[datetime.datetime, str]] = None,
         recordings: Optional[Dict[str, List[str]]] = None,
         properties: Optional[Dict[str, Any]] = None,
     ):
@@ -2648,8 +2725,11 @@ class Client:
         :param episode_id: The id of the episode.
         :param applies_to_version: Reject the update if the episode's latest version
             differs.
-        :param start_time: Optional new start of the episode window.
-        :param end_time: Optional new end of the episode window.
+        :param start_time: Optional new start of the episode window, as a datetime or an
+            RFC 3339 timestamp string. A string is sent unchanged, so it can carry up to
+            nanosecond precision.
+        :param end_time: Optional new end of the episode window, in the same forms as
+            ``start_time``. Equal start and end times describe a single instant.
         :param recordings: Optional dictionary with ``add`` and ``remove`` lists of
             recording IDs.
         :param properties: Optional custom properties to merge. Keys not included keep
@@ -2660,10 +2740,8 @@ class Client:
             json=without_nulls(
                 {
                     "appliesToVersion": applies_to_version,
-                    "startTime": (
-                        start_time.astimezone().isoformat() if start_time else None
-                    ),
-                    "endTime": end_time.astimezone().isoformat() if end_time else None,
+                    "startTime": _episode_time(start_time),
+                    "endTime": _episode_time(end_time),
                     "recordings": recordings,
                     "properties": properties,
                 }
@@ -2720,13 +2798,22 @@ class Client:
         # Capture the complete selection before transfers, so incomplete versions are
         # refused before anything is written. MCAP bytes stay streamed.
         episodes = list(
-            self.get_dataset_version_episodes(
+            self._get_dataset_episodes(
                 dataset_id=dataset_id,
                 version_number=version_number,
                 sort_by="start_time",
                 sort_order="asc",
                 limit=2000,
+                cursor=None,
+                start=None,
+                end=None,
+                has_missing_recordings=None,
+                recording_id=None,
+                properties_query=None,
+                include_recordings=False,
                 include_properties=include_properties,
+                include_creation_context=False,
+                mapper=_dataset_export_episode_dict,
             ).auto_paging_iter()
         )
         incomplete = sum(member["has_missing_recordings"] for member in episodes)
@@ -2944,19 +3031,20 @@ class Client:
         *,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        project_id: str,
+        project_id: Optional[str] = None,
     ):
         """Fetches a single session.
 
         session_id: The ID of the session to fetch
         session_key: The key of the session to fetch
         project_id: The project ID to fetch the session from.
+            Required for multi-project organizations.
         """
         identifier = _session_identifier_for_path(session_id, session_key)
 
         response = self.__session.get(
             self.__url__(f"/v1/sessions/{identifier}"),
-            params={"projectId": project_id},
+            params=without_nulls({"projectId": project_id}),
         )
         return _session_dict(json_or_raise(response))
 
@@ -2966,7 +3054,7 @@ class Client:
         device_id: Optional[str] = None,
         key: Optional[str] = None,
         recording_ids: Optional[List[str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int, List[str]]]] = None,
     ):
         """Creates a new session.
 
@@ -3001,36 +3089,44 @@ class Client:
         *,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        project_id: str,
-        new_key: Optional[str] = None,
+        project_id: Optional[str] = None,
+        new_key: Any = _UNSET,
         add_recording_ids: Optional[List[str]] = None,
         remove_recording_ids: Optional[List[str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[
+            Dict[str, Union[str, bool, float, int, List[str], None]]
+        ] = None,
     ):
         """Updates a session.
 
         session_id: The ID of the session to update.
         session_key: The current key of the session to update.
         project_id: The Project ID to which the session belongs.
+            Required for multi-project organizations.
         new_key: Optional new user-supplied identifier, unique within the project.
+            Pass ``new_key=None`` to clear the session's key.
         add_recording_ids: IDs of recordings to add to the session.
         remove_recording_ids: IDs of recordings to remove from the session.
         properties: Optional custom properties to add to or edit on the session.
             Each key must be defined as a custom property for your organization,
-            and each value must be of the appropriate type.
+            and each value must be of the appropriate type. A value of ``None``
+            unsets that property; properties not included are unchanged.
         """
         identifier = _session_identifier_for_path(session_id, session_key)
 
-        params = {
-            "key": new_key,
-            "addRecordingIds": add_recording_ids,
-            "removeRecordingIds": remove_recording_ids,
-            "properties": properties,
-        }
+        params = without_nulls(
+            {
+                "addRecordingIds": add_recording_ids,
+                "removeRecordingIds": remove_recording_ids,
+                "properties": properties,
+            }
+        )
+        if new_key is not _UNSET:
+            params["key"] = new_key
         response = self.__session.patch(
             self.__url__(f"/v1/sessions/{identifier}"),
-            params={"projectId": project_id},
-            json={k: v for k, v in params.items() if v is not None},
+            params=without_nulls({"projectId": project_id}),
+            json=params,
         )
 
         return _session_dict(json_or_raise(response))
@@ -3040,19 +3136,20 @@ class Client:
         *,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        project_id: str,
+        project_id: Optional[str] = None,
     ):
         """Deletes a session.
 
         session_id: The ID of the session to delete.
         session_key: The key of the session to delete.
         project_id: The Project ID to which the session belongs.
+            Required for multi-project organizations.
         """
         identifier = _session_identifier_for_path(session_id, session_key)
 
         response = self.__session.delete(
             self.__url__(f"/v1/sessions/{identifier}"),
-            params={"projectId": project_id},
+            params=without_nulls({"projectId": project_id}),
         )
 
         return json_or_raise(response)
@@ -3411,6 +3508,298 @@ class Client:
         response = self.__session.delete(self.__url__(f"/v1/extensions/{extension_id}"))
         json_or_raise(response)
 
+    def get_automations(
+        self,
+        *,
+        project_id: str,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """List a project's automations, newest first.
+
+        Each automation has the fields returned by ``get_automation`` plus its
+        lifetime run count, whether its trigger is enabled (``None`` without a
+        trigger), and the time and status of its latest run (``None`` before its
+        first run).
+
+        Automations are in beta. Personal access tokens and organization API keys
+        can list automations.
+
+        :param project_id: The project to list automations from.
+        :param limit: Optionally limit the number of automations returned.
+        :param offset: Optionally skip this many automations.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/automations"),
+            params=without_nulls(
+                {"projectId": project_id, "limit": limit, "offset": offset}
+            ),
+        )
+        return [
+            _automation_list_item_dict(automation)
+            for automation in json_or_raise(response)["automations"]
+        ]
+
+    def get_automation(self, *, automation_id: str):
+        """Get an automation's saved definition.
+
+        Automations are in beta. ``permissions`` is passed through unchanged with
+        the API's field names (``canEdit``, ``canRun``, ``canDelete``).
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}")
+        )
+        return _automation_dict(json_or_raise(response))
+
+    def create_automation(self, *, project_id: str, name: str, action_prompt: str):
+        """Create an automation and return it as ``get_automation`` does.
+
+        Automations are in beta. Use a personal access token: the automation acts
+        as its owner, with the owner's access to data in the project. Organization
+        API keys can't create automations.
+
+        :param project_id: The project the automation belongs to.
+        :param name: A name for the automation.
+        :param action_prompt: The saved instructions the automation runs with.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/automations"),
+            json={"projectId": project_id, "name": name, "actionPrompt": action_prompt},
+        )
+        return _automation_dict(json_or_raise(response))
+
+    def update_automation(
+        self,
+        *,
+        automation_id: str,
+        name: Optional[str] = None,
+        action_prompt: Optional[str] = None,
+    ):
+        """Edit an automation's name or saved instructions.
+
+        Automations are in beta. Use a personal access token. Existing runs keep
+        the instructions they ran with.
+
+        :param automation_id: The ID of the automation.
+        :param name: Optionally a new name.
+        :param action_prompt: Optionally new saved instructions.
+        """
+        if name is None and action_prompt is None:
+            raise ValueError("name or action_prompt must be provided")
+        response = self.__session.patch(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}"),
+            json=without_nulls({"name": name, "actionPrompt": action_prompt}),
+        )
+        return _automation_dict(json_or_raise(response))
+
+    def delete_automation(self, *, automation_id: str):
+        """Delete an automation and its trigger.
+
+        Automations are in beta. Use a personal access token. Its runs are no
+        longer listed; runs in progress finish, and runs that have not started are
+        rejected.
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}")
+        )
+        json_or_raise(response)
+
+    def get_automation_trigger(self, *, automation_id: str):
+        """Get an automation's current trigger.
+
+        Automations are in beta. The trigger's ``configuration`` is passed through
+        unchanged with the API's field names (``schedule``, ``eventTypeId``).
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}/trigger")
+        )
+        return _automation_trigger_dict(json_or_raise(response))
+
+    def set_automation_trigger(
+        self,
+        *,
+        automation_id: str,
+        event_type: str,
+        enabled: Optional[bool] = None,
+        schedule: Optional[Dict[str, Any]] = None,
+        event_type_id: Optional[str] = None,
+    ):
+        """Replace an automation's trigger and return it as ``get_automation_trigger``
+        does.
+
+        Automations are in beta. Use a personal access token.
+
+        :param automation_id: The ID of the automation.
+        :param event_type: The event that starts a run, such as "recording.created",
+            "recording.imported", "session.created", "event.created",
+            "event.updated", or "clock.updated" for a trigger that runs on a schedule.
+        :param enabled: Whether the trigger is enabled. When omitted, the trigger is
+            enabled, even when it replaces a disabled trigger. Pass ``enabled=False``
+            to keep a trigger disabled.
+        :param schedule: When a "clock.updated" trigger runs, as a dict with a
+            ``cadence`` ("hourly", "daily", "weekly", or "monthly") and an
+            ``anchor``: a datetime or timestamp string at a whole UTC hour whose
+            calendar fields set the recurrence. Datetimes are sent in UTC. Required
+            for "clock.updated" and not allowed for other event types.
+        :param event_type_id: For "event.created" and "event.updated" only. Starts
+            runs only for events of this event type.
+        """
+        configuration = without_nulls(
+            {
+                "schedule": (
+                    {
+                        "cadence": schedule["cadence"],
+                        "anchor": _utc_timestamp(schedule["anchor"]),
+                    }
+                    if schedule is not None
+                    else None
+                ),
+                "eventTypeId": event_type_id,
+            }
+        )
+        response = self.__session.put(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}/trigger"),
+            json=without_nulls(
+                {
+                    "eventType": event_type,
+                    "enabled": enabled,
+                    "configuration": configuration or None,
+                }
+            ),
+        )
+        return _automation_trigger_dict(json_or_raise(response))
+
+    def delete_automation_trigger(self, *, automation_id: str):
+        """Delete an automation's trigger. The automation can still be run manually.
+
+        Automations are in beta. Use a personal access token.
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}/trigger")
+        )
+        json_or_raise(response)
+
+    def create_automation_run(
+        self, *, automation_id: str, run_prompt: Optional[str] = None
+    ):
+        """Start a run of an automation and return the pending run.
+
+        Automations are in beta. The run executes as the automation's owner, using
+        the owner's data access and AI usage. Members, including personal access
+        tokens, must pass ``run_prompt``. Organization API keys must omit it, and
+        the run uses only the automation's saved instructions.
+
+        :param automation_id: The ID of the automation to run.
+        :param run_prompt: Free-text instructions for this run, which may reference
+            recordings or other resources.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/automations/runs"),
+            json=without_nulls(
+                {"automationId": automation_id, "runPrompt": run_prompt}
+            ),
+        )
+        return _automation_run_dict(json_or_raise(response))
+
+    def get_automation_runs(
+        self,
+        *,
+        project_id: str,
+        automation_ids: Optional[List[str]] = None,
+        statuses: Optional[List[str]] = None,
+        created_after: Optional[datetime.datetime] = None,
+        created_before: Optional[datetime.datetime] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        owner_member_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """List a project's automation runs, newest first unless ``sort_order`` says
+        otherwise.
+
+        Each run includes its automation's name and what triggered it. Use
+        ``get_automation_run`` to read a run's prompts and final answer.
+        ``trigger_source``, ``trigger_schedule``, and ``token_usage`` are passed
+        through unchanged with the API's field names.
+
+        Automations are in beta. Personal access tokens and organization API keys
+        can list runs.
+
+        :param project_id: The project to list runs from.
+        :param automation_ids: Optionally only include runs of these automations.
+        :param statuses: Optionally only include runs with these statuses, such as
+            "pending", "running", "succeeded", or "failed".
+        :param created_after: Optionally only include runs created at or after this
+            time.
+        :param created_before: Optionally only include runs created at or before
+            this time.
+        :param sort_by: Optionally the field to sort by. Only "created_at" is
+            supported.
+        :param sort_order: Optionally the sort order, either "asc" or "desc".
+        :param owner_member_id: Optionally only include runs of automations owned
+            by this organization member. Use "me" for the member the token acts
+            as; organization API keys can't use "me".
+        :param limit: Optionally limit the number of runs returned.
+        :param offset: Optionally skip this many runs.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/automations/runs"),
+            params=without_nulls(
+                {
+                    "projectId": project_id,
+                    "automationId": (
+                        ",".join(automation_ids) if automation_ids is not None else None
+                    ),
+                    "status": ",".join(statuses) if statuses is not None else None,
+                    "createdAfter": (
+                        created_after.astimezone().isoformat()
+                        if created_after
+                        else None
+                    ),
+                    "createdBefore": (
+                        created_before.astimezone().isoformat()
+                        if created_before
+                        else None
+                    ),
+                    "sortBy": camelize(sort_by),
+                    "sortOrder": sort_order,
+                    "ownerMemberId": owner_member_id,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ),
+        )
+        return [
+            _automation_run_summary_dict(run) for run in json_or_raise(response)["runs"]
+        ]
+
+    def get_automation_run(self, *, run_id: str):
+        """Get an automation run with its prompts and final answer.
+
+        ``final_answer`` is ``None`` until the run finishes with a text answer.
+        ``trigger`` is the trigger that started the run, as it was then, or ``None``
+        for a manual run. ``trigger_source`` and ``token_usage`` are passed through
+        unchanged with the API's field names, and are ``None`` when not applicable.
+
+        Automations are in beta. Personal access tokens and organization API keys
+        can get runs.
+
+        :param run_id: The ID of the run.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/automations/runs/{urlquote(run_id, safe='')}")
+        )
+        return _automation_run_details_dict(json_or_raise(response))
+
 
 def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -> str:
     if session_id is not None and session_key is not None:
@@ -3524,6 +3913,23 @@ def _custom_property_dict(custom_property):
         "value_type": custom_property["valueType"],
         "enum_values": custom_property.get("enumValues"),
         "has_associated_data": custom_property.get("hasAssociatedData"),
+    }
+
+
+def _org_member_dict(member):
+    last_seen_at = member.get("lastSeenAt")
+    return {
+        "id": member["id"],
+        "org_id": member["orgId"],
+        "email": member["email"],
+        "display_name": member.get("displayName"),
+        "avatar_image_url": member.get("avatarImageUrl"),
+        "role": member["role"],
+        "status": member["status"],
+        "project_ids": member.get("projectIds"),
+        "created_at": arrow.get(member["createdAt"]).datetime,
+        "updated_at": arrow.get(member["updatedAt"]).datetime,
+        "last_seen_at": arrow.get(last_seen_at).datetime if last_seen_at else None,
     }
 
 
@@ -3754,6 +4160,15 @@ def _dataset_episode_dict(dataset_episode):
     return result
 
 
+def _dataset_export_episode_dict(dataset_episode):
+    # The manifest keeps the API's episode window strings, which can be more precise
+    # than a datetime.
+    result = _dataset_episode_dict(dataset_episode)
+    result["raw_start_time"] = dataset_episode["episode"]["startTime"]
+    result["raw_end_time"] = dataset_episode["episode"]["endTime"]
+    return result
+
+
 def _site_token_dict(token):
     result = {
         "id": token["id"],
@@ -3805,6 +4220,101 @@ def _device_custom_property_time_interval_dict(interval):
         "value": interval["value"],
         "start": arrow.get(interval["start"]).datetime,
         "end": arrow.get(end).datetime if end else None,
+    }
+
+
+def _automation_dict(automation):
+    return {
+        "id": automation["id"],
+        "project_id": automation["projectId"],
+        "name": automation["name"],
+        "action_prompt": automation["actionPrompt"],
+        "is_owner": automation["isOwner"],
+        # Passed through with API field names.
+        "permissions": automation["permissions"],
+        "created_at": arrow.get(automation["createdAt"]).datetime,
+        "updated_at": arrow.get(automation["updatedAt"]).datetime,
+    }
+
+
+def _automation_list_item_dict(automation):
+    last_run_at = automation["lastRunAt"]
+    return {
+        **_automation_dict(automation),
+        "lifetime_run_count": automation["lifetimeRunCount"],
+        "trigger_enabled": automation["triggerEnabled"],
+        "last_run_at": arrow.get(last_run_at).datetime if last_run_at else None,
+        "last_run_status": automation["lastRunStatus"],
+    }
+
+
+def _utc_timestamp(value: Union[datetime.datetime, str]) -> str:
+    if isinstance(value, str):
+        return value
+    return value.astimezone(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _automation_trigger_dict(trigger):
+    deleted_at = trigger["deletedAt"]
+    return {
+        "id": trigger["id"],
+        "automation_id": trigger["automationId"],
+        "event_type": trigger["eventType"],
+        "enabled": trigger["enabled"],
+        "configuration_version": trigger["configurationVersion"],
+        # Passed through with API field names.
+        "configuration": trigger["configuration"],
+        "created_at": arrow.get(trigger["createdAt"]).datetime,
+        "updated_at": arrow.get(trigger["updatedAt"]).datetime,
+        "deleted_at": arrow.get(deleted_at).datetime if deleted_at else None,
+    }
+
+
+def _automation_run_base_dict(run):
+    started_at = run["startedAt"]
+    completed_at = run["completedAt"]
+    return {
+        "id": run["id"],
+        "automation_id": run["automationId"],
+        "status": run["status"],
+        "created_at": arrow.get(run["createdAt"]).datetime,
+        "updated_at": arrow.get(run["updatedAt"]).datetime,
+        "started_at": arrow.get(started_at).datetime if started_at else None,
+        "completed_at": arrow.get(completed_at).datetime if completed_at else None,
+        "error_message": run["errorMessage"],
+    }
+
+
+def _automation_run_dict(run):
+    return {
+        **_automation_run_base_dict(run),
+        "action_prompt": run["actionPrompt"],
+        "run_prompt": run["runPrompt"],
+    }
+
+
+def _automation_run_summary_dict(run):
+    return {
+        **_automation_run_base_dict(run),
+        "automation_name": run["automationName"],
+        "trigger_event_type": run["triggerEventType"],
+        # Passed through with API field names.
+        "trigger_source": run["triggerSource"],
+        "trigger_schedule": run["triggerSchedule"],
+        "token_usage": run["tokenUsage"],
+    }
+
+
+def _automation_run_details_dict(run):
+    trigger = run["trigger"]
+    return {
+        **_automation_run_dict(run),
+        "automation_name": run["automationName"],
+        "final_answer": run["finalAnswer"],
+        "trigger": _automation_trigger_dict(trigger) if trigger else None,
+        # Passed through with API field names.
+        "trigger_source": run["triggerSource"],
+        "token_usage": run["tokenUsage"],
     }
 
 

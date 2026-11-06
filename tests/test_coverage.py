@@ -70,3 +70,15 @@ def test_get_coverage_by_recording_with_edge_recordings():
         recording_key="run.mcap", include_edge_recordings=True
     )
     assert coverage[0]["import_status"] == "pending"
+
+
+@responses.activate
+def test_get_coverage_with_fractional_tolerance():
+    responses.add(
+        responses.GET,
+        api_url("/v1/data/coverage"),
+        match=[query_param_matcher({"recordingId": "rec_1", "tolerance": "15.5"})],
+        json=[],
+    )
+    coverage = Client("test").get_coverage(recording_id="rec_1", tolerance=15.5)
+    assert coverage == []

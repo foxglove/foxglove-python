@@ -110,6 +110,96 @@ def test_update_episodes_serializes_inputs():
     }
 
 
+# The same instant at nanosecond precision, written with different offsets.
+NS_START = "2026-09-15T05:30:00.123456789+05:30"
+NS_END = "2026-09-15T00:00:00.123456789Z"
+
+
+@responses.activate
+def test_episode_time_strings_are_sent_unchanged():
+    responses.add(
+        responses.POST,
+        api_url("/v1/episodes"),
+        match=[
+            json_params_matcher(
+                {
+                    "projectId": "prj_1",
+                    "episodes": [
+                        {
+                            "recordings": ["rec_1"],
+                            "startTime": NS_START,
+                            "endTime": NS_END,
+                        }
+                    ],
+                },
+                strict_match=True,
+            )
+        ],
+        json={"episodes": [{"id": "ep_1", "created": True}]},
+    )
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes"),
+        match=[
+            json_params_matcher(
+                {
+                    "episodes": [
+                        {
+                            "id": "ep_1",
+                            "startTime": NS_START,
+                            "endTime": NOW.replace(minute=1).astimezone().isoformat(),
+                        }
+                    ]
+                },
+                strict_match=True,
+            )
+        ],
+        json={"episodes": [{"id": "ep_1", "version": 3}]},
+    )
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes/ep_1"),
+        match=[
+            json_params_matcher(
+                {"startTime": NS_START, "endTime": NS_END}, strict_match=True
+            )
+        ],
+        json=_episode_json(),
+    )
+    client = Client("test")
+
+    client.create_episodes(
+        project_id="prj_1",
+        episodes=[
+            {"recordings": ["rec_1"], "start_time": NS_START, "end_time": NS_END}
+        ],
+    )
+    client.update_episodes(
+        episodes=[
+            {"id": "ep_1", "start_time": NS_START, "end_time": NOW.replace(minute=1)}
+        ]
+    )
+    episode = client.update_episode(
+        episode_id="ep_1", start_time=NS_START, end_time=NS_END
+    )
+
+    assert episode["start_time"] == NOW
+
+
+@responses.activate
+def test_get_episodes_sends_string_window_unchanged():
+    responses.add(
+        responses.GET,
+        api_url("/v1/episodes"),
+        match=[query_param_matcher({"start": NS_START, "end": NS_END})],
+        json={"episodes": [_episode_json()]},
+    )
+
+    episodes = Client("test").get_episodes(start=NS_START, end=NS_END)
+
+    assert episodes.items[0]["id"] == "ep_1"
+
+
 @responses.activate
 def test_create_episodes_serializes_event_inputs():
     responses.add(
@@ -485,20 +575,18 @@ def test_download_without_episode_requires_time_range():
         client.download_data(device_id="dev_1")
 
     assert str(raised.value) == (
-        "start and end must be provided unless using episode_id, "
-        "recording_id, or recording_key"
+        "start and end must be provided when using device_id or device_name"
     )
 
 
-def test_get_topics_without_episode_requires_time_range():
+def test_get_topics_by_device_requires_time_range():
     client = Client("test")
 
     with pytest.raises(RuntimeError) as raised:
-        client.get_topics(session_id="ses_1")
+        client.get_topics(device_name="robot", start=datetime(2025, 1, 1))
 
     assert str(raised.value) == (
-        "start and end must be provided unless using episode_id, "
-        "recording_id, or recording_key"
+        "start and end must be provided when using device_id or device_name"
     )
 
 

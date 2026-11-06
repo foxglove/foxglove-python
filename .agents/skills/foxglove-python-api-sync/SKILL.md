@@ -11,11 +11,11 @@ Sync only the methods, endpoints, or fields the user requests. A spec revision, 
 
 This repository is public and published to PyPI as `foxglove-client`. Describe changes in terms of observable public API behavior and Python client behavior.
 
-Private sources may inform implementation, but must not appear in public artifacts, including PR titles and descriptions, comments, branch names, commit messages, documentation, docstrings, code, and test fixtures. Do not include private repository names, paths, symbols, revisions, PRs, issues, links, or details of backend architecture, storage, authorization mechanisms, or deployment.
+Private sources may inform implementation, but must not appear in public artifacts, including PR titles and descriptions, comments, branch names, commit messages, documentation, docstrings, code, and test fixtures, except for the Linear issue references allowed below. Do not include private repository names, paths, symbols, revisions, PRs, other issues or links, or details of backend architecture, storage, authorization mechanisms, or deployment.
 
 Explain what callers can send, what they receive, and any compatibility changes. Include endpoint paths and schema fields only when they are part of the public API contract. Describe Python client internals when useful; do not describe the private API or app implementation.
 
-Use publicly accessible references only. An internal source does not become suitable for publication merely because it defines public behavior. Never mention open security issues, including their existence or details.
+Use publicly accessible references, with one exception: Foxglove Linear issue IDs and links are allowed for tracking and issue closure. Use the issue ID as the link text and `https://linear.app/foxglove/issue/<ISSUE-ID>` as the URL; omit descriptive URL slugs, issue titles, and other private issue details. Other non-public URLs are not allowed. An internal source does not become suitable for publication merely because it defines public behavior. Never mention open security issues, including their existence or details; the Linear exception does not apply to them.
 
 ## Establish scope and source
 
@@ -54,11 +54,11 @@ Before delivery, review the diff for correctness and simplicity. Remove redundan
 Whenever drafting, creating, or updating a PR description, fetch and follow the [Foxglove PR template](https://github.com/foxglove/.github/blob/main/.github/pull_request_template.md), including for a local draft. Use authenticated GitHub access if needed. Preserve its section order and Before/After table:
 
 - **Changelog:** Always include a concise, one-sentence user-facing changelog message. Use `None` only when there is no user-facing change.
-- **Docs:** Link the public documentation PR or public tracking issue; use `None` when no documentation changes are needed. If documentation work is needed but no public link is available, describe it briefly without private identifiers. Do not invent links.
+- **Docs:** Link the public documentation PR, public tracking issue, or Foxglove Linear issue using the format above; use `None` when no documentation changes are needed. If documentation work is needed but no permitted link is available, describe it briefly without private details. Do not invent links.
 - **Description:** For a small change, use one short paragraph explaining the problem, resulting behavior, and compatibility, plus one concise validation sentence. Mention material blockers or publication uncertainty briefly; omit process history and repeated implementation details.
 - **Before/After table:** Keep the template table with one representative call, such as `client.get_event_types()`. For new methods, state that they were previously unavailable. Distinguish illustrative expected output from observed test results.
 
-Link public API documentation or a publicly accessible spec when useful. Omit private source links and identifiers. Describe the resulting behavior directly when no public reference is available. Include issue-closing links only when the issue is public and the change resolves it. Keep the description proportional to the change. If the template cannot be fetched, disclose that limitation and use the structure above.
+Link public API documentation or a publicly accessible spec when useful. Omit private source links and identifiers except for the permitted Linear issue references. Describe the resulting behavior directly when no public reference is available. When the change resolves a public issue or Foxglove Linear issue, include an issue-closing link. For Linear, use `Fixes [<ISSUE-ID>](https://linear.app/foxglove/issue/<ISSUE-ID>)`. Keep the description proportional to the change. If the template cannot be fetched, disclose that limitation and use the structure above.
 
 ## Deliver
 
@@ -68,4 +68,4 @@ Create a ready PR when checks pass and semantics are resolved; use a draft with 
 
 Return the PR link or local result, concise behavior changes, validation, and any unfinished requested work. Report private source revisions only in the private conversation, never in public artifacts.
 
-Before delivery, review all public-facing text for internal details. Replace implementation explanations with public contract or client behavior descriptions, and remove private provenance.
+Before delivery, review all public-facing text for internal details. Replace implementation explanations with public contract or client behavior descriptions, and remove private provenance except for the permitted Linear issue references.

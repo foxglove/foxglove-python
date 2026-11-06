@@ -887,7 +887,7 @@ class Client:
         end: Optional[datetime.datetime] = None,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
-        tolerance: Optional[int] = None,
+        tolerance: Optional[float] = None,
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
@@ -904,7 +904,8 @@ class Client:
             ``start`` unless filtering by recording or session.
         :param device_id: Optional device id to limit data by.
         :param tolerance: Minimum interval (in seconds) that ranges must be separated by
-            to be considered discrete.
+            to be considered discrete. Accepts fractional seconds; the API clamps
+            values below its minimum meaningful interval.
         :param project_id: Optional Project to filter coverage by.
         :param session_id: Optional Session ID to filter coverage by.
         :param session_key: Optional Session key to filter coverage by.

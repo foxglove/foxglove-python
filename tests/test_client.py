@@ -1,3 +1,4 @@
+import base64
 from datetime import datetime
 
 import pytest
@@ -97,6 +98,47 @@ def test_get_topics_by_recording_without_time_range():
         )
         == []
     )
+
+
+@responses.activate
+def test_get_topics_by_session_without_time_range_or_schema():
+    responses.add(
+        responses.GET,
+        api_url("/v1/data/topics"),
+        match=[query_param_matcher({"sessionId": "ses_1", "includeSchemas": "true"})],
+        json=[
+            {
+                "topic": "/a",
+                "version": "1",
+                "encoding": "json",
+                "schemaEncoding": "jsonschema",
+                "schemaName": "A",
+                "schema": base64.b64encode(b"{}").decode(),
+            },
+            {
+                "topic": "/b",
+                "version": "1",
+                "encoding": "json",
+                "schemaEncoding": "jsonschema",
+                "schemaName": "B",
+            },
+        ],
+    )
+    topics = Client("test").get_topics(session_id="ses_1", include_schemas=True)
+    assert topics[0]["schema"] == b"{}"
+    assert topics[1]["schema"] is None
+
+
+@responses.activate
+def test_get_topics_for_a_project_without_time_range():
+    # The API needs a time range only when filtering by device.
+    responses.add(
+        responses.GET,
+        api_url("/v1/data/topics"),
+        match=[query_param_matcher({"projectId": "prj_1", "includeSchemas": "false"})],
+        json=[],
+    )
+    assert Client("test").get_topics(project_id="prj_1") == []
 
 
 def test_camelize():

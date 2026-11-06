@@ -575,20 +575,18 @@ def test_download_without_episode_requires_time_range():
         client.download_data(device_id="dev_1")
 
     assert str(raised.value) == (
-        "start and end must be provided unless using episode_id, "
-        "recording_id, or recording_key"
+        "start and end must be provided when using device_id or device_name"
     )
 
 
-def test_get_topics_without_episode_requires_time_range():
+def test_get_topics_by_device_requires_time_range():
     client = Client("test")
 
     with pytest.raises(RuntimeError) as raised:
-        client.get_topics(session_id="ses_1")
+        client.get_topics(device_name="robot", start=datetime(2025, 1, 1))
 
     assert str(raised.value) == (
-        "start and end must be provided unless using episode_id, "
-        "recording_id, or recording_key"
+        "start and end must be provided when using device_id or device_name"
     )
 
 

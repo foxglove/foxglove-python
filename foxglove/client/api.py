@@ -584,7 +584,9 @@ class Client:
         session_id: ID of a session to download data from
         session_key: Key of a session to download data from
         start: The earliest time from which to retrieve data.
+            Required with device_id or device_name.
         end: The latest time from which to retrieve data.
+            Required with device_id or device_name.
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
         decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
@@ -731,11 +733,9 @@ class Client:
             raise RuntimeError(
                 "recording_id or recording_key cannot be combined with a session"
             )
-        needs_range = episode_id is None and (by_device or not by_recording)
-        if needs_range and (start is None or end is None):
+        if by_device and (start is None or end is None):
             raise RuntimeError(
-                "start and end must be provided unless using episode_id, "
-                "recording_id, or recording_key"
+                "start and end must be provided when using device_id or device_name"
             )
 
         params = {
@@ -797,7 +797,9 @@ class Client:
         session_id: ID of a session to download data from
         session_key: Key of a session to download data from
         start: The earliest time from which to retrieve data.
+            Required with device_id or device_name.
         end: The latest time from which to retrieve data.
+            Required with device_id or device_name.
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
@@ -1802,8 +1804,11 @@ class Client:
         :param device_id: Optionally filter topics by this device ID.
         :param device_name: Optionally filter topics by this device name.
         :param start: Filter topics by this start time.
+            Required with ``device_id`` or ``device_name``.
         :param end: Filter topics by this end time.
+            Required with ``device_id`` or ``device_name``.
         :param include_schemas: Optionally include the schema in the response.
+            A topic's ``schema`` is ``None`` when the API returns none for it.
         :param project_id: Optional Project to filter topics by.
         :param session_id: ID of a session to list topics from
         :param session_key: Key of a session to list topics from
@@ -1832,10 +1837,11 @@ class Client:
             or by_recording
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
-        if episode_id is None and not by_recording and (start is None or end is None):
+        if (device_id is not None or device_name is not None) and (
+            start is None or end is None
+        ):
             raise RuntimeError(
-                "start and end must be provided unless using episode_id, "
-                "recording_id, or recording_key"
+                "start and end must be provided when using device_id or device_name"
             )
         response = self.__session.get(
             self.__url__("/v1/data/topics"),
@@ -1871,7 +1877,10 @@ class Client:
                 "schema_name": t["schemaName"],
             }
             if include_schemas:
-                result["schema"] = base64.b64decode(t["schema"])
+                schema = t.get("schema")
+                result["schema"] = (
+                    base64.b64decode(schema) if schema is not None else None
+                )
             results.append(result)
         return results
 

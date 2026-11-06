@@ -263,6 +263,31 @@ def test_download_data_by_recording_without_time_range():
 
 
 @responses.activate
+def test_download_data_by_session_without_time_range():
+    download_link = fake.url()
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        match=[
+            json_params_matcher(
+                {
+                    "sessionKey": "run-1",
+                    "projectId": "prj_1",
+                    "outputFormat": "mcap",
+                    "topics": [],
+                },
+                strict_match=True,
+            )
+        ],
+        json={"link": download_link},
+    )
+    responses.add(responses.GET, download_link, body=b"mcap")
+
+    data = Client("test").download_data(session_key="run-1", project_id="prj_1")
+    assert data == b"mcap"
+
+
+@responses.activate
 def test_streaming_upload():
     upload_link = fake.url()
     responses.add(

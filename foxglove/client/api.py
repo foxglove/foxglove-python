@@ -249,7 +249,7 @@ class Client:
         start: datetime.datetime,
         end: Optional[datetime.datetime],
         metadata: Optional[Dict[str, str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int, List[str]]]] = None,
         event_type_id: Optional[str] = None,
     ):
         """
@@ -265,7 +265,8 @@ class Client:
         metadata: Optional metadata attached to the event.
         properties: Optional custom properties for the event.
             Each key must be defined as a custom property for your organization,
-            and each value must be of the appropriate type
+            and each value must be of the appropriate type. Use a list of strings
+            for a property that accepts multiple enum values.
         event_type_id: Optional Event Type ID for the event.
             If provided the event's custom properties must conform to the Event Type's schema.
         """
@@ -301,7 +302,9 @@ class Client:
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         metadata: Optional[Dict[str, str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[
+            Dict[str, Union[str, bool, float, int, List[str], None]]
+        ] = None,
         event_type_id: Optional[str] = None,
     ):
         """
@@ -312,10 +315,11 @@ class Client:
         end: New event end time.
         metadata: An object with user-defined string keys and string values.
             Key order is not preserved. Will replace all existing metadata.
-        properties: A key-value map, where each key is one of your pre-defined device
+        properties: A key-value map, where each key is one of your pre-defined event
             custom property keys. Keys which are not recognized as custom properties
             will be ignored. Keys which are not included in the request, but exist on
-            the device, will be unchanged. To unset a property, pass None as the value.
+            the event, will be unchanged. To unset a property, pass None as the value.
+            Use a list of strings for a property that accepts multiple enum values.
 
             Must conform to the event_type_id schema if provided.
         event_type_id: New Event Type ID for the event.
@@ -887,7 +891,7 @@ class Client:
         end: Optional[datetime.datetime] = None,
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
-        tolerance: Optional[int] = None,
+        tolerance: Optional[float] = None,
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
@@ -904,7 +908,8 @@ class Client:
             ``start`` unless filtering by recording or session.
         :param device_id: Optional device id to limit data by.
         :param tolerance: Minimum interval (in seconds) that ranges must be separated by
-            to be considered discrete.
+            to be considered discrete. Accepts fractional seconds; the API clamps
+            values below its minimum meaningful interval.
         :param project_id: Optional Project to filter coverage by.
         :param session_id: Optional Session ID to filter coverage by.
         :param session_key: Optional Session key to filter coverage by.
@@ -1197,7 +1202,7 @@ class Client:
         self,
         *,
         name: str,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int, List[str]]]] = None,
         project_id: Optional[str] = None,
     ):
         """
@@ -1206,7 +1211,8 @@ class Client:
         :param name: The name of the device.
         :param properties: Optional custom properties for the device.
             Each key must be defined as a custom property for your organization,
-            and each value must be of the appropriate type
+            and each value must be of the appropriate type. Use a list of strings
+            for a property that accepts multiple enum values.
         :param project_id: Project to create the device in.
             Required for multi-project organizations.
         """
@@ -1229,7 +1235,9 @@ class Client:
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
         new_name: Optional[str] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[
+            Dict[str, Union[str, bool, float, int, List[str], None]]
+        ] = None,
         project_id: Optional[str] = None,
         retain_recordings_seconds: Optional[int] = None,
         enabled: Optional[bool] = None,
@@ -1244,7 +1252,9 @@ class Client:
         :param new_name: Optional new name to assign to the device.
         :param properties: Optional custom properties to add to or edit on the device.
             Each key must be defined as a custom property for your organization
-            and each value must be of the appropriate type.
+            and each value must be of the appropriate type. Use a list of strings
+            for a property that accepts multiple enum values. Keys not included keep
+            their current values; to unset a property, pass None as its value.
         :param project_id: Project to retrieve the device from.
             Required for multi-project organizations.
         :param retain_recordings_seconds: Optional retention period for recordings
@@ -3507,6 +3517,298 @@ class Client:
         response = self.__session.delete(self.__url__(f"/v1/extensions/{extension_id}"))
         json_or_raise(response)
 
+    def get_automations(
+        self,
+        *,
+        project_id: str,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """List a project's automations, newest first.
+
+        Each automation has the fields returned by ``get_automation`` plus its
+        lifetime run count, whether its trigger is enabled (``None`` without a
+        trigger), and the time and status of its latest run (``None`` before its
+        first run).
+
+        Automations are in beta. Personal access tokens and organization API keys
+        can list automations.
+
+        :param project_id: The project to list automations from.
+        :param limit: Optionally limit the number of automations returned.
+        :param offset: Optionally skip this many automations.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/automations"),
+            params=without_nulls(
+                {"projectId": project_id, "limit": limit, "offset": offset}
+            ),
+        )
+        return [
+            _automation_list_item_dict(automation)
+            for automation in json_or_raise(response)["automations"]
+        ]
+
+    def get_automation(self, *, automation_id: str):
+        """Get an automation's saved definition.
+
+        Automations are in beta. ``permissions`` is passed through unchanged with
+        the API's field names (``canEdit``, ``canRun``, ``canDelete``).
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}")
+        )
+        return _automation_dict(json_or_raise(response))
+
+    def create_automation(self, *, project_id: str, name: str, action_prompt: str):
+        """Create an automation and return it as ``get_automation`` does.
+
+        Automations are in beta. Use a personal access token: the automation acts
+        as its owner, with the owner's access to data in the project. Organization
+        API keys can't create automations.
+
+        :param project_id: The project the automation belongs to.
+        :param name: A name for the automation.
+        :param action_prompt: The saved instructions the automation runs with.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/automations"),
+            json={"projectId": project_id, "name": name, "actionPrompt": action_prompt},
+        )
+        return _automation_dict(json_or_raise(response))
+
+    def update_automation(
+        self,
+        *,
+        automation_id: str,
+        name: Optional[str] = None,
+        action_prompt: Optional[str] = None,
+    ):
+        """Edit an automation's name or saved instructions.
+
+        Automations are in beta. Use a personal access token. Existing runs keep
+        the instructions they ran with.
+
+        :param automation_id: The ID of the automation.
+        :param name: Optionally a new name.
+        :param action_prompt: Optionally new saved instructions.
+        """
+        if name is None and action_prompt is None:
+            raise ValueError("name or action_prompt must be provided")
+        response = self.__session.patch(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}"),
+            json=without_nulls({"name": name, "actionPrompt": action_prompt}),
+        )
+        return _automation_dict(json_or_raise(response))
+
+    def delete_automation(self, *, automation_id: str):
+        """Delete an automation and its trigger.
+
+        Automations are in beta. Use a personal access token. Its runs are no
+        longer listed; runs in progress finish, and runs that have not started are
+        rejected.
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}")
+        )
+        json_or_raise(response)
+
+    def get_automation_trigger(self, *, automation_id: str):
+        """Get an automation's current trigger.
+
+        Automations are in beta. The trigger's ``configuration`` is passed through
+        unchanged with the API's field names (``schedule``, ``eventTypeId``).
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}/trigger")
+        )
+        return _automation_trigger_dict(json_or_raise(response))
+
+    def set_automation_trigger(
+        self,
+        *,
+        automation_id: str,
+        event_type: str,
+        enabled: Optional[bool] = None,
+        schedule: Optional[Dict[str, Any]] = None,
+        event_type_id: Optional[str] = None,
+    ):
+        """Replace an automation's trigger and return it as ``get_automation_trigger``
+        does.
+
+        Automations are in beta. Use a personal access token.
+
+        :param automation_id: The ID of the automation.
+        :param event_type: The event that starts a run, such as "recording.created",
+            "recording.imported", "session.created", "event.created",
+            "event.updated", or "clock.updated" for a trigger that runs on a schedule.
+        :param enabled: Whether the trigger is enabled. When omitted, the trigger is
+            enabled, even when it replaces a disabled trigger. Pass ``enabled=False``
+            to keep a trigger disabled.
+        :param schedule: When a "clock.updated" trigger runs, as a dict with a
+            ``cadence`` ("hourly", "daily", "weekly", or "monthly") and an
+            ``anchor``: a datetime or timestamp string at a whole UTC hour whose
+            calendar fields set the recurrence. Datetimes are sent in UTC. Required
+            for "clock.updated" and not allowed for other event types.
+        :param event_type_id: For "event.created" and "event.updated" only. Starts
+            runs only for events of this event type.
+        """
+        configuration = without_nulls(
+            {
+                "schedule": (
+                    {
+                        "cadence": schedule["cadence"],
+                        "anchor": _utc_timestamp(schedule["anchor"]),
+                    }
+                    if schedule is not None
+                    else None
+                ),
+                "eventTypeId": event_type_id,
+            }
+        )
+        response = self.__session.put(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}/trigger"),
+            json=without_nulls(
+                {
+                    "eventType": event_type,
+                    "enabled": enabled,
+                    "configuration": configuration or None,
+                }
+            ),
+        )
+        return _automation_trigger_dict(json_or_raise(response))
+
+    def delete_automation_trigger(self, *, automation_id: str):
+        """Delete an automation's trigger. The automation can still be run manually.
+
+        Automations are in beta. Use a personal access token.
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}/trigger")
+        )
+        json_or_raise(response)
+
+    def create_automation_run(
+        self, *, automation_id: str, run_prompt: Optional[str] = None
+    ):
+        """Start a run of an automation and return the pending run.
+
+        Automations are in beta. The run executes as the automation's owner, using
+        the owner's data access and AI usage. Members, including personal access
+        tokens, must pass ``run_prompt``. Organization API keys must omit it, and
+        the run uses only the automation's saved instructions.
+
+        :param automation_id: The ID of the automation to run.
+        :param run_prompt: Free-text instructions for this run, which may reference
+            recordings or other resources.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/automations/runs"),
+            json=without_nulls(
+                {"automationId": automation_id, "runPrompt": run_prompt}
+            ),
+        )
+        return _automation_run_dict(json_or_raise(response))
+
+    def get_automation_runs(
+        self,
+        *,
+        project_id: str,
+        automation_ids: Optional[List[str]] = None,
+        statuses: Optional[List[str]] = None,
+        created_after: Optional[datetime.datetime] = None,
+        created_before: Optional[datetime.datetime] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        owner_member_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """List a project's automation runs, newest first unless ``sort_order`` says
+        otherwise.
+
+        Each run includes its automation's name and what triggered it. Use
+        ``get_automation_run`` to read a run's prompts and final answer.
+        ``trigger_source``, ``trigger_schedule``, and ``token_usage`` are passed
+        through unchanged with the API's field names.
+
+        Automations are in beta. Personal access tokens and organization API keys
+        can list runs.
+
+        :param project_id: The project to list runs from.
+        :param automation_ids: Optionally only include runs of these automations.
+        :param statuses: Optionally only include runs with these statuses, such as
+            "pending", "running", "succeeded", or "failed".
+        :param created_after: Optionally only include runs created at or after this
+            time.
+        :param created_before: Optionally only include runs created at or before
+            this time.
+        :param sort_by: Optionally the field to sort by. Only "created_at" is
+            supported.
+        :param sort_order: Optionally the sort order, either "asc" or "desc".
+        :param owner_member_id: Optionally only include runs of automations owned
+            by this organization member. Use "me" for the member the token acts
+            as; organization API keys can't use "me".
+        :param limit: Optionally limit the number of runs returned.
+        :param offset: Optionally skip this many runs.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/automations/runs"),
+            params=without_nulls(
+                {
+                    "projectId": project_id,
+                    "automationId": (
+                        ",".join(automation_ids) if automation_ids is not None else None
+                    ),
+                    "status": ",".join(statuses) if statuses is not None else None,
+                    "createdAfter": (
+                        created_after.astimezone().isoformat()
+                        if created_after
+                        else None
+                    ),
+                    "createdBefore": (
+                        created_before.astimezone().isoformat()
+                        if created_before
+                        else None
+                    ),
+                    "sortBy": camelize(sort_by),
+                    "sortOrder": sort_order,
+                    "ownerMemberId": owner_member_id,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ),
+        )
+        return [
+            _automation_run_summary_dict(run) for run in json_or_raise(response)["runs"]
+        ]
+
+    def get_automation_run(self, *, run_id: str):
+        """Get an automation run with its prompts and final answer.
+
+        ``final_answer`` is ``None`` until the run finishes with a text answer.
+        ``trigger`` is the trigger that started the run, as it was then, or ``None``
+        for a manual run. ``trigger_source`` and ``token_usage`` are passed through
+        unchanged with the API's field names, and are ``None`` when not applicable.
+
+        Automations are in beta. Personal access tokens and organization API keys
+        can get runs.
+
+        :param run_id: The ID of the run.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/automations/runs/{urlquote(run_id, safe='')}")
+        )
+        return _automation_run_details_dict(json_or_raise(response))
+
 
 def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -> str:
     if session_id is not None and session_key is not None:
@@ -3927,6 +4229,101 @@ def _device_custom_property_time_interval_dict(interval):
         "value": interval["value"],
         "start": arrow.get(interval["start"]).datetime,
         "end": arrow.get(end).datetime if end else None,
+    }
+
+
+def _automation_dict(automation):
+    return {
+        "id": automation["id"],
+        "project_id": automation["projectId"],
+        "name": automation["name"],
+        "action_prompt": automation["actionPrompt"],
+        "is_owner": automation["isOwner"],
+        # Passed through with API field names.
+        "permissions": automation["permissions"],
+        "created_at": arrow.get(automation["createdAt"]).datetime,
+        "updated_at": arrow.get(automation["updatedAt"]).datetime,
+    }
+
+
+def _automation_list_item_dict(automation):
+    last_run_at = automation["lastRunAt"]
+    return {
+        **_automation_dict(automation),
+        "lifetime_run_count": automation["lifetimeRunCount"],
+        "trigger_enabled": automation["triggerEnabled"],
+        "last_run_at": arrow.get(last_run_at).datetime if last_run_at else None,
+        "last_run_status": automation["lastRunStatus"],
+    }
+
+
+def _utc_timestamp(value: Union[datetime.datetime, str]) -> str:
+    if isinstance(value, str):
+        return value
+    return value.astimezone(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _automation_trigger_dict(trigger):
+    deleted_at = trigger["deletedAt"]
+    return {
+        "id": trigger["id"],
+        "automation_id": trigger["automationId"],
+        "event_type": trigger["eventType"],
+        "enabled": trigger["enabled"],
+        "configuration_version": trigger["configurationVersion"],
+        # Passed through with API field names.
+        "configuration": trigger["configuration"],
+        "created_at": arrow.get(trigger["createdAt"]).datetime,
+        "updated_at": arrow.get(trigger["updatedAt"]).datetime,
+        "deleted_at": arrow.get(deleted_at).datetime if deleted_at else None,
+    }
+
+
+def _automation_run_base_dict(run):
+    started_at = run["startedAt"]
+    completed_at = run["completedAt"]
+    return {
+        "id": run["id"],
+        "automation_id": run["automationId"],
+        "status": run["status"],
+        "created_at": arrow.get(run["createdAt"]).datetime,
+        "updated_at": arrow.get(run["updatedAt"]).datetime,
+        "started_at": arrow.get(started_at).datetime if started_at else None,
+        "completed_at": arrow.get(completed_at).datetime if completed_at else None,
+        "error_message": run["errorMessage"],
+    }
+
+
+def _automation_run_dict(run):
+    return {
+        **_automation_run_base_dict(run),
+        "action_prompt": run["actionPrompt"],
+        "run_prompt": run["runPrompt"],
+    }
+
+
+def _automation_run_summary_dict(run):
+    return {
+        **_automation_run_base_dict(run),
+        "automation_name": run["automationName"],
+        "trigger_event_type": run["triggerEventType"],
+        # Passed through with API field names.
+        "trigger_source": run["triggerSource"],
+        "trigger_schedule": run["triggerSchedule"],
+        "token_usage": run["tokenUsage"],
+    }
+
+
+def _automation_run_details_dict(run):
+    trigger = run["trigger"]
+    return {
+        **_automation_run_dict(run),
+        "automation_name": run["automationName"],
+        "final_answer": run["finalAnswer"],
+        "trigger": _automation_trigger_dict(trigger) if trigger else None,
+        # Passed through with API field names.
+        "trigger_source": run["triggerSource"],
+        "token_usage": run["tokenUsage"],
     }
 
 

@@ -29,6 +29,25 @@ def test_delete_recording():
 
 
 @responses.activate
+def test_delete_recording_by_key_quotes_path():
+    responses.add(
+        responses.DELETE,
+        api_url("/v1/recordings/runs%2Fday%201.mcap"),
+        match=[query_param_matcher({})],
+        json={"recordingId": "rec_1"},
+    )
+    assert Client("test").delete_recording(recording_key="runs/day 1.mcap") is None
+
+
+def test_delete_recording_requires_one_identifier():
+    client = Client("test")
+    with pytest.raises(RuntimeError, match="mutually exclusive"):
+        client.delete_recording(recording_id="rec_1", recording_key="run.mcap")
+    with pytest.raises(RuntimeError, match="must be provided"):
+        client.delete_recording()
+
+
+@responses.activate
 def test_get_recordings():
     device_id = fake.uuid4()
     recording_id_a = fake.uuid4()

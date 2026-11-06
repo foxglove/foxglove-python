@@ -17,8 +17,8 @@ def _episode_json(episode_id="ep_1", *, include_recordings=False):
     episode = {
         "id": episode_id,
         "projectId": "prj_1",
-        "startTime": NOW.isoformat(),
-        "endTime": NOW.replace(minute=1).isoformat(),
+        "startTime": "2026-09-15T00:00:00.000Z",
+        "endTime": "2026-09-15T00:01:00.000Z",
         "version": 1,
         "latestVersion": 1,
         "createdAt": NOW.isoformat(),
@@ -558,6 +558,43 @@ def test_dataset_episodes_include_creation_context(path, method, kwargs):
     )
 
     assert page.items[0]["episode"]["creation_context"] == CREATION_CONTEXT
+
+
+@responses.activate
+@pytest.mark.parametrize(
+    "path,method,kwargs",
+    [
+        ("/v1/datasets/ds_1/episodes", "get_dataset_episodes", {}),
+        (
+            "/v1/datasets/ds_1/versions/2/episodes",
+            "get_dataset_version_episodes",
+            {"version_number": 2},
+        ),
+    ],
+)
+def test_dataset_episodes_send_string_window_unchanged(path, method, kwargs):
+    responses.add(
+        responses.GET,
+        api_url(path),
+        match=[
+            query_param_matcher(
+                {
+                    "start": "2026-09-15T05:30:00.123456789+05:30",
+                    "end": "2026-09-15T00:00:00.123456789Z",
+                }
+            )
+        ],
+        json={"episodes": [_dataset_episode_json()]},
+    )
+
+    page = getattr(Client("test"), method)(
+        dataset_id="ds_1",
+        start="2026-09-15T05:30:00.123456789+05:30",
+        end="2026-09-15T00:00:00.123456789Z",
+        **kwargs,
+    )
+
+    assert page.items[0]["episode"]["start_time"] == NOW
 
 
 @responses.activate

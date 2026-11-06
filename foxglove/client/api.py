@@ -45,6 +45,13 @@ def _validate_episode_range(start, end):
         raise ValueError("start and end must be supplied together")
 
 
+def _episode_time(value: Optional[Union[datetime.datetime, str]]) -> Optional[str]:
+    """Serialize an episode time. A string is sent unchanged, keeping its precision."""
+    if isinstance(value, str):
+        return value
+    return value.astimezone().isoformat() if value else None
+
+
 def _episode_include(
     include_recordings: bool,
     include_properties: bool,
@@ -577,7 +584,9 @@ class Client:
         session_id: ID of a session to download data from
         session_key: Key of a session to download data from
         start: The earliest time from which to retrieve data.
+            Required with device_id or device_name.
         end: The latest time from which to retrieve data.
+            Required with device_id or device_name.
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
         decoder_factories: an optional list of :py:class:`~mcap.decoder.DecoderFactory` instances
@@ -724,11 +733,9 @@ class Client:
             raise RuntimeError(
                 "recording_id or recording_key cannot be combined with a session"
             )
-        needs_range = episode_id is None and (by_device or not by_recording)
-        if needs_range and (start is None or end is None):
+        if by_device and (start is None or end is None):
             raise RuntimeError(
-                "start and end must be provided unless using episode_id, "
-                "recording_id, or recording_key"
+                "start and end must be provided when using device_id or device_name"
             )
 
         params = {
@@ -790,7 +797,9 @@ class Client:
         session_id: ID of a session to download data from
         session_key: Key of a session to download data from
         start: The earliest time from which to retrieve data.
+            Required with device_id or device_name.
         end: The latest time from which to retrieve data.
+            Required with device_id or device_name.
         topics: An optional list of topics to retrieve.
             All topics will be retrieved if this is omitted.
         output_format: The output format of the data, either .bag or .mcap, defaulting to .mcap.
@@ -1393,9 +1402,24 @@ class Client:
         )
         json_or_raise(response)
 
-    def delete_recording(self, *, recording_id: str):
+    def delete_recording(
+        self,
+        *,
+        recording_id: Optional[str] = None,
+        recording_key: Optional[str] = None,
+    ):
+        """
+        Deletes a recording and its imported data.
+
+        If the recording was imported from an Edge Site, the copy on the Edge Site
+        is unchanged and the recording can be imported again.
+
+        :param recording_id: The ID of the recording to delete.
+        :param recording_key: The key of the recording to delete.
+        """
+        identifier = _recording_identifier_for_path(recording_id, recording_key)
         response = self.__session.delete(
-            self.__url__(f"/v1/recordings/{recording_id}"),
+            self.__url__(f"/v1/recordings/{identifier}"),
         )
         json_or_raise(response)
 
@@ -1795,8 +1819,11 @@ class Client:
         :param device_id: Optionally filter topics by this device ID.
         :param device_name: Optionally filter topics by this device name.
         :param start: Filter topics by this start time.
+            Required with ``device_id`` or ``device_name``.
         :param end: Filter topics by this end time.
+            Required with ``device_id`` or ``device_name``.
         :param include_schemas: Optionally include the schema in the response.
+            A topic's ``schema`` is ``None`` when the API returns none for it.
         :param project_id: Optional Project to filter topics by.
         :param session_id: ID of a session to list topics from
         :param session_key: Key of a session to list topics from
@@ -1825,10 +1852,11 @@ class Client:
             or by_recording
         ):
             raise RuntimeError("episode_id cannot be combined with another identifier")
-        if episode_id is None and not by_recording and (start is None or end is None):
+        if (device_id is not None or device_name is not None) and (
+            start is None or end is None
+        ):
             raise RuntimeError(
-                "start and end must be provided unless using episode_id, "
-                "recording_id, or recording_key"
+                "start and end must be provided when using device_id or device_name"
             )
         response = self.__session.get(
             self.__url__("/v1/data/topics"),
@@ -1864,7 +1892,10 @@ class Client:
                 "schema_name": t["schemaName"],
             }
             if include_schemas:
-                result["schema"] = base64.b64decode(t["schema"])
+                schema = t.get("schema")
+                result["schema"] = (
+                    base64.b64decode(schema) if schema is not None else None
+                )
             results.append(result)
         return results
 
@@ -1978,6 +2009,52 @@ class Client:
             for p in json
         ]
 
+    def get_org_members(
+        self,
+        *,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        search: Optional[str] = None,
+        role: Optional[str] = None,
+        status: Optional[str] = None,
+        project_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """
+        List the members of the organization.
+
+        Requires an API key with the ``orgMembers.list`` capability. Keys limited
+        to specific projects are refused.
+
+        :param sort_by: Optionally sort by "display_name", "email", "role",
+            "last_seen_at", "created_at", "status", or "project_count".
+        :param sort_order: Optionally specify the sort order, either "asc" or "desc".
+        :param search: Optionally filter members by name or email.
+        :param role: Optionally filter by role: "admin" or "user".
+        :param status: Optionally filter by status: "active", "invited",
+            "pending-approval", or "denied-approval".
+        :param project_id: Optionally filter members by this project ID.
+        :param limit: Optionally limit the number of members returned.
+        :param offset: Optionally offset the results by this many members.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/org-members"),
+            params=without_nulls(
+                {
+                    "sortBy": camelize(sort_by),
+                    "sortOrder": sort_order,
+                    "search": search,
+                    "role": role,
+                    "status": status,
+                    "projectId": project_id,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ),
+        )
+        return [_org_member_dict(m) for m in json_or_raise(response)]
+
     def create_dataset(
         self,
         *,
@@ -2090,8 +2167,8 @@ class Client:
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        start: Optional[Union[datetime.datetime, str]] = None,
+        end: Optional[Union[datetime.datetime, str]] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         properties_query: Optional[str] = None,
@@ -2105,6 +2182,8 @@ class Client:
         which keeps the API's field names.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
+        Each is a datetime or an RFC 3339 timestamp string, which is sent unchanged
+        and may have up to nanosecond precision.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
@@ -2213,8 +2292,8 @@ class Client:
         sort_order: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        start: Optional[Union[datetime.datetime, str]] = None,
+        end: Optional[Union[datetime.datetime, str]] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         properties_query: Optional[str] = None,
@@ -2228,6 +2307,8 @@ class Client:
         which keeps the API's field names.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
+        Each is a datetime or an RFC 3339 timestamp string, which is sent unchanged
+        and may have up to nanosecond precision.
         Use ``cursor`` to advance pages and ``limit`` to set the size of the page.
         Use ``page.auto_paging_iter()`` to traverse all matching episodes.
         """
@@ -2257,14 +2338,15 @@ class Client:
         sort_order: Optional[str],
         limit: Optional[int],
         cursor: Optional[str],
-        start: Optional[datetime.datetime],
-        end: Optional[datetime.datetime],
+        start: Optional[Union[datetime.datetime, str]],
+        end: Optional[Union[datetime.datetime, str]],
         has_missing_recordings: Optional[bool],
         recording_id: Optional[str],
         properties_query: Optional[str],
         include_recordings: bool,
         include_properties: bool,
         include_creation_context: bool,
+        mapper: Optional[Callable[[Any], Any]] = None,
     ):
         _validate_episode_range(start, end)
         path = f"/v1/datasets/{dataset_id}"
@@ -2273,7 +2355,7 @@ class Client:
         path += "/episodes"
         return self._get_page(
             path,
-            _dataset_episode_dict,
+            mapper or _dataset_episode_dict,
             collection="episodes",
             params=without_nulls(
                 {
@@ -2281,8 +2363,8 @@ class Client:
                     "sortOrder": sort_order,
                     "limit": limit,
                     "cursor": cursor,
-                    "start": start.astimezone().isoformat() if start else None,
-                    "end": end.astimezone().isoformat() if end else None,
+                    "start": _episode_time(start),
+                    "end": _episode_time(end),
                     "hasMissingRecordings": (
                         bool_query_param(has_missing_recordings)
                         if has_missing_recordings is not None
@@ -2430,7 +2512,10 @@ class Client:
         :param project_id: Project in which to create the episodes.
         :param episodes: Episode definitions. Each dictionary requires exactly one of
             ``recordings`` or ``event_id``, and may include ``properties``.
-            Recording inputs may also include ``start_time`` and ``end_time``. An ``event_id``
+            Recording inputs may also include ``start_time`` and ``end_time``, each a datetime
+            or an RFC 3339 timestamp string; a string is sent unchanged, so it can carry up
+            to nanosecond precision. Episode times returned by this client are datetimes with
+            microsecond precision. Equal times describe a single instant. An ``event_id``
             input snapshots the event's current time range and the completed recordings from
             its device that overlap it; later edits to the event or new imports do not change
             the episode. ``properties`` keys must be episode custom properties defined for your
@@ -2458,12 +2543,8 @@ class Client:
                     {
                         "eventId": event_id,
                         "recordings": recordings,
-                        "startTime": (
-                            start_time.astimezone().isoformat() if start_time else None
-                        ),
-                        "endTime": (
-                            end_time.astimezone().isoformat() if end_time else None
-                        ),
+                        "startTime": _episode_time(start_time),
+                        "endTime": _episode_time(end_time),
                         "properties": episode.get("properties"),
                     }
                 )
@@ -2482,7 +2563,9 @@ class Client:
         :param episodes: Episode updates. Each dictionary requires ``id`` and may include
             ``applies_to_version``, ``start_time``, ``end_time``, ``recordings``, and
             ``properties``. ``applies_to_version`` rejects the update if the episode's latest
-            version differs. ``recordings`` is a dictionary with optional ``add`` and
+            version differs. ``start_time`` and ``end_time`` are each a datetime or an RFC 3339
+            timestamp string; a string is sent unchanged, so it can carry up to nanosecond
+            precision. ``recordings`` is a dictionary with optional ``add`` and
             ``remove`` lists of recording IDs. ``properties`` keys not included in the
             update keep their values; to unset a property, pass None as the value.
         """
@@ -2491,16 +2574,8 @@ class Client:
                 {
                     "id": episode["id"],
                     "appliesToVersion": episode.get("applies_to_version"),
-                    "startTime": (
-                        episode["start_time"].astimezone().isoformat()
-                        if episode.get("start_time")
-                        else None
-                    ),
-                    "endTime": (
-                        episode["end_time"].astimezone().isoformat()
-                        if episode.get("end_time")
-                        else None
-                    ),
+                    "startTime": _episode_time(episode.get("start_time")),
+                    "endTime": _episode_time(episode.get("end_time")),
                     "recordings": episode.get("recordings"),
                     "properties": episode.get("properties"),
                 }
@@ -2517,8 +2592,8 @@ class Client:
         self,
         *,
         project_id: Optional[str] = None,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        start: Optional[Union[datetime.datetime, str]] = None,
+        end: Optional[Union[datetime.datetime, str]] = None,
         has_missing_recordings: Optional[bool] = None,
         recording_id: Optional[str] = None,
         exact_recording_ids: Optional[List[str]] = None,
@@ -2537,6 +2612,8 @@ class Client:
         which keeps the API's field names.
 
         Supply ``start`` and ``end`` together to filter overlapping episode windows.
+        Each is a datetime or an RFC 3339 timestamp string, which is sent unchanged
+        and may have up to nanosecond precision.
         Use ``exact_recording_ids`` to match episodes whose recordings are exactly
         these recording IDs. Pass None to leave the recording set unrestricted;
         an empty list raises ValueError.
@@ -2556,8 +2633,8 @@ class Client:
             params=without_nulls(
                 {
                     "projectId": project_id,
-                    "start": start.astimezone().isoformat() if start else None,
-                    "end": end.astimezone().isoformat() if end else None,
+                    "start": _episode_time(start),
+                    "end": _episode_time(end),
                     "hasMissingRecordings": (
                         bool_query_param(has_missing_recordings)
                         if has_missing_recordings is not None
@@ -2635,8 +2712,8 @@ class Client:
         *,
         episode_id: str,
         applies_to_version: Optional[int] = None,
-        start_time: Optional[datetime.datetime] = None,
-        end_time: Optional[datetime.datetime] = None,
+        start_time: Optional[Union[datetime.datetime, str]] = None,
+        end_time: Optional[Union[datetime.datetime, str]] = None,
         recordings: Optional[Dict[str, List[str]]] = None,
         properties: Optional[Dict[str, Any]] = None,
     ):
@@ -2647,8 +2724,11 @@ class Client:
         :param episode_id: The id of the episode.
         :param applies_to_version: Reject the update if the episode's latest version
             differs.
-        :param start_time: Optional new start of the episode window.
-        :param end_time: Optional new end of the episode window.
+        :param start_time: Optional new start of the episode window, as a datetime or an
+            RFC 3339 timestamp string. A string is sent unchanged, so it can carry up to
+            nanosecond precision.
+        :param end_time: Optional new end of the episode window, in the same forms as
+            ``start_time``. Equal start and end times describe a single instant.
         :param recordings: Optional dictionary with ``add`` and ``remove`` lists of
             recording IDs.
         :param properties: Optional custom properties to merge. Keys not included keep
@@ -2659,10 +2739,8 @@ class Client:
             json=without_nulls(
                 {
                     "appliesToVersion": applies_to_version,
-                    "startTime": (
-                        start_time.astimezone().isoformat() if start_time else None
-                    ),
-                    "endTime": end_time.astimezone().isoformat() if end_time else None,
+                    "startTime": _episode_time(start_time),
+                    "endTime": _episode_time(end_time),
                     "recordings": recordings,
                     "properties": properties,
                 }
@@ -2719,13 +2797,22 @@ class Client:
         # Capture the complete selection before transfers, so incomplete versions are
         # refused before anything is written. MCAP bytes stay streamed.
         episodes = list(
-            self.get_dataset_version_episodes(
+            self._get_dataset_episodes(
                 dataset_id=dataset_id,
                 version_number=version_number,
                 sort_by="start_time",
                 sort_order="asc",
                 limit=2000,
+                cursor=None,
+                start=None,
+                end=None,
+                has_missing_recordings=None,
+                recording_id=None,
+                properties_query=None,
+                include_recordings=False,
                 include_properties=include_properties,
+                include_creation_context=False,
+                mapper=_dataset_export_episode_dict,
             ).auto_paging_iter()
         )
         incomplete = sum(member["has_missing_recordings"] for member in episodes)
@@ -2943,19 +3030,20 @@ class Client:
         *,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        project_id: str,
+        project_id: Optional[str] = None,
     ):
         """Fetches a single session.
 
         session_id: The ID of the session to fetch
         session_key: The key of the session to fetch
         project_id: The project ID to fetch the session from.
+            Required for multi-project organizations.
         """
         identifier = _session_identifier_for_path(session_id, session_key)
 
         response = self.__session.get(
             self.__url__(f"/v1/sessions/{identifier}"),
-            params={"projectId": project_id},
+            params=without_nulls({"projectId": project_id}),
         )
         return _session_dict(json_or_raise(response))
 
@@ -2965,7 +3053,7 @@ class Client:
         device_id: Optional[str] = None,
         key: Optional[str] = None,
         recording_ids: Optional[List[str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int, List[str]]]] = None,
     ):
         """Creates a new session.
 
@@ -3000,36 +3088,44 @@ class Client:
         *,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        project_id: str,
-        new_key: Optional[str] = None,
+        project_id: Optional[str] = None,
+        new_key: Any = _UNSET,
         add_recording_ids: Optional[List[str]] = None,
         remove_recording_ids: Optional[List[str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[
+            Dict[str, Union[str, bool, float, int, List[str], None]]
+        ] = None,
     ):
         """Updates a session.
 
         session_id: The ID of the session to update.
         session_key: The current key of the session to update.
         project_id: The Project ID to which the session belongs.
+            Required for multi-project organizations.
         new_key: Optional new user-supplied identifier, unique within the project.
+            Pass ``new_key=None`` to clear the session's key.
         add_recording_ids: IDs of recordings to add to the session.
         remove_recording_ids: IDs of recordings to remove from the session.
         properties: Optional custom properties to add to or edit on the session.
             Each key must be defined as a custom property for your organization,
-            and each value must be of the appropriate type.
+            and each value must be of the appropriate type. A value of ``None``
+            unsets that property; properties not included are unchanged.
         """
         identifier = _session_identifier_for_path(session_id, session_key)
 
-        params = {
-            "key": new_key,
-            "addRecordingIds": add_recording_ids,
-            "removeRecordingIds": remove_recording_ids,
-            "properties": properties,
-        }
+        params = without_nulls(
+            {
+                "addRecordingIds": add_recording_ids,
+                "removeRecordingIds": remove_recording_ids,
+                "properties": properties,
+            }
+        )
+        if new_key is not _UNSET:
+            params["key"] = new_key
         response = self.__session.patch(
             self.__url__(f"/v1/sessions/{identifier}"),
-            params={"projectId": project_id},
-            json={k: v for k, v in params.items() if v is not None},
+            params=without_nulls({"projectId": project_id}),
+            json=params,
         )
 
         return _session_dict(json_or_raise(response))
@@ -3039,19 +3135,20 @@ class Client:
         *,
         session_id: Optional[str] = None,
         session_key: Optional[str] = None,
-        project_id: str,
+        project_id: Optional[str] = None,
     ):
         """Deletes a session.
 
         session_id: The ID of the session to delete.
         session_key: The key of the session to delete.
         project_id: The Project ID to which the session belongs.
+            Required for multi-project organizations.
         """
         identifier = _session_identifier_for_path(session_id, session_key)
 
         response = self.__session.delete(
             self.__url__(f"/v1/sessions/{identifier}"),
-            params={"projectId": project_id},
+            params=without_nulls({"projectId": project_id}),
         )
 
         return json_or_raise(response)
@@ -3626,6 +3723,23 @@ def _custom_property_dict(custom_property):
     }
 
 
+def _org_member_dict(member):
+    last_seen_at = member.get("lastSeenAt")
+    return {
+        "id": member["id"],
+        "org_id": member["orgId"],
+        "email": member["email"],
+        "display_name": member.get("displayName"),
+        "avatar_image_url": member.get("avatarImageUrl"),
+        "role": member["role"],
+        "status": member["status"],
+        "project_ids": member.get("projectIds"),
+        "created_at": arrow.get(member["createdAt"]).datetime,
+        "updated_at": arrow.get(member["updatedAt"]).datetime,
+        "last_seen_at": arrow.get(last_seen_at).datetime if last_seen_at else None,
+    }
+
+
 def _device_identifier_for_path(
     device_id: Optional[str], device_name: Optional[str]
 ) -> str:
@@ -3850,6 +3964,15 @@ def _dataset_episode_dict(dataset_episode):
         result["has_missing_recordings"] = dataset_episode["hasMissingRecordings"]
     if "change" in dataset_episode:
         result["change"] = dataset_episode["change"]
+    return result
+
+
+def _dataset_export_episode_dict(dataset_episode):
+    # The manifest keeps the API's episode window strings, which can be more precise
+    # than a datetime.
+    result = _dataset_episode_dict(dataset_episode)
+    result["raw_start_time"] = dataset_episode["episode"]["startTime"]
+    result["raw_end_time"] = dataset_episode["episode"]["endTime"]
     return result
 
 

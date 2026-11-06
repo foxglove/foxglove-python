@@ -242,7 +242,7 @@ class Client:
         start: datetime.datetime,
         end: Optional[datetime.datetime],
         metadata: Optional[Dict[str, str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int, List[str]]]] = None,
         event_type_id: Optional[str] = None,
     ):
         """
@@ -258,7 +258,8 @@ class Client:
         metadata: Optional metadata attached to the event.
         properties: Optional custom properties for the event.
             Each key must be defined as a custom property for your organization,
-            and each value must be of the appropriate type
+            and each value must be of the appropriate type. Use a list of strings
+            for a property that accepts multiple enum values.
         event_type_id: Optional Event Type ID for the event.
             If provided the event's custom properties must conform to the Event Type's schema.
         """
@@ -294,7 +295,9 @@ class Client:
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         metadata: Optional[Dict[str, str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[
+            Dict[str, Union[str, bool, float, int, List[str], None]]
+        ] = None,
         event_type_id: Optional[str] = None,
     ):
         """
@@ -305,10 +308,11 @@ class Client:
         end: New event end time.
         metadata: An object with user-defined string keys and string values.
             Key order is not preserved. Will replace all existing metadata.
-        properties: A key-value map, where each key is one of your pre-defined device
+        properties: A key-value map, where each key is one of your pre-defined event
             custom property keys. Keys which are not recognized as custom properties
             will be ignored. Keys which are not included in the request, but exist on
-            the device, will be unchanged. To unset a property, pass None as the value.
+            the event, will be unchanged. To unset a property, pass None as the value.
+            Use a list of strings for a property that accepts multiple enum values.
 
             Must conform to the event_type_id schema if provided.
         event_type_id: New Event Type ID for the event.
@@ -1188,7 +1192,7 @@ class Client:
         self,
         *,
         name: str,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int, List[str]]]] = None,
         project_id: Optional[str] = None,
     ):
         """
@@ -1197,7 +1201,8 @@ class Client:
         :param name: The name of the device.
         :param properties: Optional custom properties for the device.
             Each key must be defined as a custom property for your organization,
-            and each value must be of the appropriate type
+            and each value must be of the appropriate type. Use a list of strings
+            for a property that accepts multiple enum values.
         :param project_id: Project to create the device in.
             Required for multi-project organizations.
         """
@@ -1220,7 +1225,9 @@ class Client:
         device_id: Optional[str] = None,
         device_name: Optional[str] = None,
         new_name: Optional[str] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[
+            Dict[str, Union[str, bool, float, int, List[str], None]]
+        ] = None,
         project_id: Optional[str] = None,
         retain_recordings_seconds: Optional[int] = None,
         enabled: Optional[bool] = None,
@@ -1235,7 +1242,9 @@ class Client:
         :param new_name: Optional new name to assign to the device.
         :param properties: Optional custom properties to add to or edit on the device.
             Each key must be defined as a custom property for your organization
-            and each value must be of the appropriate type.
+            and each value must be of the appropriate type. Use a list of strings
+            for a property that accepts multiple enum values. Keys not included keep
+            their current values; to unset a property, pass None as its value.
         :param project_id: Project to retrieve the device from.
             Required for multi-project organizations.
         :param retain_recordings_seconds: Optional retention period for recordings

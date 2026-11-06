@@ -2966,7 +2966,7 @@ class Client:
         device_id: Optional[str] = None,
         key: Optional[str] = None,
         recording_ids: Optional[List[str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int]]] = None,
+        properties: Optional[Dict[str, Union[str, bool, float, int, List[str]]]] = None,
     ):
         """Creates a new session.
 
@@ -3005,7 +3005,9 @@ class Client:
         new_key: Any = _UNSET,
         add_recording_ids: Optional[List[str]] = None,
         remove_recording_ids: Optional[List[str]] = None,
-        properties: Optional[Dict[str, Union[str, bool, float, int, None]]] = None,
+        properties: Optional[
+            Dict[str, Union[str, bool, float, int, List[str], None]]
+        ] = None,
     ):
         """Updates a session.
 

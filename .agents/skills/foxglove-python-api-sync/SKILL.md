@@ -9,7 +9,13 @@ Sync only the methods, endpoints, or fields the user requests. A spec revision, 
 
 ## Public repository content
 
-This repository is public and published to PyPI as `foxglove-client`. Keep PR descriptions, comments, commit messages, docstrings, code, and test fixtures suitable for public readers. Explain public API and client behavior without disclosing internal implementation details, private repository paths, revisions, PRs, issues, or links. Use only publicly accessible references in repository content; tracker links are fine where the repository already uses them. Never mention open security issues in this repository, including their existence or details.
+This repository is public and published to PyPI as `foxglove-client`. Describe changes in terms of observable public API behavior and Python client behavior.
+
+Private sources may inform implementation, but must not appear in public artifacts, including PR titles and descriptions, comments, branch names, commit messages, documentation, docstrings, code, and test fixtures. Do not include private repository names, paths, symbols, revisions, PRs, issues, links, or details of backend architecture, storage, authorization mechanisms, or deployment.
+
+Explain what callers can send, what they receive, and any compatibility changes. Include endpoint paths and schema fields only when they are part of the public API contract. Describe Python client internals when useful; do not describe the private API or app implementation.
+
+Use publicly accessible references only. An internal source does not become suitable for publication merely because it defines public behavior. Never mention open security issues, including their existence or details.
 
 ## Establish scope and source
 
@@ -48,16 +54,18 @@ Before delivery, review the diff for correctness and simplicity. Remove redundan
 Whenever drafting, creating, or updating a PR description, fetch and follow the [Foxglove PR template](https://github.com/foxglove/.github/blob/main/.github/pull_request_template.md), including for a local draft. Use authenticated GitHub access if needed. Preserve its section order and Before/After table:
 
 - **Changelog:** Always include a concise, one-sentence user-facing changelog message. Use `None` only when there is no user-facing change.
-- **Docs:** Link the documentation PR or tracking issue; use `None` when no documentation changes are needed. Do not invent links.
+- **Docs:** Link the public documentation PR or public tracking issue; use `None` when no documentation changes are needed. If documentation work is needed but no public link is available, describe it briefly without private identifiers. Do not invent links.
 - **Description:** For a small change, use one short paragraph explaining the problem, resulting behavior, and compatibility, plus one concise validation sentence. Mention material blockers or publication uncertainty briefly; omit process history and repeated implementation details.
 - **Before/After table:** Keep the template table with one representative call, such as `client.get_event_types()`. For new methods, state that they were previously unavailable. Distinguish illustrative expected output from observed test results.
 
-Include pinned spec permalinks in Description when useful to explain the change. If a tracker issue is resolved, add `Fixes <ISSUE-ID>` with its link. Keep the description proportional to the change. If the template cannot be fetched, disclose that limitation and use the structure above.
+Link public API documentation or a publicly accessible spec when useful. Omit private source links and identifiers. Describe the resulting behavior directly when no public reference is available. Include issue-closing links only when the issue is public and the change resolves it. Keep the description proportional to the change. If the template cannot be fetched, disclose that limitation and use the structure above.
 
 ## Deliver
 
-When PR creation is the delivery mode, whether explicitly requested or selected by default, check for existing work covering the same source and scope before creating it. Use `<user>/api-sync-<short-spec-sha>-<scope>` unless a branch is supplied. Stage only intended files; do not create an empty PR. For `gh`, use `--body-file` and explicit repository/base/head options.
+When PR creation is the delivery mode, whether explicitly requested or selected by default, check for existing work covering the same source and scope before creating it. Use `<user>/api-sync-<scope>` unless a branch is supplied; do not include private source identifiers in branch names. Stage only intended files; do not create an empty PR. For `gh`, use `--body-file` and explicit repository/base/head options.
 
 Create a ready PR when checks pass and semantics are resolved; use a draft with explicit blockers otherwise. Verify remote state before retrying an uncertain push or PR creation. Do not merge, release, bump the package version, or modify the source API as part of a sync. Releases happen separately after the sync PRs merge; note in the result when downstream packages that pin `foxglove-client` (such as the Foxglove SDK's dataset extras) need a minimum-version bump after that release.
 
-Return the PR link or local result, source revision, concise behavior changes, validation, and any unfinished requested work.
+Return the PR link or local result, concise behavior changes, validation, and any unfinished requested work. Report private source revisions only in the private conversation, never in public artifacts.
+
+Before delivery, review all public-facing text for internal details. Replace implementation explanations with public contract or client behavior descriptions, and remove private provenance.

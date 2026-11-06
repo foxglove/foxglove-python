@@ -3507,6 +3507,106 @@ class Client:
         response = self.__session.delete(self.__url__(f"/v1/extensions/{extension_id}"))
         json_or_raise(response)
 
+    def get_automations(
+        self,
+        *,
+        project_id: str,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ):
+        """List a project's automations, newest first.
+
+        Each automation has the fields returned by ``get_automation`` plus its
+        lifetime run count, whether its trigger is enabled (``None`` without a
+        trigger), and the time and status of its latest run (``None`` before its
+        first run).
+
+        Automations are in beta. Personal access tokens and organization API keys
+        can list automations.
+
+        :param project_id: The project to list automations from.
+        :param limit: Optionally limit the number of automations returned.
+        :param offset: Optionally skip this many automations.
+        """
+        response = self.__session.get(
+            self.__url__("/v1/automations"),
+            params=without_nulls(
+                {"projectId": project_id, "limit": limit, "offset": offset}
+            ),
+        )
+        return [
+            _automation_list_item_dict(automation)
+            for automation in json_or_raise(response)["automations"]
+        ]
+
+    def get_automation(self, *, automation_id: str):
+        """Get an automation's saved definition.
+
+        Automations are in beta. ``permissions`` is passed through unchanged with
+        the API's field names (``canEdit``, ``canRun``, ``canDelete``).
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.get(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}")
+        )
+        return _automation_dict(json_or_raise(response))
+
+    def create_automation(self, *, project_id: str, name: str, action_prompt: str):
+        """Create an automation and return it as ``get_automation`` does.
+
+        Automations are in beta. Use a personal access token: the automation acts
+        as its owner, with the owner's access to data in the project. Organization
+        API keys can't create automations.
+
+        :param project_id: The project the automation belongs to.
+        :param name: A name for the automation.
+        :param action_prompt: The saved instructions the automation runs with.
+        """
+        response = self.__session.post(
+            self.__url__("/v1/automations"),
+            json={"projectId": project_id, "name": name, "actionPrompt": action_prompt},
+        )
+        return _automation_dict(json_or_raise(response))
+
+    def update_automation(
+        self,
+        *,
+        automation_id: str,
+        name: Optional[str] = None,
+        action_prompt: Optional[str] = None,
+    ):
+        """Edit an automation's name or saved instructions.
+
+        Automations are in beta. Use a personal access token. Existing runs keep
+        the instructions they ran with.
+
+        :param automation_id: The ID of the automation.
+        :param name: Optionally a new name.
+        :param action_prompt: Optionally new saved instructions.
+        """
+        if name is None and action_prompt is None:
+            raise ValueError("name or action_prompt must be provided")
+        response = self.__session.patch(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}"),
+            json=without_nulls({"name": name, "actionPrompt": action_prompt}),
+        )
+        return _automation_dict(json_or_raise(response))
+
+    def delete_automation(self, *, automation_id: str):
+        """Delete an automation and its trigger.
+
+        Automations are in beta. Use a personal access token. Its runs are no
+        longer listed; runs in progress finish, and runs that have not started are
+        rejected.
+
+        :param automation_id: The ID of the automation.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}")
+        )
+        json_or_raise(response)
+
 
 def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -> str:
     if session_id is not None and session_key is not None:
@@ -3927,6 +4027,31 @@ def _device_custom_property_time_interval_dict(interval):
         "value": interval["value"],
         "start": arrow.get(interval["start"]).datetime,
         "end": arrow.get(end).datetime if end else None,
+    }
+
+
+def _automation_dict(automation):
+    return {
+        "id": automation["id"],
+        "project_id": automation["projectId"],
+        "name": automation["name"],
+        "action_prompt": automation["actionPrompt"],
+        "is_owner": automation["isOwner"],
+        # Passed through with API field names.
+        "permissions": automation["permissions"],
+        "created_at": arrow.get(automation["createdAt"]).datetime,
+        "updated_at": arrow.get(automation["updatedAt"]).datetime,
+    }
+
+
+def _automation_list_item_dict(automation):
+    last_run_at = automation["lastRunAt"]
+    return {
+        **_automation_dict(automation),
+        "lifetime_run_count": automation["lifetimeRunCount"],
+        "trigger_enabled": automation["triggerEnabled"],
+        "last_run_at": arrow.get(last_run_at).datetime if last_run_at else None,
+        "last_run_status": automation["lastRunStatus"],
     }
 
 

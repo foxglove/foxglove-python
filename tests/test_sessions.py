@@ -256,6 +256,50 @@ def test_update_session_key_by_existing_key():
 
 
 @responses.activate
+def test_update_session_clears_key_and_property_without_project():
+    session_id = fake.uuid4()
+    s = {**_make_session_json(session_id=session_id), "key": None}
+    responses.add(
+        responses.PATCH,
+        api_url(f"/v1/sessions/{session_id}"),
+        match=[
+            query_string_matcher(""),
+            json_params_matcher({"key": None, "properties": {"vehicle": None}}),
+        ],
+        json=s,
+    )
+    client = Client("test")
+    result = client.update_session(
+        session_id=session_id,
+        new_key=None,
+        properties={"vehicle": None},
+    )
+    assert result["id"] == session_id
+    assert result["key"] is None
+
+
+@responses.activate
+def test_get_and_delete_session_without_project():
+    session_id = fake.uuid4()
+    s = _make_session_json(session_id=session_id)
+    responses.add(
+        responses.GET,
+        api_url(f"/v1/sessions/{session_id}"),
+        match=[query_string_matcher("")],
+        json=s,
+    )
+    responses.add(
+        responses.DELETE,
+        api_url(f"/v1/sessions/{session_id}"),
+        match=[query_string_matcher("")],
+        json={"id": session_id},
+    )
+    client = Client("test")
+    assert client.get_session(session_id=session_id)["id"] == session_id
+    assert client.delete_session(session_id=session_id)["id"] == session_id
+
+
+@responses.activate
 def test_delete_session():
     session_id = fake.uuid4()
     project_id = fake.uuid4()

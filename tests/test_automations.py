@@ -303,3 +303,262 @@ def test_delete_automation_trigger():
         json={"success": True},
     )
     assert Client("test").delete_automation_trigger(automation_id="aut_1") is None
+
+
+TOKEN_USAGE = {
+    "inputTokens": 120,
+    "outputTokens": 40,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 8,
+}
+TRIGGER_SOURCE = {
+    "kind": "recording",
+    "id": "rec_1",
+    "projectId": "prj_1",
+    "available": True,
+}
+
+
+def _run_json(**overrides):
+    return {
+        "id": "run_1",
+        "automationId": "aut_1",
+        "actionPrompt": "Summarize anomalies.",
+        "runPrompt": "Look at rec_1.",
+        "status": "pending",
+        "createdAt": NOW.isoformat(),
+        "updatedAt": NOW.isoformat(),
+        "startedAt": None,
+        "completedAt": None,
+        "errorMessage": None,
+        **overrides,
+    }
+
+
+def _run_result(**overrides):
+    return {
+        "id": "run_1",
+        "automation_id": "aut_1",
+        "action_prompt": "Summarize anomalies.",
+        "run_prompt": "Look at rec_1.",
+        "status": "pending",
+        "created_at": NOW,
+        "updated_at": NOW,
+        "started_at": None,
+        "completed_at": None,
+        "error_message": None,
+        **overrides,
+    }
+
+
+@responses.activate
+def test_create_automation_run():
+    responses.add(
+        responses.POST,
+        api_url("/v1/automations/runs"),
+        status=201,
+        match=[
+            json_params_matcher(
+                {"automationId": "aut_1", "runPrompt": "Look at rec_1."},
+                strict_match=True,
+            )
+        ],
+        json=_run_json(),
+    )
+    run = Client("test").create_automation_run(
+        automation_id="aut_1", run_prompt="Look at rec_1."
+    )
+    assert run == _run_result()
+
+
+@responses.activate
+def test_create_automation_run_without_run_prompt():
+    responses.add(
+        responses.POST,
+        api_url("/v1/automations/runs"),
+        status=201,
+        match=[json_params_matcher({"automationId": "aut_1"}, strict_match=True)],
+        json=_run_json(runPrompt=""),
+    )
+    run = Client("test").create_automation_run(automation_id="aut_1")
+    assert run == _run_result(run_prompt="")
+
+
+@responses.activate
+def test_get_automation_runs():
+    created_after = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    created_before = datetime(2026, 10, 6, tzinfo=timezone.utc)
+    schedule = {"cadence": "daily", "anchor": "2026-10-05T09:00:00Z"}
+    responses.add(
+        responses.GET,
+        api_url("/v1/automations/runs"),
+        match=[
+            query_param_matcher(
+                {
+                    "projectId": "prj_1",
+                    "automationId": "aut_1,aut_2",
+                    "status": "succeeded,failed",
+                    "createdAfter": created_after.astimezone().isoformat(),
+                    "createdBefore": created_before.astimezone().isoformat(),
+                    "sortBy": "createdAt",
+                    "sortOrder": "asc",
+                    "ownerMemberId": "me",
+                    "limit": "5",
+                    "offset": "10",
+                }
+            )
+        ],
+        json={
+            "runs": [
+                {
+                    "id": "run_1",
+                    "automationId": "aut_1",
+                    "status": "succeeded",
+                    "createdAt": NOW.isoformat(),
+                    "updatedAt": NOW.isoformat(),
+                    "startedAt": NOW.isoformat(),
+                    "completedAt": NOW.isoformat(),
+                    "errorMessage": None,
+                    "automationName": "Triage new recordings",
+                    "triggerEventType": "clock.updated",
+                    "triggerSource": None,
+                    "triggerSchedule": schedule,
+                    "tokenUsage": TOKEN_USAGE,
+                },
+                {
+                    "id": "run_2",
+                    "automationId": "aut_2",
+                    "status": "cancelled",
+                    "createdAt": NOW.isoformat(),
+                    "updatedAt": NOW.isoformat(),
+                    "startedAt": None,
+                    "completedAt": None,
+                    "errorMessage": "Stopped",
+                    "automationName": "Tag events",
+                    "triggerEventType": "recording.created",
+                    "triggerSource": TRIGGER_SOURCE,
+                    "triggerSchedule": None,
+                    "tokenUsage": None,
+                },
+            ]
+        },
+    )
+    runs = Client("test").get_automation_runs(
+        project_id="prj_1",
+        automation_ids=["aut_1", "aut_2"],
+        statuses=["succeeded", "failed"],
+        created_after=created_after,
+        created_before=created_before,
+        sort_by="created_at",
+        sort_order="asc",
+        owner_member_id="me",
+        limit=5,
+        offset=10,
+    )
+    assert runs == [
+        {
+            "id": "run_1",
+            "automation_id": "aut_1",
+            "status": "succeeded",
+            "created_at": NOW,
+            "updated_at": NOW,
+            "started_at": NOW,
+            "completed_at": NOW,
+            "error_message": None,
+            "automation_name": "Triage new recordings",
+            "trigger_event_type": "clock.updated",
+            "trigger_source": None,
+            "trigger_schedule": schedule,
+            "token_usage": TOKEN_USAGE,
+        },
+        {
+            "id": "run_2",
+            "automation_id": "aut_2",
+            "status": "cancelled",
+            "created_at": NOW,
+            "updated_at": NOW,
+            "started_at": None,
+            "completed_at": None,
+            "error_message": "Stopped",
+            "automation_name": "Tag events",
+            "trigger_event_type": "recording.created",
+            "trigger_source": TRIGGER_SOURCE,
+            "trigger_schedule": None,
+            "token_usage": None,
+        },
+    ]
+
+
+@responses.activate
+def test_get_automation_runs_sends_only_project_by_default():
+    responses.add(
+        responses.GET,
+        api_url("/v1/automations/runs"),
+        match=[query_param_matcher({"projectId": "prj_1"})],
+        json={"runs": []},
+    )
+    assert Client("test").get_automation_runs(project_id="prj_1") == []
+
+
+@responses.activate
+def test_get_automation_run():
+    responses.add(
+        responses.GET,
+        api_url("/v1/automations/runs/run%2F1"),
+        json=_run_json(
+            id="run/1",
+            status="succeeded",
+            startedAt=NOW.isoformat(),
+            completedAt=NOW.isoformat(),
+            automationName="Triage new recordings",
+            finalAnswer="No anomalies found.",
+            trigger=_trigger_json(
+                eventType="recording.created",
+                configuration={},
+                deletedAt=NOW.isoformat(),
+            ),
+            triggerSource=TRIGGER_SOURCE,
+            tokenUsage=TOKEN_USAGE,
+        ),
+    )
+    run = Client("test").get_automation_run(run_id="run/1")
+    assert run == _run_result(
+        id="run/1",
+        status="succeeded",
+        started_at=NOW,
+        completed_at=NOW,
+        automation_name="Triage new recordings",
+        final_answer="No anomalies found.",
+        trigger=_trigger_result(
+            event_type="recording.created", configuration={}, deleted_at=NOW
+        ),
+        trigger_source=TRIGGER_SOURCE,
+        token_usage=TOKEN_USAGE,
+    )
+
+
+@responses.activate
+def test_get_manual_automation_run_in_progress():
+    responses.add(
+        responses.GET,
+        api_url("/v1/automations/runs/run_1"),
+        json=_run_json(
+            status="running",
+            startedAt=NOW.isoformat(),
+            automationName="Triage new recordings",
+            finalAnswer=None,
+            trigger=None,
+            triggerSource=None,
+            tokenUsage=None,
+        ),
+    )
+    run = Client("test").get_automation_run(run_id="run_1")
+    assert run == _run_result(
+        status="running",
+        started_at=NOW,
+        automation_name="Triage new recordings",
+        final_answer=None,
+        trigger=None,
+        trigger_source=None,
+        token_usage=None,
+    )

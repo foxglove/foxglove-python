@@ -187,6 +187,35 @@ def test_episode_time_strings_are_sent_unchanged():
 
 
 @responses.activate
+def test_read_episode_times_round_trip_at_nanosecond_precision():
+    # An instant episode, with start equal to end.
+    episode_json = {**_episode_json(), "startTime": NS_END, "endTime": NS_END}
+    responses.add(responses.GET, api_url("/v1/episodes/ep_1"), json=episode_json)
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/episodes/ep_1"),
+        match=[
+            json_params_matcher(
+                {"startTime": NS_END, "endTime": NS_END}, strict_match=True
+            )
+        ],
+        json=episode_json,
+    )
+    client = Client("test")
+
+    episode = client.get_episode(episode_id="ep_1")
+    updated = client.update_episode(
+        episode_id="ep_1",
+        start_time=episode["raw_start_time"],
+        end_time=episode["raw_end_time"],
+    )
+
+    assert episode["raw_start_time"] == NS_END
+    assert episode["raw_end_time"] == NS_END
+    assert updated["raw_start_time"] == NS_END
+
+
+@responses.activate
 def test_get_episodes_sends_string_window_unchanged():
     responses.add(
         responses.GET,

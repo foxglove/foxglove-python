@@ -2356,7 +2356,6 @@ class Client:
         include_recordings: bool,
         include_properties: bool,
         include_creation_context: bool,
-        mapper: Optional[Callable[[Any], Any]] = None,
     ):
         _validate_episode_range(start, end)
         path = f"/v1/datasets/{dataset_id}"
@@ -2365,7 +2364,7 @@ class Client:
         path += "/episodes"
         return self._get_page(
             path,
-            mapper or _dataset_episode_dict,
+            _dataset_episode_dict,
             collection="episodes",
             params=without_nulls(
                 {
@@ -2524,8 +2523,7 @@ class Client:
             ``recordings`` or ``event_id``, and may include ``properties``.
             Recording inputs may also include ``start_time`` and ``end_time``, each a datetime
             or an RFC 3339 timestamp string; a string is sent unchanged, so it can carry up
-            to nanosecond precision. Episode times returned by this client are datetimes with
-            microsecond precision. Equal times describe a single instant. An ``event_id``
+            to nanosecond precision. Equal times describe a single instant. An ``event_id``
             input snapshots the event's current time range and the completed recordings from
             its device that overlap it; later edits to the event or new imports do not change
             the episode. ``properties`` keys must be episode custom properties defined for your
@@ -2680,6 +2678,10 @@ class Client:
 
         Pass ``version`` to read a specific episode version instead of the latest.
         The result always includes ``creation_context``, which keeps the API's field names.
+
+        ``start_time`` and ``end_time`` are datetimes, which hold microseconds.
+        ``raw_start_time`` and ``raw_end_time`` are the API's RFC 3339 strings, with up to
+        nanosecond precision; pass them to ``update_episode`` to keep the exact window.
         """
         response = self.__session.get(
             self.__url__(f"/v1/episodes/{episode_id}"),
@@ -2736,7 +2738,7 @@ class Client:
             differs.
         :param start_time: Optional new start of the episode window, as a datetime or an
             RFC 3339 timestamp string. A string is sent unchanged, so it can carry up to
-            nanosecond precision.
+            nanosecond precision, such as an episode's ``raw_start_time``.
         :param end_time: Optional new end of the episode window, in the same forms as
             ``start_time``. Equal start and end times describe a single instant.
         :param recordings: Optional dictionary with ``add`` and ``remove`` lists of
@@ -2822,7 +2824,6 @@ class Client:
                 include_recordings=False,
                 include_properties=include_properties,
                 include_creation_context=False,
-                mapper=_dataset_export_episode_dict,
             ).auto_paging_iter()
         )
         incomplete = sum(member["has_missing_recordings"] for member in episodes)
@@ -4121,6 +4122,9 @@ def _episode_dict(episode):
         "project_id": episode["projectId"],
         "start_time": arrow.get(episode["startTime"]).datetime,
         "end_time": arrow.get(episode["endTime"]).datetime,
+        # The API's strings, which can be more precise than a datetime.
+        "raw_start_time": episode["startTime"],
+        "raw_end_time": episode["endTime"],
         "version": episode["version"],
         "latest_version": episode["latestVersion"],
         "creator_org_member_id": episode.get("creatorOrgMemberId"),
@@ -4166,15 +4170,6 @@ def _dataset_episode_dict(dataset_episode):
         result["has_missing_recordings"] = dataset_episode["hasMissingRecordings"]
     if "change" in dataset_episode:
         result["change"] = dataset_episode["change"]
-    return result
-
-
-def _dataset_export_episode_dict(dataset_episode):
-    # The manifest keeps the API's episode window strings, which can be more precise
-    # than a datetime.
-    result = _dataset_episode_dict(dataset_episode)
-    result["raw_start_time"] = dataset_episode["episode"]["startTime"]
-    result["raw_end_time"] = dataset_episode["episode"]["endTime"]
     return result
 
 

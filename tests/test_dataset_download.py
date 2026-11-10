@@ -374,10 +374,10 @@ def test_manifest_timestamps_match_app(tmp_path, monkeypatch):
                     "properties": {},
                     "start_time": instant,
                     "end_time": instant.replace(microsecond=0),
+                    "raw_start_time": "2024-01-01T00:00:00.123456789Z",
+                    "raw_end_time": "2024-01-01T00:00:00.000Z",
                 },
                 "has_missing_recordings": False,
-                "raw_start_time": "2024-01-01T00:00:00.123456789Z",
-                "raw_end_time": "2024-01-01T00:00:00.000Z",
             }
         ],
         destination=tmp_path,

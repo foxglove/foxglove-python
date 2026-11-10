@@ -123,8 +123,8 @@ def export_dataset(
                 "index": index,
                 "id": episode["id"],
                 "version": episode["version"],
-                "startTime": member["raw_start_time"],
-                "endTime": member["raw_end_time"],
+                "startTime": episode["raw_start_time"],
+                "endTime": episode["raw_end_time"],
             }
             if "properties" in episode:
                 entry["properties"] = episode["properties"]

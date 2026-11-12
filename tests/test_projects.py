@@ -87,4 +87,3 @@ def test_update_project_members_add():
         project_id="prj/1", action="add", member_ids=["mbr_1", "mbr_2"]
     )
     assert result == {"affected_member_ids": ["mbr_2"]}
-

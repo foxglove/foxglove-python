@@ -2769,11 +2769,15 @@ class Client:
         topics: Optional[List[str]] = None,
         include_properties: bool = False,
     ) -> Path:
-        """Export a committed version to MCAP files (including attachments) and a manifest.
+        """Export a dataset version to MCAP files (including attachments) and a manifest.
 
         The manifest uses the app's schema, but ``file`` paths
         are relative to the returned output directory, which contains manifest.json.
         App ZIP exports instead use paths relative to the ZIP root.
+
+        ``version_number`` can name the dataset's uncommitted draft, whose episodes
+        can change until it is committed. Its manifest records ``"uncommitted": true``
+        instead of ``committedAt``.
 
         ``include_properties=True`` adds episode custom properties to the manifest
         and requires access to episode properties. Properties are omitted by default.
@@ -2797,8 +2801,6 @@ class Client:
         version = self.get_dataset_version(
             dataset_id=dataset_id, version_number=version_number
         )
-        if version["committed_at"] is None:
-            raise RuntimeError("Cannot download an editable dataset version")
         destination = Path(output_directory)
         if destination.exists():
             if not destination.is_dir():

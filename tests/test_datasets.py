@@ -403,21 +403,37 @@ def test_download_dataset(tmp_path, download_options, properties):
 
 
 @responses.activate
-def test_download_dataset_rejects_editable_version(tmp_path):
+def test_download_dataset_marks_draft_uncommitted(tmp_path):
+    output = tmp_path / "dataset"
+    responses.add(responses.GET, api_url("/v1/datasets/ds_1"), json=_dataset_json())
     responses.add(
         responses.GET,
         api_url("/v1/datasets/ds_1/versions/2"),
         json=_version_json(2, committed=False),
     )
+    responses.add(
+        responses.GET,
+        api_url("/v1/datasets/ds_1/versions/2/episodes"),
+        json={"episodes": [_dataset_episode_json("ep_1")]},
+    )
+    responses.add(
+        responses.POST,
+        api_url("/v1/data/stream"),
+        json={"link": "https://storage.example/ep_1.mcap"},
+    )
+    responses.add(
+        responses.GET, "https://storage.example/ep_1.mcap", body=b"episode data"
+    )
 
-    with pytest.raises(RuntimeError) as raised:
-        Client("test").download_dataset(
-            dataset_id="ds_1",
-            version_number=2,
-            output_directory=tmp_path / "dataset",
-        )
+    Client("test").download_dataset(
+        dataset_id="ds_1", version_number=2, output_directory=output
+    )
 
-    assert str(raised.value) == "Cannot download an editable dataset version"
+    assert json.loads(responses.calls[3].request.body)["episodeVersion"] == 1
+    assert (output / "episode_0000_ep_1.mcap").read_bytes() == b"episode data"
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["formatVersion"] == 1
+    assert manifest["version"] == {"versionNumber": 2, "uncommitted": True}
 
 
 @responses.activate

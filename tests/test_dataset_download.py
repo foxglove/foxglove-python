@@ -386,7 +386,10 @@ def test_manifest_timestamps_match_app(tmp_path, monkeypatch):
     )
     manifest = json.loads((tmp_path / "manifest.json").read_text())
     assert manifest["generatedAt"] == "2024-01-01T00:00:00.123Z"
-    assert manifest["version"]["committedAt"] == "2024-01-01T00:00:00.123Z"
+    assert manifest["version"] == {
+        "versionNumber": 1,
+        "committedAt": "2024-01-01T00:00:00.123Z",
+    }
     assert manifest["episodes"][0]["startTime"] == "2024-01-01T00:00:00.123456789Z"
     assert manifest["episodes"][0]["endTime"] == "2024-01-01T00:00:00.000Z"
 

@@ -107,10 +107,16 @@ def export_dataset(
             "name": dataset["name"],
             "projectId": dataset["project_id"],
         },
-        "version": {
-            "versionNumber": version["version_number"],
-            "committedAt": _iso(version["committed_at"]),
-        },
+        # A draft's episodes can change under the same version number, so it records
+        # that it is uncommitted instead of a commit time.
+        "version": (
+            {"versionNumber": version["version_number"], "uncommitted": True}
+            if version["committed_at"] is None
+            else {
+                "versionNumber": version["version_number"],
+                "committedAt": _iso(version["committed_at"]),
+            }
+        ),
         "selection": selection,
         "episodes": entries,
     }

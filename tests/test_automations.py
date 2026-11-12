@@ -9,7 +9,12 @@ from foxglove.client import Client
 from .api_url import api_url
 
 NOW = datetime(2026, 10, 5, 9, tzinfo=timezone.utc)
-PERMISSIONS = {"canEdit": True, "canRun": True, "canDelete": False}
+PERMISSIONS = {
+    "canEdit": True,
+    "canSetEnabled": True,
+    "canRun": True,
+    "canDelete": False,
+}
 
 
 def _automation_json(**overrides):
@@ -18,6 +23,7 @@ def _automation_json(**overrides):
         "projectId": "prj_1",
         "name": "Triage new recordings",
         "actionPrompt": "Summarize anomalies.",
+        "modelSelection": None,
         "isOwner": True,
         "permissions": PERMISSIONS,
         "createdAt": NOW.isoformat(),
@@ -32,6 +38,7 @@ def _automation_result(**overrides):
         "project_id": "prj_1",
         "name": "Triage new recordings",
         "action_prompt": "Summarize anomalies.",
+        "model_selection": None,
         "is_owner": True,
         "permissions": PERMISSIONS,
         "created_at": NOW,
@@ -127,6 +134,34 @@ def test_create_automation():
 
 
 @responses.activate
+def test_create_automation_with_model_selection():
+    responses.add(
+        responses.POST,
+        api_url("/v1/automations"),
+        status=201,
+        match=[
+            json_params_matcher(
+                {
+                    "projectId": "prj_1",
+                    "name": "Triage new recordings",
+                    "actionPrompt": "Summarize anomalies.",
+                    "modelSelection": "opus",
+                },
+                strict_match=True,
+            )
+        ],
+        json=_automation_json(modelSelection="opus"),
+    )
+    automation = Client("test").create_automation(
+        project_id="prj_1",
+        name="Triage new recordings",
+        action_prompt="Summarize anomalies.",
+        model_selection="opus",
+    )
+    assert automation == _automation_result(model_selection="opus")
+
+
+@responses.activate
 def test_update_automation_sends_only_given_fields():
     responses.add(
         responses.PATCH,
@@ -136,6 +171,34 @@ def test_update_automation_sends_only_given_fields():
     )
     automation = Client("test").update_automation(automation_id="aut_1", name="Renamed")
     assert automation == _automation_result(name="Renamed")
+
+
+@responses.activate
+def test_update_automation_sets_model_selection():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/automations/aut_1"),
+        match=[json_params_matcher({"modelSelection": "sonnet"}, strict_match=True)],
+        json=_automation_json(modelSelection="sonnet"),
+    )
+    automation = Client("test").update_automation(
+        automation_id="aut_1", model_selection="sonnet"
+    )
+    assert automation == _automation_result(model_selection="sonnet")
+
+
+@responses.activate
+def test_update_automation_clears_model_selection():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/automations/aut_1"),
+        match=[json_params_matcher({"modelSelection": None}, strict_match=True)],
+        json=_automation_json(),
+    )
+    automation = Client("test").update_automation(
+        automation_id="aut_1", model_selection=None
+    )
+    assert automation == _automation_result()
 
 
 def test_update_automation_requires_a_change():
@@ -331,6 +394,10 @@ def _run_json(**overrides):
         "startedAt": None,
         "completedAt": None,
         "errorMessage": None,
+        "execution": "pending",
+        "result": None,
+        "resultSummary": None,
+        "model": None,
         **overrides,
     }
 
@@ -347,6 +414,10 @@ def _run_result(**overrides):
         "started_at": None,
         "completed_at": None,
         "error_message": None,
+        "execution": "pending",
+        "result": None,
+        "result_summary": None,
+        "model": None,
         **overrides,
     }
 
@@ -419,6 +490,10 @@ def test_get_automation_runs():
                     "startedAt": NOW.isoformat(),
                     "completedAt": NOW.isoformat(),
                     "errorMessage": None,
+                    "execution": "finished",
+                    "result": "needs_review",
+                    "resultSummary": "One recording has a gap.",
+                    "model": "claude-sonnet-5-5",
                     "automationName": "Triage new recordings",
                     "triggerEventType": "clock.updated",
                     "triggerSource": None,
@@ -434,6 +509,10 @@ def test_get_automation_runs():
                     "startedAt": None,
                     "completedAt": None,
                     "errorMessage": "Stopped",
+                    "execution": "blocked",
+                    "result": None,
+                    "resultSummary": None,
+                    "model": None,
                     "automationName": "Tag events",
                     "triggerEventType": "recording.created",
                     "triggerSource": TRIGGER_SOURCE,
@@ -465,6 +544,10 @@ def test_get_automation_runs():
             "started_at": NOW,
             "completed_at": NOW,
             "error_message": None,
+            "execution": "finished",
+            "result": "needs_review",
+            "result_summary": "One recording has a gap.",
+            "model": "claude-sonnet-5-5",
             "automation_name": "Triage new recordings",
             "trigger_event_type": "clock.updated",
             "trigger_source": None,
@@ -480,6 +563,10 @@ def test_get_automation_runs():
             "started_at": None,
             "completed_at": None,
             "error_message": "Stopped",
+            "execution": "blocked",
+            "result": None,
+            "result_summary": None,
+            "model": None,
             "automation_name": "Tag events",
             "trigger_event_type": "recording.created",
             "trigger_source": TRIGGER_SOURCE,
@@ -510,6 +597,10 @@ def test_get_automation_run():
             status="succeeded",
             startedAt=NOW.isoformat(),
             completedAt=NOW.isoformat(),
+            execution="finished",
+            result="no_result",
+            resultSummary="No new recordings to check.",
+            model="claude-sonnet-5-5",
             automationName="Triage new recordings",
             finalAnswer="No anomalies found.",
             trigger=_trigger_json(
@@ -527,6 +618,10 @@ def test_get_automation_run():
         status="succeeded",
         started_at=NOW,
         completed_at=NOW,
+        execution="finished",
+        result="no_result",
+        result_summary="No new recordings to check.",
+        model="claude-sonnet-5-5",
         automation_name="Triage new recordings",
         final_answer="No anomalies found.",
         trigger=_trigger_result(
@@ -562,3 +657,13 @@ def test_get_manual_automation_run_in_progress():
         trigger_source=None,
         token_usage=None,
     )
+
+
+@responses.activate
+def test_delete_automation_run_encodes_id():
+    responses.add(
+        responses.DELETE,
+        api_url("/v1/automations/runs/run%2F1"),
+        json={"success": True},
+    )
+    assert Client("test").delete_automation_run(run_id="run/1") is None

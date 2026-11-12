@@ -96,7 +96,11 @@ def export_dataset(
     download: Callable[[str, int, Path], int],
 ) -> Path:
     entries: List[Dict[str, Any]] = []
-    selection: Dict[str, Any] = {"episodeCount": version["episode_count"]}
+    # A draft can change after its version was read, so count what was listed.
+    episode_count = (
+        len(episodes) if version["committed_at"] is None else version["episode_count"]
+    )
+    selection: Dict[str, Any] = {"episodeCount": episode_count}
     if topics is not None:
         selection["topics"] = topics
     manifest = {
@@ -107,10 +111,16 @@ def export_dataset(
             "name": dataset["name"],
             "projectId": dataset["project_id"],
         },
-        "version": {
-            "versionNumber": version["version_number"],
-            "committedAt": _iso(version["committed_at"]),
-        },
+        # A draft's episodes can change under the same version number, so it records
+        # that it is uncommitted instead of a commit time.
+        "version": (
+            {"versionNumber": version["version_number"], "uncommitted": True}
+            if version["committed_at"] is None
+            else {
+                "versionNumber": version["version_number"],
+                "committedAt": _iso(version["committed_at"]),
+            }
+        ),
         "selection": selection,
         "episodes": entries,
     }

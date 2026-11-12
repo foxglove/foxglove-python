@@ -96,7 +96,11 @@ def export_dataset(
     download: Callable[[str, int, Path], int],
 ) -> Path:
     entries: List[Dict[str, Any]] = []
-    selection: Dict[str, Any] = {"episodeCount": version["episode_count"]}
+    # A draft can change after its version was read, so count what was listed.
+    episode_count = (
+        len(episodes) if version["committed_at"] is None else version["episode_count"]
+    )
+    selection: Dict[str, Any] = {"episodeCount": episode_count}
     if topics is not None:
         selection["topics"] = topics
     manifest = {

@@ -409,7 +409,8 @@ def test_download_dataset_marks_draft_uncommitted(tmp_path):
     responses.add(
         responses.GET,
         api_url("/v1/datasets/ds_1/versions/2"),
-        json=_version_json(2, committed=False),
+        # The draft changed after its count was read.
+        json={**_version_json(2, committed=False), "episodeCount": 5},
     )
     responses.add(
         responses.GET,
@@ -434,6 +435,7 @@ def test_download_dataset_marks_draft_uncommitted(tmp_path):
     manifest = json.loads((output / "manifest.json").read_text())
     assert manifest["formatVersion"] == 1
     assert manifest["version"] == {"versionNumber": 2, "uncommitted": True}
+    assert manifest["selection"] == {"episodeCount": 1}
 
 
 @responses.activate

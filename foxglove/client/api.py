@@ -2776,7 +2776,8 @@ class Client:
         App ZIP exports instead use paths relative to the ZIP root.
 
         ``version_number`` can name the dataset's uncommitted draft, whose episodes
-        can change until it is committed. Its manifest records ``"uncommitted": true``
+        can change until it is committed, including while it is being listed, so a draft
+        export is not a consistent snapshot. Its manifest records ``"uncommitted": true``
         instead of ``committedAt``.
 
         ``include_properties=True`` adds episode custom properties to the manifest

@@ -2019,6 +2019,34 @@ class Client:
             for p in json
         ]
 
+    def update_project_members(
+        self, *, project_id: str, action: str, member_ids: List[str]
+    ):
+        """
+        Add organization members to a project, or remove them from it.
+
+        Members with the user role need this access to use an invite-only project.
+        Organization admins can access every project. Requires an organization
+        admin or an API key with the ``projectMembers.update`` capability. A key
+        limited to specific projects can change membership only for those projects.
+
+        Returns a dict with ``affected_member_ids``: the members newly added or
+        removed. Members who already have the requested access are left unchanged
+        and omitted.
+
+        :param project_id: The ID of the project.
+        :param action: "add" or "remove".
+        :param member_ids: Up to 50 organization member IDs. For "add", every ID
+            must belong to a member of the organization, or the request fails and
+            adds no members. For "remove", unknown IDs are ignored. Repeated IDs
+            count once, and an empty list changes nothing.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/projects/{urlquote(project_id, safe='')}/members"),
+            json={"action": action, "memberIds": member_ids},
+        )
+        return {"affected_member_ids": json_or_raise(response)["affectedMemberIds"]}
+
     def get_org_members(
         self,
         *,
@@ -3556,8 +3584,13 @@ class Client:
     def get_automation(self, *, automation_id: str):
         """Get an automation's saved definition.
 
+        ``model_selection`` is the model family the automation's runs use ("auto",
+        "sonnet", or "opus"), or ``None`` when none is saved and runs use the
+        organization's default model.
+
         Automations are in beta. ``permissions`` is passed through unchanged with
-        the API's field names (``canEdit``, ``canRun``, ``canDelete``).
+        the API's field names (``canEdit``, ``canSetEnabled``, ``canRun``,
+        ``canDelete``).
 
         :param automation_id: The ID of the automation.
         """
@@ -3566,7 +3599,14 @@ class Client:
         )
         return _automation_dict(json_or_raise(response))
 
-    def create_automation(self, *, project_id: str, name: str, action_prompt: str):
+    def create_automation(
+        self,
+        *,
+        project_id: str,
+        name: str,
+        action_prompt: str,
+        model_selection: Optional[str] = None,
+    ):
         """Create an automation and return it as ``get_automation`` does.
 
         Automations are in beta. Use a personal access token: the automation acts
@@ -3576,10 +3616,21 @@ class Client:
         :param project_id: The project the automation belongs to.
         :param name: A name for the automation.
         :param action_prompt: The saved instructions the automation runs with.
+        :param model_selection: Optionally the model family the automation's runs
+            use: "auto" for the recommended model, or "sonnet" or "opus" for the
+            current version of that family. When omitted, runs use the
+            organization's default model.
         """
         response = self.__session.post(
             self.__url__("/v1/automations"),
-            json={"projectId": project_id, "name": name, "actionPrompt": action_prompt},
+            json=without_nulls(
+                {
+                    "projectId": project_id,
+                    "name": name,
+                    "actionPrompt": action_prompt,
+                    "modelSelection": model_selection,
+                }
+            ),
         )
         return _automation_dict(json_or_raise(response))
 
@@ -3589,8 +3640,9 @@ class Client:
         automation_id: str,
         name: Optional[str] = None,
         action_prompt: Optional[str] = None,
+        model_selection: Any = _UNSET,
     ):
-        """Edit an automation's name or saved instructions.
+        """Edit an automation's name, saved instructions, or model selection.
 
         Automations are in beta. Use a personal access token. Existing runs keep
         the instructions they ran with.
@@ -3598,21 +3650,26 @@ class Client:
         :param automation_id: The ID of the automation.
         :param name: Optionally a new name.
         :param action_prompt: Optionally new saved instructions.
+        :param model_selection: Optionally a new model family for the automation's
+            runs: "auto", "sonnet", or "opus". Pass ``None`` to clear it, so runs
+            use the organization's default model.
         """
-        if name is None and action_prompt is None:
-            raise ValueError("name or action_prompt must be provided")
+        body = without_nulls({"name": name, "actionPrompt": action_prompt})
+        if model_selection is not _UNSET:
+            body["modelSelection"] = model_selection
+        if not body:
+            raise ValueError("name, action_prompt, or model_selection must be provided")
         response = self.__session.patch(
             self.__url__(f"/v1/automations/{urlquote(automation_id, safe='')}"),
-            json=without_nulls({"name": name, "actionPrompt": action_prompt}),
+            json=body,
         )
         return _automation_dict(json_or_raise(response))
 
     def delete_automation(self, *, automation_id: str):
-        """Delete an automation and its trigger.
+        """Delete an automation, its trigger, and its runs.
 
-        Automations are in beta. Use a personal access token. Its runs are no
-        longer listed; runs in progress finish, and runs that have not started are
-        rejected.
+        Automations are in beta. Use a personal access token. Each run's chat is
+        deleted with the run, including a run that is still in progress.
 
         :param automation_id: The ID of the automation.
         """
@@ -3741,6 +3798,13 @@ class Client:
 
         Each run includes its automation's name and what triggered it. Use
         ``get_automation_run`` to read a run's prompts and final answer.
+        ``execution`` says whether Foxglove ran the automation to the end
+        ("pending", "running", "finished", "error", or "blocked"), separate from
+        what the run found. ``result`` is what the agent reported the run
+        accomplished ("succeeded", "needs_review", "failed", or "no_result"), and
+        ``result_summary`` is its one-sentence summary; both are ``None`` when the
+        agent did not report a result. ``model`` is the model the run's chat used,
+        or ``None`` until the run's chat exists.
         ``trigger_source``, ``trigger_schedule``, and ``token_usage`` are passed
         through unchanged with the API's field names.
 
@@ -3802,6 +3866,8 @@ class Client:
         ``trigger`` is the trigger that started the run, as it was then, or ``None``
         for a manual run. ``trigger_source`` and ``token_usage`` are passed through
         unchanged with the API's field names, and are ``None`` when not applicable.
+        ``execution``, ``result``, ``result_summary``, and ``model`` are as
+        described in ``get_automation_runs``.
 
         Automations are in beta. Personal access tokens and organization API keys
         can get runs.
@@ -3812,6 +3878,19 @@ class Client:
             self.__url__(f"/v1/automations/runs/{urlquote(run_id, safe='')}")
         )
         return _automation_run_details_dict(json_or_raise(response))
+
+    def delete_automation_run(self, *, run_id: str):
+        """Delete an automation run and its chat.
+
+        Automations are in beta. Use a personal access token. The run no longer
+        appears in run lists. A run that is still in progress stops.
+
+        :param run_id: The ID of the run.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/automations/runs/{urlquote(run_id, safe='')}")
+        )
+        json_or_raise(response)
 
 
 def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -> str:
@@ -4236,6 +4315,7 @@ def _automation_dict(automation):
         "project_id": automation["projectId"],
         "name": automation["name"],
         "action_prompt": automation["actionPrompt"],
+        "model_selection": automation["modelSelection"],
         "is_owner": automation["isOwner"],
         # Passed through with API field names.
         "permissions": automation["permissions"],
@@ -4289,6 +4369,10 @@ def _automation_run_base_dict(run):
         "started_at": arrow.get(started_at).datetime if started_at else None,
         "completed_at": arrow.get(completed_at).datetime if completed_at else None,
         "error_message": run["errorMessage"],
+        "execution": run["execution"],
+        "result": run["result"],
+        "result_summary": run["resultSummary"],
+        "model": run["model"],
     }
 
 

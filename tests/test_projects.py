@@ -2,6 +2,7 @@ from datetime import datetime
 
 import responses
 from faker import Faker
+from responses.matchers import json_params_matcher
 from foxglove.client import Client
 import arrow
 
@@ -67,3 +68,23 @@ def test_get_projects_empty():
     projects = client.get_projects()
 
     assert len(projects) == 0
+
+
+@responses.activate
+def test_update_project_members_add():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/projects/prj%2F1/members"),
+        match=[
+            json_params_matcher(
+                {"action": "add", "memberIds": ["mbr_1", "mbr_2"]},
+                strict_match=True,
+            )
+        ],
+        json={"affectedMemberIds": ["mbr_2"]},
+    )
+    result = Client("test").update_project_members(
+        project_id="prj/1", action="add", member_ids=["mbr_1", "mbr_2"]
+    )
+    assert result == {"affected_member_ids": ["mbr_2"]}
+

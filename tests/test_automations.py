@@ -331,6 +331,10 @@ def _run_json(**overrides):
         "startedAt": None,
         "completedAt": None,
         "errorMessage": None,
+        "execution": "pending",
+        "result": None,
+        "resultSummary": None,
+        "model": None,
         **overrides,
     }
 
@@ -347,6 +351,10 @@ def _run_result(**overrides):
         "started_at": None,
         "completed_at": None,
         "error_message": None,
+        "execution": "pending",
+        "result": None,
+        "result_summary": None,
+        "model": None,
         **overrides,
     }
 
@@ -419,6 +427,10 @@ def test_get_automation_runs():
                     "startedAt": NOW.isoformat(),
                     "completedAt": NOW.isoformat(),
                     "errorMessage": None,
+                    "execution": "finished",
+                    "result": "needs_review",
+                    "resultSummary": "One recording has a gap.",
+                    "model": "claude-sonnet-5-5",
                     "automationName": "Triage new recordings",
                     "triggerEventType": "clock.updated",
                     "triggerSource": None,
@@ -434,6 +446,10 @@ def test_get_automation_runs():
                     "startedAt": None,
                     "completedAt": None,
                     "errorMessage": "Stopped",
+                    "execution": "blocked",
+                    "result": None,
+                    "resultSummary": None,
+                    "model": None,
                     "automationName": "Tag events",
                     "triggerEventType": "recording.created",
                     "triggerSource": TRIGGER_SOURCE,
@@ -465,6 +481,10 @@ def test_get_automation_runs():
             "started_at": NOW,
             "completed_at": NOW,
             "error_message": None,
+            "execution": "finished",
+            "result": "needs_review",
+            "result_summary": "One recording has a gap.",
+            "model": "claude-sonnet-5-5",
             "automation_name": "Triage new recordings",
             "trigger_event_type": "clock.updated",
             "trigger_source": None,
@@ -480,6 +500,10 @@ def test_get_automation_runs():
             "started_at": None,
             "completed_at": None,
             "error_message": "Stopped",
+            "execution": "blocked",
+            "result": None,
+            "result_summary": None,
+            "model": None,
             "automation_name": "Tag events",
             "trigger_event_type": "recording.created",
             "trigger_source": TRIGGER_SOURCE,
@@ -510,6 +534,10 @@ def test_get_automation_run():
             status="succeeded",
             startedAt=NOW.isoformat(),
             completedAt=NOW.isoformat(),
+            execution="finished",
+            result="no_result",
+            resultSummary="No new recordings to check.",
+            model="claude-sonnet-5-5",
             automationName="Triage new recordings",
             finalAnswer="No anomalies found.",
             trigger=_trigger_json(
@@ -527,6 +555,10 @@ def test_get_automation_run():
         status="succeeded",
         started_at=NOW,
         completed_at=NOW,
+        execution="finished",
+        result="no_result",
+        result_summary="No new recordings to check.",
+        model="claude-sonnet-5-5",
         automation_name="Triage new recordings",
         final_answer="No anomalies found.",
         trigger=_trigger_result(
@@ -562,3 +594,13 @@ def test_get_manual_automation_run_in_progress():
         trigger_source=None,
         token_usage=None,
     )
+
+
+@responses.activate
+def test_delete_automation_run_encodes_id():
+    responses.add(
+        responses.DELETE,
+        api_url("/v1/automations/runs/run%2F1"),
+        json={"success": True},
+    )
+    assert Client("test").delete_automation_run(run_id="run/1") is None

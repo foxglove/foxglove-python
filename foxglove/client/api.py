@@ -3738,6 +3738,13 @@ class Client:
 
         Each run includes its automation's name and what triggered it. Use
         ``get_automation_run`` to read a run's prompts and final answer.
+        ``execution`` says whether Foxglove ran the automation to the end
+        ("pending", "running", "finished", "error", or "blocked"), separate from
+        what the run found. ``result`` is what the agent reported the run
+        accomplished ("succeeded", "needs_review", "failed", or "no_result"), and
+        ``result_summary`` is its one-sentence summary; both are ``None`` when the
+        agent did not report a result. ``model`` is the model the run's chat used,
+        or ``None`` until the run's chat exists.
         ``trigger_source``, ``trigger_schedule``, and ``token_usage`` are passed
         through unchanged with the API's field names.
 
@@ -3799,6 +3806,8 @@ class Client:
         ``trigger`` is the trigger that started the run, as it was then, or ``None``
         for a manual run. ``trigger_source`` and ``token_usage`` are passed through
         unchanged with the API's field names, and are ``None`` when not applicable.
+        ``execution``, ``result``, ``result_summary``, and ``model`` are as
+        described in ``get_automation_runs``.
 
         Automations are in beta. Personal access tokens and organization API keys
         can get runs.
@@ -3809,6 +3818,19 @@ class Client:
             self.__url__(f"/v1/automations/runs/{urlquote(run_id, safe='')}")
         )
         return _automation_run_details_dict(json_or_raise(response))
+
+    def delete_automation_run(self, *, run_id: str):
+        """Delete an automation run and its chat.
+
+        Automations are in beta. Use a personal access token. The run no longer
+        appears in run lists. A run that is still in progress stops.
+
+        :param run_id: The ID of the run.
+        """
+        response = self.__session.delete(
+            self.__url__(f"/v1/automations/runs/{urlquote(run_id, safe='')}")
+        )
+        json_or_raise(response)
 
 
 def _session_identifier(session_id: Optional[str], session_key: Optional[str]) -> str:
@@ -4286,6 +4308,10 @@ def _automation_run_base_dict(run):
         "started_at": arrow.get(started_at).datetime if started_at else None,
         "completed_at": arrow.get(completed_at).datetime if completed_at else None,
         "error_message": run["errorMessage"],
+        "execution": run["execution"],
+        "result": run["result"],
+        "result_summary": run["resultSummary"],
+        "model": run["model"],
     }
 
 

@@ -2019,6 +2019,34 @@ class Client:
             for p in json
         ]
 
+    def update_project_members(
+        self, *, project_id: str, action: str, member_ids: List[str]
+    ):
+        """
+        Add organization members to a project, or remove them from it.
+
+        Members with the user role need this access to use an invite-only project.
+        Organization admins can access every project. Requires an organization
+        admin or an API key with the ``projectMembers.update`` capability. A key
+        limited to specific projects can change membership only for those projects.
+
+        Returns a dict with ``affected_member_ids``: the members newly added or
+        removed. Members who already have the requested access are left unchanged
+        and omitted.
+
+        :param project_id: The ID of the project.
+        :param action: "add" or "remove".
+        :param member_ids: Up to 50 organization member IDs. For "add", every ID
+            must belong to a member of the organization, or the request fails and
+            adds no members. For "remove", unknown IDs are ignored. Repeated IDs
+            count once, and an empty list changes nothing.
+        """
+        response = self.__session.patch(
+            self.__url__(f"/v1/projects/{urlquote(project_id, safe='')}/members"),
+            json={"action": action, "memberIds": member_ids},
+        )
+        return {"affected_member_ids": json_or_raise(response)["affectedMemberIds"]}
+
     def get_org_members(
         self,
         *,

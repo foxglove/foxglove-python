@@ -9,7 +9,12 @@ from foxglove.client import Client
 from .api_url import api_url
 
 NOW = datetime(2026, 10, 5, 9, tzinfo=timezone.utc)
-PERMISSIONS = {"canEdit": True, "canRun": True, "canDelete": False}
+PERMISSIONS = {
+    "canEdit": True,
+    "canSetEnabled": True,
+    "canRun": True,
+    "canDelete": False,
+}
 
 
 def _automation_json(**overrides):
@@ -18,6 +23,7 @@ def _automation_json(**overrides):
         "projectId": "prj_1",
         "name": "Triage new recordings",
         "actionPrompt": "Summarize anomalies.",
+        "modelSelection": None,
         "isOwner": True,
         "permissions": PERMISSIONS,
         "createdAt": NOW.isoformat(),
@@ -32,6 +38,7 @@ def _automation_result(**overrides):
         "project_id": "prj_1",
         "name": "Triage new recordings",
         "action_prompt": "Summarize anomalies.",
+        "model_selection": None,
         "is_owner": True,
         "permissions": PERMISSIONS,
         "created_at": NOW,
@@ -127,6 +134,34 @@ def test_create_automation():
 
 
 @responses.activate
+def test_create_automation_with_model_selection():
+    responses.add(
+        responses.POST,
+        api_url("/v1/automations"),
+        status=201,
+        match=[
+            json_params_matcher(
+                {
+                    "projectId": "prj_1",
+                    "name": "Triage new recordings",
+                    "actionPrompt": "Summarize anomalies.",
+                    "modelSelection": "opus",
+                },
+                strict_match=True,
+            )
+        ],
+        json=_automation_json(modelSelection="opus"),
+    )
+    automation = Client("test").create_automation(
+        project_id="prj_1",
+        name="Triage new recordings",
+        action_prompt="Summarize anomalies.",
+        model_selection="opus",
+    )
+    assert automation == _automation_result(model_selection="opus")
+
+
+@responses.activate
 def test_update_automation_sends_only_given_fields():
     responses.add(
         responses.PATCH,
@@ -136,6 +171,34 @@ def test_update_automation_sends_only_given_fields():
     )
     automation = Client("test").update_automation(automation_id="aut_1", name="Renamed")
     assert automation == _automation_result(name="Renamed")
+
+
+@responses.activate
+def test_update_automation_sets_model_selection():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/automations/aut_1"),
+        match=[json_params_matcher({"modelSelection": "sonnet"}, strict_match=True)],
+        json=_automation_json(modelSelection="sonnet"),
+    )
+    automation = Client("test").update_automation(
+        automation_id="aut_1", model_selection="sonnet"
+    )
+    assert automation == _automation_result(model_selection="sonnet")
+
+
+@responses.activate
+def test_update_automation_clears_model_selection():
+    responses.add(
+        responses.PATCH,
+        api_url("/v1/automations/aut_1"),
+        match=[json_params_matcher({"modelSelection": None}, strict_match=True)],
+        json=_automation_json(),
+    )
+    automation = Client("test").update_automation(
+        automation_id="aut_1", model_selection=None
+    )
+    assert automation == _automation_result()
 
 
 def test_update_automation_requires_a_change():

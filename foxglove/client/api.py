@@ -3754,6 +3754,8 @@ class Client:
         project_id: str,
         automation_ids: Optional[List[str]] = None,
         statuses: Optional[List[str]] = None,
+        executions: Optional[List[str]] = None,
+        results: Optional[List[str]] = None,
         created_after: Optional[datetime.datetime] = None,
         created_before: Optional[datetime.datetime] = None,
         sort_by: Optional[str] = None,
@@ -3784,6 +3786,11 @@ class Client:
         :param automation_ids: Optionally only include runs of these automations.
         :param statuses: Optionally only include runs with these statuses, such as
             "pending", "running", "succeeded", or "failed".
+        :param executions: Optionally only include runs with these executions, such
+            as "pending", "running", "finished", "error", or "blocked".
+        :param results: Optionally only include runs whose agent reported these
+            results, such as "succeeded", "needs_review", "failed", or "no_result".
+            Runs without a result are never included.
         :param created_after: Optionally only include runs created at or after this
             time.
         :param created_before: Optionally only include runs created at or before
@@ -3806,6 +3813,10 @@ class Client:
                         ",".join(automation_ids) if automation_ids is not None else None
                     ),
                     "status": ",".join(statuses) if statuses is not None else None,
+                    "execution": (
+                        ",".join(executions) if executions is not None else None
+                    ),
+                    "result": ",".join(results) if results is not None else None,
                     "createdAfter": (
                         created_after.astimezone().isoformat()
                         if created_after

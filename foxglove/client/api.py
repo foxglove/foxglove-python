@@ -605,7 +605,7 @@ class Client:
         recording_key: Key of a recording to stream.
         replay_policy: Optional replay policy. "lastPerChannel" includes the most recent
             message on each channel from before ``start``, within ``replay_lookback_seconds``.
-        replay_lookback_seconds: How far before ``start`` to look for those messages.
+        replay_lookback_seconds: How far before ``start`` to look, in nonnegative whole seconds.
             Only used with ``replay_policy="lastPerChannel"``.
         """
         if topics is None:
@@ -668,8 +668,8 @@ class Client:
         :param replay_policy: Optional replay policy. "lastPerChannel" includes the most
             recent message on each channel from before ``start``, within
             ``replay_lookback_seconds``.
-        :param replay_lookback_seconds: How far before ``start`` to look for those
-            messages. Only used with ``replay_policy="lastPerChannel"``.
+        :param replay_lookback_seconds: How far before ``start`` to look, in nonnegative
+            whole seconds. Only used with ``replay_policy="lastPerChannel"``.
         """
         if id is None and key is None:
             raise RuntimeError("id or key must be provided")
@@ -708,6 +708,16 @@ class Client:
         replay_policy: Optional[str] = None,
         replay_lookback_seconds: Optional[float] = None,
     ) -> str:
+        if replay_lookback_seconds is not None:
+            if (
+                isinstance(replay_lookback_seconds, bool)
+                or replay_lookback_seconds < 0
+                or replay_lookback_seconds % 1 != 0
+            ):
+                raise ValueError(
+                    "replay_lookback_seconds must be a nonnegative whole number of seconds"
+                )
+            replay_lookback_seconds = int(replay_lookback_seconds)
         if topics is None:
             topics = []
         by_recording = recording_id is not None or recording_key is not None
@@ -822,7 +832,7 @@ class Client:
         recording_key: Key of a recording to download.
         replay_policy: Optional replay policy. "lastPerChannel" includes the most recent
             message on each channel from before ``start``, within ``replay_lookback_seconds``.
-        replay_lookback_seconds: How far before ``start`` to look for those messages.
+        replay_lookback_seconds: How far before ``start`` to look, in nonnegative whole seconds.
             Only used with ``replay_policy="lastPerChannel"``.
         """
         if topics is None:

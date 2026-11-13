@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from tempfile import TemporaryFile
 
@@ -243,6 +244,9 @@ def test_download_recording_data_by_key_with_range_and_replay(lookback):
     )
 
     assert data == b"mcap"
+
+    body = json.loads(responses.calls[0].request.body)
+    assert type(body["replayLookbackSeconds"]) is int
 
 
 @responses.activate

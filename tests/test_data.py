@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from tempfile import TemporaryFile
 
 import responses
+import pytest
 from faker import Faker
 from foxglove.client import Client, CompressionFormat
 from responses.matchers import json_params_matcher
@@ -202,8 +203,9 @@ def test_download_recording_data():
     assert data == response_data
 
 
+@pytest.mark.parametrize("lookback", [0, 30.0, 0.06, 0.000000015])
 @responses.activate
-def test_download_recording_data_by_key_with_range_and_replay():
+def test_download_recording_data_by_key_with_range_and_replay(lookback):
     download_link = fake.url()
     start = datetime(2026, 1, 1, tzinfo=timezone.utc)
     end = datetime(2026, 1, 2, tzinfo=timezone.utc)
@@ -221,7 +223,7 @@ def test_download_recording_data_by_key_with_range_and_replay():
                     "end": end.astimezone().isoformat(),
                     "compressionFormat": "zstd",
                     "replayPolicy": "lastPerChannel",
-                    "replayLookbackSeconds": 30,
+                    "replayLookbackSeconds": lookback,
                 },
                 strict_match=True,
             )
@@ -237,10 +239,22 @@ def test_download_recording_data_by_key_with_range_and_replay():
         end=end,
         compression_format=CompressionFormat.zstd,
         replay_policy="lastPerChannel",
-        replay_lookback_seconds=30,
+        replay_lookback_seconds=lookback,
     )
 
     assert data == b"mcap"
+
+
+@pytest.mark.parametrize("lookback", [-1, float("nan"), float("inf"), True])
+@responses.activate
+def test_download_rejects_invalid_replay_lookback_before_request(lookback):
+    with pytest.raises(
+        ValueError, match="replay_lookback_seconds must be finite and >= 0"
+    ):
+        Client("test").download_recording_data(
+            id="rec_1", replay_lookback_seconds=lookback
+        )
+    assert len(responses.calls) == 0
 
 
 @responses.activate

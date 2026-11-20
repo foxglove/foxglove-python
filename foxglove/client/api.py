@@ -168,10 +168,12 @@ class ProgressBufferReader(IO[Any]):
         return self.__progress
 
 
-def json_or_raise(response: requests.Response):
+def json_or_raise(
+    response: requests.Response, *, include_service_unavailable_message: bool = False
+):
     """
     Returns parsed JSON response, or raises if API returned an error.
-    For client errors (4xx), the server message is included.
+    Includes the server message for client errors and, when requested, HTTP 503.
     """
     try:
         json = response.json()
@@ -182,6 +184,10 @@ def json_or_raise(response: requests.Response):
 
     if 400 <= response.status_code < 500 and isinstance(json, dict):
         response.reason = json.get("error", response.reason)
+    elif include_service_unavailable_message and response.status_code == 503:
+        message = json.get("error") if isinstance(json, dict) else None
+        if isinstance(message, str) and message:
+            response.reason = message
 
     response.raise_for_status()
 
@@ -2556,6 +2562,8 @@ class Client:
             its device that overlap it; later edits to the event or new imports do not change
             the episode. ``properties`` keys must be episode custom properties defined for your
             organization, with values of the matching type; multi-enum values are lists.
+        :raises requests.HTTPError: HTTP 402 means payment or additional credits are required.
+            HTTP 503 means the service is temporarily unavailable and the request may be retried.
         """
         serialized = []
         for index, episode in enumerate(episodes):
@@ -2589,7 +2597,9 @@ class Client:
             self.__url__("/v1/episodes"),
             json={"projectId": project_id, "episodes": serialized},
         )
-        return json_or_raise(response)["episodes"]
+        return json_or_raise(response, include_service_unavailable_message=True)[
+            "episodes"
+        ]
 
     def update_episodes(self, *, episodes: List[Dict[str, Any]]):
         """Update episodes in one transaction and return each episode's resulting version.

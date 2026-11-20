@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import requests
 import responses
 from responses.matchers import json_params_matcher, query_param_matcher
 from foxglove.client import Client
@@ -70,6 +71,47 @@ def test_create_episodes_serializes_inputs():
             }
         ],
     }
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (
+            402,
+            {
+                "error": "Payment is required to create more episodes.",
+                "code": "CreditsExhausted",
+            },
+        ),
+        (
+            503,
+            {
+                "error": "Infrastructure credit availability could not be determined. Please retry."
+            },
+        ),
+        (
+            429,
+            {
+                "error": "Episode creation limit reached.",
+                "code": "EpisodeCreationLimitExceeded",
+            },
+        ),
+    ],
+)
+@responses.activate
+def test_create_episodes_surfaces_billing_errors(status, body):
+    responses.add(responses.POST, api_url("/v1/episodes"), status=status, json=body)
+
+    with pytest.raises(requests.HTTPError) as raised:
+        Client("test").create_episodes(
+            project_id="prj_1", episodes=[{"recordings": ["rec_1"]}]
+        )
+
+    assert raised.value.response is not None
+    assert raised.value.response.status_code == status
+    assert raised.value.response.json() == body
+    assert body["error"] in str(raised.value)
+    assert len(responses.calls) == 1
 
 
 @responses.activate

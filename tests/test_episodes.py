@@ -83,7 +83,12 @@ def test_create_episodes_serializes_inputs():
                 "code": "CreditsExhausted",
             },
         ),
-        (503, {"error": "Unable to check episode creation credits. Please retry."}),
+        (
+            503,
+            {
+                "error": "Infrastructure credit availability could not be determined. Please retry."
+            },
+        ),
         (
             429,
             {
